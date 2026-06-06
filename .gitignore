@@ -1,0 +1,20 @@
+# Nuxt
+.nuxt
+.output
+dist
+
+# Dependencies
+node_modules
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# Local env
+.env
+.env.*
+!.env.example
+/_scratch.md

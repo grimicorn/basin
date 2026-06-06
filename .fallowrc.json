@@ -1,0 +1,11 @@
+{
+  "entry": ["app/app.vue"],
+  "duplicates": {
+    "minOccurrences": 3,
+    "ignore": ["*.test.*"]
+  },
+  "ignoreDependencies": ["vue", "nuxt"],
+  "rules": {
+    "unused-dependencies": "warn"
+  }
+}

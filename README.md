@@ -4,7 +4,7 @@ All your content feeds — RSS, podcasts, YouTube, X, and Instagram — in one q
 
 ## Requirements
 
-- Node.js >= 22 (see [.nvmrc](.nvmrc))
+- Node.js >= 24 (see [.nvmrc](.nvmrc))
 - npm
 
 ## Setup

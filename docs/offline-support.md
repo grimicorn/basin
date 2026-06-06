@@ -1,5 +1,7 @@
 # Offline-First Reader App: Drizzle + PGlite + Neon
 
+See docs/offline-sync-queue.md for DB table info
+
 A layered offline strategy for a Nuxt reader app (RSS, Podcasts, YouTube) using a shared
 Drizzle schema across client (PGlite) and server (Neon).
 

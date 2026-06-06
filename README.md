@@ -4,7 +4,7 @@ A personal content feed aggregator built with Nuxt 4, Vue.js, and Tailwind CSS. 
 
 ## Requirements
 
-- Node.js >= 24 (see [.nvmrc](.nvmrc))
+- Node.js >= 22 (see [.nvmrc](.nvmrc))
 - npm
 
 ## Setup

@@ -22,8 +22,11 @@ globalThis.useRouter = vi.fn(() => ({
 }));
 globalThis.definePageMeta = vi.fn();
 
-// Global stubs for Nuxt built-in components and Vue Transition
+// Global stubs — covers Nuxt built-ins, Vue Transition, and every app
+// component that Nuxt auto-imports. Registering them here lets Vue resolve
+// the names cleanly instead of emitting "Failed to resolve component" warnings.
 config.global.stubs = {
+  // Nuxt built-ins
   NuxtLink: {
     props: ["to"],
     template: '<a :href="to"><slot /></a>',
@@ -38,4 +41,20 @@ config.global.stubs = {
   Transition: {
     template: "<div><slot /></div>",
   },
+  // App components (Nuxt auto-imports) — true renders as <component-stub>
+  RIcon: true,
+  RLogo: true,
+  AppHeader: true,
+  AppToast: true,
+  SearchOverlay: true,
+  ReaderDetail: true,
+  SourceTag: true,
+  CardActions: true,
+  SkeletonCard: true,
+  FeedItem: true,
+  ArticleCard: true,
+  VideoCard: true,
+  PodcastCard: true,
+  TweetCard: true,
+  PhotoCard: true,
 };

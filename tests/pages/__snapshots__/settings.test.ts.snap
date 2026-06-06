@@ -11,9 +11,9 @@ exports[`settings page > matches snapshot (empty state) 1`] = `
         <p class="desc"> Paste any feed URL — Reader auto-detects whether it's an article feed or a podcast. </p>
         <div class="add-feed">
           <div class="field">
-            <ricon name="rss" size="16"></ricon><input placeholder="https://example.com/feed.xml">
+            <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com/feed.xml">
           </div><button class="btn btn-primary">
-            <ricon name="plus" size="16"></ricon> Add feed
+            <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
           </button>
         </div>
         <div class="feed-list"></div>

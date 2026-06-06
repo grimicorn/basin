@@ -5,35 +5,35 @@ exports[`login page > matches snapshot 1`] = `
   <aside class="auth-aside">
     <div class="glow"></div>
     <div class="brand">
-      <rlogo size="30" words=""></rlogo>
+      <r-logo-stub size="30" words=""></r-logo-stub>
     </div>
     <div class="auth-quote">
       <p> Everything you follow — articles, shows, videos, posts — arriving on one quiet, chronological page. </p>
       <div class="by"> — no algorithm, no infinite scroll, just your sources </div>
-      <div class="auth-srcs"><span class="auth-src src-rss"><ricon name="rss" size="18"></ricon></span><span class="auth-src src-podcast"><ricon name="mic" size="18"></ricon></span><span class="auth-src src-video"><ricon name="video" size="18"></ricon></span><span class="auth-src src-tweet"><ricon name="chat" size="18"></ricon></span><span class="auth-src src-photo"><ricon name="photo" size="18"></ricon></span></div>
+      <div class="auth-srcs"><span class="auth-src src-rss"><r-icon-stub name="rss" size="18"></r-icon-stub></span><span class="auth-src src-podcast"><r-icon-stub name="mic" size="18"></r-icon-stub></span><span class="auth-src src-video"><r-icon-stub name="video" size="18"></r-icon-stub></span><span class="auth-src src-tweet"><r-icon-stub name="chat" size="18"></r-icon-stub></span><span class="auth-src src-photo"><r-icon-stub name="photo" size="18"></r-icon-stub></span></div>
     </div>
   </aside>
   <div class="auth-main">
     <div class="auth-card">
-      <rlogo size="34"></rlogo>
+      <r-logo-stub size="34"></r-logo-stub>
       <h1>Welcome back</h1>
       <p class="lede">Sign in to pick up your feed where you left off.</p>
       <div class="oauth"><button class="btn">
-          <ricon name="sparkle" size="15"></ricon> Google
+          <r-icon-stub name="sparkle" size="15"></r-icon-stub> Google
         </button><button class="btn">
-          <ricon name="user" size="15"></ricon> Apple
+          <r-icon-stub name="user" size="15"></r-icon-stub> Apple
         </button></div>
       <div class="auth-sep">or with email</div>
       <div class="auth-field"><label>Email</label>
         <div class="field">
-          <ricon name="user" size="16"></ricon><input type="email" placeholder="you@domain.com" value="reader@example.com">
+          <r-icon-stub name="user" size="16"></r-icon-stub><input type="email" placeholder="you@domain.com" value="reader@example.com">
         </div>
       </div>
       <div class="auth-field"><label>Password</label>
         <div class="field">
-          <ricon name="link" size="16"></ricon><input type="password" placeholder="••••••••" value="password">
+          <r-icon-stub name="link" size="16"></r-icon-stub><input type="password" placeholder="••••••••" value="password">
         </div>
-      </div><button class="btn btn-primary btn-block" style="margin-top: 8px;"> Sign in <ricon name="arrowRight" size="16"></ricon></button>
+      </div><button class="btn btn-primary btn-block" style="margin-top: 8px;"> Sign in <r-icon-stub name="arrowRight" size="16"></r-icon-stub></button>
       <div class="auth-foot"> New to Reader? <a>Create an account</a></div>
     </div>
   </div>

@@ -4,15 +4,15 @@ exports[`[...slug] page (404) > matches snapshot 1`] = `
 "<div class="grid min-h-screen place-items-center p-10 text-center">
   <div>
     <div class="mb-7 flex justify-center opacity-90">
-      <rlogo size="74"></rlogo>
+      <r-logo-stub size="74"></r-logo-stub>
     </div>
     <h1 class="m-0 text-[72px] leading-none font-bold tracking-tighter"> 404 </h1>
     <div class="text-ink mt-3.5 mb-1.5 text-[16px]"> This page wandered off the trail. </div>
     <p class="text-muted m-0 mb-7 text-[13px]"> The feed you're looking for moved, expired, or never existed. </p>
     <div class="flex justify-center gap-2.5"><button class="btn btn-primary">
-        <ricon name="inbox" size="16"></ricon> Back to your feed
+        <r-icon-stub name="inbox" size="16"></r-icon-stub> Back to your feed
       </button><button class="btn">
-        <ricon name="search" size="16"></ricon> Search
+        <r-icon-stub name="search" size="16"></r-icon-stub> Search
       </button></div>
   </div>
 </div>"

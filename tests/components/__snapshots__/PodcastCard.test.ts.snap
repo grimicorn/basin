@@ -4,19 +4,19 @@ exports[`PodcastCard > matches snapshot 1`] = `
 "<article class="card card-podcast">
   <div class="pod-top">
     <div class="pod-cover ph ratio-1x1" data-label="cover">
-      <ricon name="mic" size="20"></ricon>
+      <r-icon-stub name="mic" size="20"></r-icon-stub>
     </div>
     <div class="pod-main">
       <div class="card-head">
-        <sourcetag item="[object Object]"></sourcetag>
-        <cardactions item="[object Object]"></cardactions>
+        <source-tag-stub item="[object Object]"></source-tag-stub>
+        <card-actions-stub item="[object Object]"></card-actions-stub>
       </div>
       <h3 class="card-title">Test Episode Title</h3>
       <p class="card-excerpt sm">Episode excerpt.</p>
     </div>
   </div>
   <div class="pod-player"><button class="pod-play" title="Play episode">
-      <ricon name="play" size="15"></ricon>
+      <r-icon-stub name="play" size="15"></r-icon-stub>
     </button>
     <div class="pod-bar"><i style="width: 30%;"></i></div><span class="pod-dur">30% · 45:00</span>
   </div>

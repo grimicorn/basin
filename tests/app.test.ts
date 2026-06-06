@@ -10,11 +10,10 @@ describe("App", () => {
 
   it("includes overlay components", () => {
     const wrapper = shallowMount(App);
-    // App renders global overlays (stubbed by shallowMount)
     const html = wrapper.html();
-    expect(html).toContain("searchoverlay");
-    expect(html).toContain("readerdetail");
-    expect(html).toContain("apptoast");
+    expect(html).toContain("search-overlay-stub");
+    expect(html).toContain("reader-detail-stub");
+    expect(html).toContain("app-toast-stub");
   });
 
   it("matches snapshot", () => {

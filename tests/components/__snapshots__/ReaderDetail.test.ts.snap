@@ -6,17 +6,17 @@ exports[`ReaderDetail > matches snapshot (with active article) 1`] = `
 "<div class="detail-scrim">
   <div class="detail-sheet">
     <div class="detail-head">
-      <sourcetag item="[object Object]"></sourcetag>
+      <source-tag-stub item="[object Object]"></source-tag-stub>
       <div class="ml-auto flex items-center gap-0.5"><button class="icon-btn" title="Previous (←)">
-          <ricon name="chevRight" size="16" style="transform: rotate(180deg);"></ricon>
+          <r-icon-stub name="chevRight" size="16" style="transform: rotate(180deg);"></r-icon-stub>
         </button><button class="icon-btn" title="Next (→)">
-          <ricon name="chevRight" size="16"></ricon>
+          <r-icon-stub name="chevRight" size="16"></r-icon-stub>
         </button><span class="bg-border mx-1 h-5 w-px"></span><button class="icon-btn" title="Save for later">
-          <ricon name="bookmark" size="16"></ricon>
+          <r-icon-stub name="bookmark" size="16"></r-icon-stub>
         </button><button class="icon-btn" title="Open original">
-          <ricon name="external" size="16"></ricon>
+          <r-icon-stub name="external" size="16"></r-icon-stub>
         </button><button class="icon-btn" title="Close (esc)">
-          <ricon name="x" size="18"></ricon>
+          <r-icon-stub name="x" size="18"></r-icon-stub>
         </button></div>
     </div>
     <div class="detail-body">
@@ -30,7 +30,7 @@ exports[`ReaderDetail > matches snapshot (with active article) 1`] = `
           <p>First paragraph.</p>
           <p>Second paragraph.</p>
         </div><button class="btn mt-8">
-          <ricon name="external" size="15"></ricon> Open original
+          <r-icon-stub name="external" size="15"></r-icon-stub> Open original
         </button>
       </article>
     </div>

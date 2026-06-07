@@ -14,7 +14,9 @@ exports[`AppHeader > matches snapshot 1`] = `
         <r-icon-stub name="bell" size="18"></r-icon-stub>
       </button><button class="icon-btn" title="Theme: system">
         <r-icon-stub name="monitor" size="18"></r-icon-stub>
-      </button><a href="/settings" class="avatar-btn" title="Account">JR</a></div>
+      </button><a href="/settings" title="Account">
+        <avatar-button-stub></avatar-button-stub>
+      </a></div>
   </div>
 </header>"
 `;

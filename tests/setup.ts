@@ -26,8 +26,15 @@ globalThis.definePageMeta = vi.fn();
 globalThis.defineNuxtRouteMiddleware = (fn: Function) => fn;
 globalThis.defineEventHandler = (fn: Function) => fn;
 
+// Vue composition API — mirrors Nuxt's auto-import so components can use
+// ref/computed/watch/etc. without explicit imports.
+import { ref, computed, watch, onMounted } from "vue";
+globalThis.ref = ref;
+globalThis.computed = computed;
+globalThis.watch = watch;
+globalThis.onMounted = onMounted;
+
 // Clerk composable stubs
-import { ref, computed } from "vue";
 const mockClerkUser = ref({
   firstName: "Demo",
   lastName: "User",

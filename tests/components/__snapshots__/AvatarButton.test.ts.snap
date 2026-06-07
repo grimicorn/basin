@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AvatarButton > renders avatar image when user hasImage 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8"><img data-v-c5cff849="" src="https://example.com/avatar.jpg" alt="Demo User Avatar"></span>"`;
+
+exports[`AvatarButton > renders initials when user has no image 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8">DU</span>"`;
+
+exports[`AvatarButton > renders nothing when no user is signed in 1`] = `"<!--v-if-->"`;
+
+exports[`AvatarButton > shows '?' when user has no first or last name 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8">?</span>"`;

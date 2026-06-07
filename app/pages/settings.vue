@@ -1,6 +1,7 @@
 <script setup>
 import { useAppearance, useFeed } from "#imports";
-import { ref, reactive, computed } from "vue";
+import { ref, reactive } from "vue";
+import AvatarButton from "~/components/AvatarButton.vue";
 
 const { state, addFeed, removeFeed, toggleConn } = useFeed();
 const { state: appearance, accentList } = useAppearance();
@@ -10,17 +11,6 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
 
 const { user } = useUser();
 const clerk = useClerk();
-
-const initials = computed(() => {
-  const u = user.value;
-  if (!u) return "?";
-  return (
-    [u.firstName, u.lastName]
-      .filter(Boolean)
-      .map((n) => n[0].toUpperCase())
-      .join("") || "?"
-  );
-});
 
 function handleSignOut() {
   clerk.value?.signOut({ redirectUrl: "/login" });
@@ -308,11 +298,7 @@ function handleSignOut() {
           <h2>Account</h2>
           <p class="desc">Manage your Reader account.</p>
           <div class="conn">
-            <span
-              class="avatar-btn"
-              style="width: 46px; height: 46px; font-size: 15px"
-              >{{ initials }}</span
-            >
+            <AvatarButton class="h-12 w-12" />
             <div class="conn-info">
               <div class="conn-name">{{ user?.fullName }}</div>
               <div class="conn-desc">

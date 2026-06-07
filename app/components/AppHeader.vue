@@ -1,4 +1,5 @@
 <script setup>
+import AvatarButton from "~/components/AvatarButton.vue";
 const route = useRoute();
 const { unreadCount, refresh } = useFeed();
 const { state: appearance, themeIcon, cycleTheme } = useAppearance();
@@ -42,9 +43,9 @@ const { openSearch } = useSearch();
         >
           <RIcon :name="themeIcon()" :size="18" />
         </button>
-        <NuxtLink to="/settings" class="avatar-btn" title="Account"
-          >JR</NuxtLink
-        >
+        <NuxtLink to="/settings" title="Account">
+          <AvatarButton />
+        </NuxtLink>
       </div>
     </div>
   </header>
@@ -200,20 +201,6 @@ const { openSearch } = useSearch();
 }
 .search-trigger .st-label {
   margin-right: auto;
-}
-.avatar-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  flex: none;
-  cursor: pointer;
-  border: 1px solid var(--border-strong);
-  background: var(--accent-soft);
-  color: var(--accent-soft-ink);
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 @media (max-width: 720px) {

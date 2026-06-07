@@ -33,6 +33,7 @@ const nuxtGlobals = {
   useToast: "readonly",
   useClientDb: "readonly",
   useSyncQueue: "readonly",
+  useFeeds: "readonly",
 };
 
 // Nitro / H3 globals — server-only auto-imports
@@ -41,6 +42,7 @@ const nitroGlobals = {
   createError: "readonly",
   readBody: "readonly",
   getHeader: "readonly",
+  getRouterParam: "readonly",
   // server/utils auto-imports
   useDb: "readonly",
   getOrCreateUser: "readonly",

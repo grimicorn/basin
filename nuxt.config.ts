@@ -8,6 +8,9 @@ const mainCss = fileURLToPath(
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   modules: ["@clerk/nuxt"],
+  clerk: {
+    skipServerMiddleware: true,
+  },
   runtimeConfig: {
     databaseUrl: "",
   },

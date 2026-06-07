@@ -1,5 +1,10 @@
 <script setup>
-const { state, addFeed, removeFeed } = useFeed();
+const { items, newUrl, loading, error, add, remove, load } = useFeeds();
+onMounted(load);
+
+function sourceColor(source) {
+  return source === "podcast" ? "var(--src-podcast)" : "var(--src-rss)";
+}
 </script>
 
 <template>
@@ -9,36 +14,39 @@ const { state, addFeed, removeFeed } = useFeed();
       Paste any feed URL — Reader auto-detects whether it's an article feed or a
       podcast.
     </p>
+
+    <p v-if="error" class="desc feed-error">{{ error }}</p>
+
     <div class="add-feed">
       <div class="field">
         <RIcon name="rss" :size="16" />
         <input
-          v-model="state.newFeedUrl"
+          v-model="newUrl"
           placeholder="https://example.com/feed.xml"
-          @keyup.enter="addFeed"
+          :disabled="loading"
+          @keyup.enter="add"
         />
       </div>
-      <button class="btn btn-primary" @click="addFeed">
+      <button class="btn btn-primary" :disabled="loading" @click="add">
         <RIcon name="plus" :size="16" /> Add feed
       </button>
     </div>
+
     <div class="feed-list">
-      <div v-for="fd in state.feeds" :key="fd.id" class="feed-row">
-        <span class="feed-ic" :style="{ '--c': fd.color }">
-          <RIcon :name="fd.type === 'podcast' ? 'mic' : 'rss'" :size="16" />
+      <div v-for="fd in items" :key="fd.id" class="feed-row">
+        <span class="feed-ic" :style="{ '--c': sourceColor(fd.source) }">
+          <RIcon :name="fd.source === 'podcast' ? 'mic' : 'rss'" :size="16" />
         </span>
         <div class="feed-info">
-          <div class="feed-name">{{ fd.name }}</div>
+          <div class="feed-name">{{ fd.title ?? fd.url }}</div>
           <div class="feed-url">{{ fd.url }}</div>
         </div>
-        <span v-if="fd.status === 'error'" class="feed-stat error"
-          >fetch failed</span
-        >
-        <span v-else class="feed-stat count">{{ fd.count }} new</span>
-        <button class="icon-btn" title="Remove" @click="removeFeed(fd.id)">
+        <button class="icon-btn" title="Remove" @click="remove(fd.id)">
           <RIcon name="trash" :size="16" />
         </button>
       </div>
+      <p v-if="loading && !items.length" class="desc">Loading…</p>
+      <p v-else-if="!items.length" class="desc">No feeds added yet.</p>
     </div>
   </section>
 </template>

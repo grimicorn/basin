@@ -26,6 +26,17 @@ globalThis.definePageMeta = vi.fn();
 globalThis.defineNuxtRouteMiddleware = (fn: Function) => fn;
 globalThis.defineEventHandler = (fn: Function) => fn;
 
+// H3 / Nitro server globals used by API handlers under test
+globalThis.createError = ({
+  statusCode,
+  statusMessage,
+}: {
+  statusCode: number;
+  statusMessage: string;
+}) => Object.assign(new Error(statusMessage), { statusCode });
+globalThis.readBody = (event: any) => Promise.resolve(event.body ?? {});
+globalThis.getRouterParam = (event: any, name: string) => event.params?.[name];
+
 // Vue composition API — mirrors Nuxt's auto-import so components can use
 // ref/computed/watch/etc. without explicit imports.
 import { ref, computed, watch, onMounted } from "vue";
@@ -44,7 +55,10 @@ const mockClerkUser = ref({
 });
 globalThis.useUser = () => ({ user: computed(() => mockClerkUser.value) });
 globalThis.useClerk = () => ({ signOut: vi.fn() });
-globalThis.useAuth = vi.fn(() => ({ isSignedIn: ref(false) }));
+globalThis.useAuth = vi.fn(() => ({
+  isSignedIn: ref(false),
+  getToken: { value: vi.fn().mockResolvedValue(null) },
+}));
 
 // Global stubs — covers Nuxt built-ins, Vue Transition, and every app
 // component that Nuxt auto-imports. Registering them here lets Vue resolve

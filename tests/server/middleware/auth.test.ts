@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+// clerkMiddleware runs Clerk auth then calls our handler — stub it as a pass-through
+// so we can test our handler in isolation with a pre-populated event.context.auth.
+vi.mock("@clerk/nuxt/server", () => ({
+  clerkMiddleware: (handler: Function) => handler,
+}));
+
 const mockGetOrCreateUser = vi.fn();
 vi.stubGlobal("getOrCreateUser", mockGetOrCreateUser);
 
@@ -19,12 +25,6 @@ describe("server/middleware/auth", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-  });
-
-  it("skips getOrCreateUser when auth is not yet set by Clerk's middleware", async () => {
-    const event = { context: {} };
-    await serverAuthMiddleware(event as any);
-    expect(mockGetOrCreateUser).not.toHaveBeenCalled();
   });
 
   it("skips getOrCreateUser when there is no authenticated userId", async () => {

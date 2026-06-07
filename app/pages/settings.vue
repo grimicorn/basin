@@ -89,6 +89,9 @@ const settingsTab = ref("feeds");
   color: var(--muted);
   margin: 0 0 20px;
 }
+.feed-error {
+  color: var(--src-video);
+}
 
 .add-feed {
   display: flex;

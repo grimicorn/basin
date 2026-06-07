@@ -1,10 +1,7 @@
-export default defineEventHandler(async (event) => {
-  // event.context.auth is set by @clerk/nuxt's own middleware.
-  // Guard in case our middleware runs before Clerk's on some requests.
-  if (typeof event.context.auth !== "function") return;
+import { clerkMiddleware } from "@clerk/nuxt/server";
 
+export default clerkMiddleware(async (event) => {
   const { userId } = event.context.auth();
   if (!userId) return;
-
   event.context.user = await getOrCreateUser(userId);
 });

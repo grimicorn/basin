@@ -1,4 +1,3 @@
-import { eq, and } from "drizzle-orm";
 import { integrations } from "../../../db/schema";
 
 export default defineEventHandler(async (event) => {

@@ -1,38 +1,21 @@
-<script setup>
-const settingsTab = ref("feeds");
-</script>
-
 <template>
   <main class="wrap">
     <div class="settings">
       <nav class="set-nav">
-        <a
-          :class="{ active: settingsTab === 'feeds' }"
-          @click="settingsTab = 'feeds'"
-          >Feeds</a
+        <NuxtLink to="/settings/feeds" active-class="active">Feeds</NuxtLink>
+        <NuxtLink to="/settings/connections" active-class="active"
+          >Connections</NuxtLink
         >
-        <a
-          :class="{ active: settingsTab === 'connections' }"
-          @click="settingsTab = 'connections'"
-          >Connections</a
+        <NuxtLink to="/settings/reading" active-class="active"
+          >Reading</NuxtLink
         >
-        <a
-          :class="{ active: settingsTab === 'reading' }"
-          @click="settingsTab = 'reading'"
-          >Reading</a
-        >
-        <a
-          :class="{ active: settingsTab === 'account' }"
-          @click="settingsTab = 'account'"
-          >Account</a
+        <NuxtLink to="/settings/account" active-class="active"
+          >Account</NuxtLink
         >
       </nav>
 
       <div class="set-main">
-        <SettingsFeeds v-if="settingsTab === 'feeds'" />
-        <SettingsConnections v-else-if="settingsTab === 'connections'" />
-        <SettingsReading v-else-if="settingsTab === 'reading'" />
-        <SettingsAccount v-else />
+        <NuxtPage />
       </div>
     </div>
   </main>

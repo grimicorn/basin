@@ -1,11 +1,11 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`settings page > matches snapshot (empty state) 1`] = `
+exports[`settings page > matches snapshot 1`] = `
 "<main class="wrap">
   <div class="settings">
-    <nav class="set-nav"><a class="active">Feeds</a><a class="">Connections</a><a class="">Reading</a><a class="">Account</a></nav>
+    <nav class="set-nav"><a href="/settings/feeds" active-class="active">Feeds</a><a href="/settings/connections" active-class="active">Connections</a><a href="/settings/reading" active-class="active">Reading</a><a href="/settings/account" active-class="active">Account</a></nav>
     <div class="set-main">
-      <settings-feeds-stub></settings-feeds-stub>
+      <div></div>
     </div>
   </div>
 </main>"

@@ -100,4 +100,7 @@ config.global.stubs = {
   SettingsConnections: true,
   SettingsReading: true,
   SettingsAccount: true,
+  // Clerk components
+  SignIn: true,
+  SignUp: true,
 };

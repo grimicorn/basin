@@ -1,5 +1,5 @@
 {
-  "entry": ["app/app.vue"],
+  "entry": ["app/app.vue", "server/**/*.ts", "tests/__mocks__/**"],
   "duplicates": {
     "minOccurrences": 3,
     "ignore": ["*.test.*"]

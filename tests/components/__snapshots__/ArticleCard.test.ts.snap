@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ArticleCard > matches snapshot 1`] = `
+"<article class="card card-article unread">
+  <div class="card-head">
+    <source-tag-stub item="[object Object]"></source-tag-stub>
+    <card-actions-stub item="[object Object]"></card-actions-stub>
+  </div>
+  <h3 class="card-title">Test Article Title</h3>
+  <p class="card-excerpt">A brief excerpt of the article content.</p>
+  <div class="card-foot"><span class="card-meta">5 min read</span>
+    <div class="chips"><span class="chip">#design</span><span class="chip">#web</span></div>
+  </div>
+</article>"
+`;

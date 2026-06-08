@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`App > matches snapshot 1`] = `
+"<div>
+  <div>
+    <div></div>
+  </div><!-- app-wide overlays -->
+  <search-overlay-stub></search-overlay-stub>
+  <reader-detail-stub></reader-detail-stub>
+  <app-toast-stub></app-toast-stub>
+</div>"
+`;

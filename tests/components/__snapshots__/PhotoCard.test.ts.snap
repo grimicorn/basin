@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PhotoCard > matches snapshot 1`] = `
+"<article class="card card-photo">
+  <div class="ph ratio-photo" data-label="https://example.com/photo.jpg"><span class="photo-badge src-photo"><r-icon-stub name="photo" size="12"></r-icon-stub> Instagram</span></div>
+  <div class="photo-cap">
+    <div class="card-head tight">
+      <source-tag-stub item="[object Object]"></source-tag-stub>
+      <card-actions-stub item="[object Object]"></card-actions-stub>
+    </div>
+    <p class="photo-text">A beautiful test photo caption.</p><span class="card-meta">234 likes</span>
+  </div>
+</article>"
+`;

@@ -1,0 +1,48 @@
+import { describe, it, expect } from "vitest";
+import { shallowMount } from "@vue/test-utils";
+import ArticleCard from "~/components/ArticleCard.vue";
+import { makeArticle } from "../fixtures";
+
+describe("ArticleCard", () => {
+  const item = makeArticle();
+
+  it("renders title and excerpt", () => {
+    const wrapper = shallowMount(ArticleCard, { props: { item } });
+    expect(wrapper.find(".card-title").text()).toBe(item.title);
+    expect(wrapper.find(".card-excerpt").text()).toBe(item.excerpt);
+  });
+
+  it("applies unread class when item is unread", () => {
+    const wrapper = shallowMount(ArticleCard, {
+      props: { item: makeArticle({ unread: true }) },
+    });
+    expect(wrapper.find("article").classes()).toContain("unread");
+  });
+
+  it("does not apply unread class when item is read", () => {
+    const wrapper = shallowMount(ArticleCard, {
+      props: { item: makeArticle({ unread: false }) },
+    });
+    expect(wrapper.find("article").classes()).not.toContain("unread");
+  });
+
+  it("renders tags as chips", () => {
+    const wrapper = shallowMount(ArticleCard, {
+      props: { item: makeArticle({ tags: ["vue", "testing"] }) },
+    });
+    const chips = wrapper.findAll(".chip");
+    expect(chips).toHaveLength(2);
+    expect(chips[0].text()).toBe("#vue");
+  });
+
+  it("emits open on click", async () => {
+    const wrapper = shallowMount(ArticleCard, { props: { item } });
+    await wrapper.find("article").trigger("click");
+    expect(wrapper.emitted("open")).toHaveLength(1);
+  });
+
+  it("matches snapshot", () => {
+    const wrapper = shallowMount(ArticleCard, { props: { item } });
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+});

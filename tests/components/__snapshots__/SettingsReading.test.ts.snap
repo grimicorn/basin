@@ -1,0 +1,67 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SettingsReading > matches snapshot (default state) 1`] = `
+"<section class="set-section">
+  <h2>Reading preferences</h2>
+  <p class="desc"> Appearance and behavior for your feed. Saved to this browser. </p>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Theme</div>
+      <div class="sub">System follows your device's appearance</div>
+    </div>
+    <div class="seg"><button class="active">
+        <r-icon-stub name="monitor" size="14"></r-icon-stub> System
+      </button><button class="">
+        <r-icon-stub name="sun" size="14"></r-icon-stub> Light
+      </button><button class="">
+        <r-icon-stub name="moon" size="14"></r-icon-stub> Dark
+      </button></div>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Accent color</div>
+      <div class="sub">Used for highlights, links &amp; unread marks</div>
+    </div>
+    <div class="flex gap-2"><span class="twk-sw on" title="violet"></span><span class="twk-sw" title="blue"></span><span class="twk-sw" title="teal"></span><span class="twk-sw" title="amber"></span><span class="twk-sw" title="rose"></span></div>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Reading font</div>
+      <div class="sub">Body type for articles, posts &amp; captions</div>
+    </div>
+    <div class="seg"><button class="active"> Mono </button><button class=""> Serif </button></div>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Spacing</div>
+      <div class="sub">Density of cards in the feed</div>
+    </div>
+    <div class="seg"><button class=""> Compact </button><button class="active"> Cozy </button><button class=""> Roomy </button></div>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Show unread only</div>
+      <div class="sub">Hide items you've already opened</div>
+    </div><button class="toggle"></button>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Autoplay media previews</div>
+      <div class="sub">Play video &amp; audio on hover</div>
+    </div><button class="toggle"></button>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Compact notifications</div>
+      <div class="sub">Batch new items into a daily digest</div>
+    </div><button class="toggle on"></button>
+  </div>
+  <div class="set-pref-row">
+    <div>
+      <div class="lbl">Default layout</div>
+      <div class="sub">How your feed opens</div>
+    </div>
+    <div class="seg"><button class="active"> Timeline </button><button class=""> Grid </button><button class=""> Columns </button></div>
+  </div>
+</section>"
+`;

@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CardActions > matches snapshot (saved) 1`] = `
+"<div class="card-actions"><button class="icon-btn on" title="Saved">
+    <r-icon-stub name="bookmarkFill" size="16"></r-icon-stub>
+  </button><button class="icon-btn" title="Open">
+    <r-icon-stub name="external" size="16"></r-icon-stub>
+  </button></div>"
+`;
+
+exports[`CardActions > matches snapshot (unsaved) 1`] = `
+"<div class="card-actions"><button class="icon-btn" title="Save for later">
+    <r-icon-stub name="bookmark" size="16"></r-icon-stub>
+  </button><button class="icon-btn" title="Open">
+    <r-icon-stub name="external" size="16"></r-icon-stub>
+  </button></div>"
+`;

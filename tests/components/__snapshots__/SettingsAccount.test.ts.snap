@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SettingsAccount > matches snapshot 1`] = `
+"<section class="set-section">
+  <h2>Account</h2>
+  <p class="desc">Manage your Reader account.</p>
+  <div class="conn">
+    <avatar-button-stub class="h-12 w-12"></avatar-button-stub>
+    <div class="conn-info">
+      <div class="conn-name">Demo User</div>
+      <div class="conn-desc">demo@example.com</div>
+      <div class="conn-since"> Free plan · 12 items today </div>
+    </div><button class="btn">
+      <r-icon-stub name="logout" size="16"></r-icon-stub> Sign out
+    </button>
+  </div>
+</section>"
+`;

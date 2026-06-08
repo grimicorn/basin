@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`VideoCard > matches snapshot 1`] = `
+"<article class="card card-video">
+  <div class="thumb ph ratio-16x9" data-label="https://example.com/thumb.jpg"><span class="thumb-play"><r-icon-stub name="play" size="22"></r-icon-stub></span><span class="thumb-dur">12:34</span></div>
+  <div class="card-body">
+    <div class="card-head">
+      <source-tag-stub item="[object Object]"></source-tag-stub>
+      <card-actions-stub item="[object Object]"></card-actions-stub>
+    </div>
+    <h3 class="card-title">Test Video Title</h3><span class="card-meta">10K views</span>
+  </div>
+</article>"
+`;

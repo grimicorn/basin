@@ -14,6 +14,7 @@ const nuxtGlobals = {
   useRoute: "readonly",
   useRouter: "readonly",
   useFetch: "readonly",
+  $fetch: "readonly",
   useAsyncData: "readonly",
   useState: "readonly",
   navigateTo: "readonly",
@@ -21,18 +22,59 @@ const nuxtGlobals = {
   computed: "readonly",
   watch: "readonly",
   onMounted: "readonly",
+  // Clerk (@clerk/nuxt auto-imports)
+  useAuth: "readonly",
+  useUser: "readonly",
+  useClerk: "readonly",
+  // project composables (Nuxt auto-imports)
+  useAppearance: "readonly",
+  useFeed: "readonly",
+  useSearch: "readonly",
+  useToast: "readonly",
+  useClientDb: "readonly",
+  useSyncQueue: "readonly",
+  useFeeds: "readonly",
+  useConnections: "readonly",
+};
+
+// Nitro / H3 globals — server-only auto-imports
+const nitroGlobals = {
+  defineEventHandler: "readonly",
+  createError: "readonly",
+  readBody: "readonly",
+  getHeader: "readonly",
+  getRouterParam: "readonly",
+  getCookie: "readonly",
+  setCookie: "readonly",
+  deleteCookie: "readonly",
+  sendRedirect: "readonly",
+  getQuery: "readonly",
+  getRequestURL: "readonly",
+  // server/utils auto-imports
+  useDb: "readonly",
+  getOrCreateUser: "readonly",
+  buildYouTubeAuthUrl: "readonly",
+  exchangeCodeForTokens: "readonly",
+  getYouTubeChannelHandle: "readonly",
 };
 
 export default [
   {
-    ignores: [".nuxt/**", ".output/**", "dist/**", "node_modules/**"],
+    ignores: [
+      ".nuxt/**",
+      ".netlify/**",
+      ".output/**",
+      "dist/**",
+      "node_modules/**",
+    ],
   },
   eslint.configs.recommended,
   ...pluginVue.configs["flat/recommended"],
   {
-    files: ["**/*.ts", "**/*.vue"],
+    files: ["**/*.js", "**/*.ts", "**/*.vue"],
     languageOptions: {
       parserOptions: {
+        // Tells eslint-plugin-vue to use TS parser for <script> blocks
         parser: tsParser,
         extraFileExtensions: [".vue"],
       },
@@ -48,6 +90,31 @@ export default [
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "vue/html-self-closing": "off",
+    },
+  },
+  {
+    // Standalone .ts files need the TS parser set directly.
+    // .vue files must NOT be included here — they use eslint-plugin-vue's own parser.
+    files: ["**/*.ts"],
+    languageOptions: {
+      parser: tsParser,
+    },
+  },
+  {
+    // Nitro server files: add H3/Nitro auto-imports and allow module-augmentation
+    // interface names that ESLint incorrectly flags as unused (e.g. H3EventContext).
+    files: ["server/**/*.ts"],
+    languageOptions: {
+      globals: nitroGlobals,
+    },
+    rules: {
+      "no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_|^[A-Z][a-zA-Z0-9]+Context$",
+        },
+      ],
     },
   },
   {

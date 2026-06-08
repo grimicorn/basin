@@ -1,0 +1,46 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SkeletonCard > matches snapshot for article 1`] = `
+"<div class="card sk-card sk-article">
+  <!--v-if-->
+  <div class="sk-pad">
+    <div class="sk-row">
+      <div class="sk sk-tag"></div>
+      <div class="sk sk-dot2"></div>
+    </div>
+    <div class="sk sk-line w90"></div>
+    <div class="sk sk-line w70"></div>
+    <div class="sk sk-line sm w50"></div>
+  </div>
+</div>"
+`;
+
+exports[`SkeletonCard > matches snapshot for tweet 1`] = `
+"<div class="card sk-card sk-tweet">
+  <!--v-if-->
+  <div class="sk-pad">
+    <div class="sk-row">
+      <div class="sk sk-tag"></div>
+      <div class="sk sk-dot2"></div>
+    </div>
+    <div class="sk sk-line w90"></div>
+    <div class="sk sk-line w70"></div>
+    <!--v-if-->
+  </div>
+</div>"
+`;
+
+exports[`SkeletonCard > matches snapshot for video 1`] = `
+"<div class="card sk-card sk-video">
+  <div class="sk sk-thumb"></div>
+  <div class="sk-pad">
+    <div class="sk-row">
+      <div class="sk sk-tag"></div>
+      <div class="sk sk-dot2"></div>
+    </div>
+    <div class="sk sk-line w90"></div>
+    <div class="sk sk-line w70"></div>
+    <div class="sk sk-line sm w50"></div>
+  </div>
+</div>"
+`;

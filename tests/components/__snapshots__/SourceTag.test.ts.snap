@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SourceTag > matches snapshot 1`] = `"<div class="src-tag src-rss"><span class="src-ic"><r-icon-stub name="rss" size="13"></r-icon-stub></span><span class="src-name">Test Source</span><span class="src-sep">·</span><span class="src-time">2h</span></div>"`;

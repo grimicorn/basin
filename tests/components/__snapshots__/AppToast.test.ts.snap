@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppToast > matches snapshot (hidden) 1`] = `"<div name="toast"></div>"`;
+
+exports[`AppToast > matches snapshot (visible) 1`] = `
+"<div name="toast">
+  <div class="toast">
+    <r-icon-stub name="check" size="15"></r-icon-stub> Feed added
+  </div>
+</div>"
+`;

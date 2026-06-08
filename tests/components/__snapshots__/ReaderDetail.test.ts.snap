@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ReaderDetail > matches snapshot (no active item) 1`] = `"<!--v-if-->"`;
+
+exports[`ReaderDetail > matches snapshot (with active article) 1`] = `
+"<div class="detail-scrim">
+  <div class="detail-sheet">
+    <div class="detail-head">
+      <source-tag-stub item="[object Object]"></source-tag-stub>
+      <div class="ml-auto flex items-center gap-0.5"><button class="icon-btn" title="Previous (←)">
+          <r-icon-stub name="chevRight" size="16" style="transform: rotate(180deg);"></r-icon-stub>
+        </button><button class="icon-btn" title="Next (→)">
+          <r-icon-stub name="chevRight" size="16"></r-icon-stub>
+        </button><span class="bg-border mx-1 h-5 w-px"></span><button class="icon-btn" title="Save for later">
+          <r-icon-stub name="bookmark" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Open original">
+          <r-icon-stub name="external" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Close (esc)">
+          <r-icon-stub name="x" size="18"></r-icon-stub>
+        </button></div>
+    </div>
+    <div class="detail-body">
+      <!-- loading shimmer -->
+      <!-- ARTICLE -->
+      <article class="p-7 sm:p-9">
+        <div class="mb-4 flex flex-wrap items-center gap-2"><span class="chip">#design</span><span class="chip">#web</span></div>
+        <h1 class="detail-title mb-4">Test Article Title</h1>
+        <div class="text-muted mb-7 pb-7 text-[12.5px]" style="border-bottom-width: var(--border); border-bottom-style: var(--border); border-bottom-color: var(--border);">Test Source · 5 min read · 2h ago </div>
+        <div class="detail-prose">
+          <p>First paragraph.</p>
+          <p>Second paragraph.</p>
+        </div><button class="btn mt-8">
+          <r-icon-stub name="external" size="15"></r-icon-stub> Open original
+        </button>
+      </article>
+    </div>
+  </div>
+</div>"
+`;

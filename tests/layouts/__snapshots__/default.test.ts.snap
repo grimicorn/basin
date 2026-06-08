@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`default layout > matches snapshot (loading) 1`] = `
+"<div class="app-shell">
+  <div class="topbar-progress"><i></i></div>
+  <app-header-stub></app-header-stub>
+</div>"
+`;
+
+exports[`default layout > matches snapshot (not loading) 1`] = `
+"<div class="app-shell">
+  <!--v-if-->
+  <app-header-stub></app-header-stub>
+</div>"
+`;

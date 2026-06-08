@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SettingsConnections > matches snapshot 1`] = `
+"<section class="set-section">
+  <h2>Connected accounts</h2>
+  <p class="desc"> Link YouTube, X, and Instagram to fold their timelines into your feed. </p>
+  <!--v-if-->
+  <div class="conn-grid">
+    <div class="conn"><span class="conn-ic" style="--c: var(--src-video);"><r-icon-stub name="video" size="22"></r-icon-stub></span>
+      <div class="conn-info">
+        <div class="conn-name">YouTube <span class="live"></span></div>
+        <div class="conn-desc">Subscribe to channels</div>
+        <div class="conn-since">@mychannel · Connected Jan 2024</div>
+      </div><button class="btn">Disconnect</button>
+    </div>
+    <div class="conn"><span class="conn-ic" style="--c: var(--src-video);"><r-icon-stub name="chat" size="22"></r-icon-stub></span>
+      <div class="conn-info">
+        <div class="conn-name">X / Twitter
+          <!--v-if-->
+        </div>
+        <div class="conn-desc">Subscribe to channels</div>
+        <!--v-if-->
+      </div><button class="btn btn-primary">Connect</button>
+    </div>
+  </div>
+</section>"
+`;

@@ -1,0 +1,5 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`FeedItem > matches snapshot for article 1`] = `"<article-card-stub item="[object Object]"></article-card-stub>"`;
+
+exports[`FeedItem > matches snapshot for tweet 1`] = `"<tweet-card-stub item="[object Object]"></tweet-card-stub>"`;

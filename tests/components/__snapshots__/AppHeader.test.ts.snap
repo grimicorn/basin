@@ -1,0 +1,22 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppHeader > matches snapshot 1`] = `
+"<header class="appbar">
+  <div class="wrap appbar-in"><a href="/" class="brand">
+      <r-logo-stub size="28" words=""></r-logo-stub>
+    </a>
+    <nav class="nav"><a href="/dashboard" class="">dashboard<span class="num">01</span></a><a href="/settings" class="">settings<span class="num">02</span></a></nav>
+    <div class="appbar-right"><button class="search-trigger">
+        <r-icon-stub name="search" size="16"></r-icon-stub><span class="st-label">Search everything…</span><span class="kbd">⌘K</span>
+      </button><button class="icon-btn" title="Refresh feeds">
+        <r-icon-stub name="refresh" size="18"></r-icon-stub>
+      </button><button class="icon-btn has-dot" title="Notifications">
+        <r-icon-stub name="bell" size="18"></r-icon-stub>
+      </button><button class="icon-btn" title="Theme: system">
+        <r-icon-stub name="monitor" size="18"></r-icon-stub>
+      </button><a href="/settings" title="Account">
+        <avatar-button-stub></avatar-button-stub>
+      </a></div>
+  </div>
+</header>"
+`;

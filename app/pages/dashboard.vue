@@ -1,0 +1,378 @@
+<script setup>
+import { useAppearance, useFeed } from "#imports";
+import { computed } from "vue";
+
+const f = useFeed();
+const {
+  state,
+  filterDefs,
+  unreadCount,
+  visibleItems,
+  decks,
+  skeletonKinds,
+  countFor,
+  markAllRead,
+  toggleSave,
+  openItem,
+} = f;
+const { state: appearance } = useAppearance();
+
+const connectedCount = computed(
+  () => state.connections.filter((c) => c.connected).length,
+);
+const showSkeleton = computed(
+  () =>
+    state.loading &&
+    (appearance.loadingStyle === "skeleton" ||
+      appearance.loadingStyle === "both"),
+);
+const staggerOn = computed(
+  () =>
+    appearance.loadingStyle === "fade" || appearance.loadingStyle === "both",
+);
+</script>
+
+<template>
+  <main class="wrap">
+    <div class="subbar">
+      <div class="subbar-top">
+        <div>
+          <h1 class="page-title">Your Feed</h1>
+          <p class="page-sub">
+            <b style="color: var(--ink-2)">{{ unreadCount }}</b> unread across
+            {{ state.feeds.length + connectedCount }} sources · updated just now
+          </p>
+        </div>
+        <div class="subbar-tools">
+          <button
+            class="fchip"
+            :class="{ active: state.unreadOnly }"
+            :title="
+              state.unreadOnly ? 'Showing unread only' : 'Show unread only'
+            "
+            @click="state.unreadOnly = !state.unreadOnly"
+          >
+            <span
+              class="dot"
+              :style="{
+                '--c': state.unreadOnly ? 'var(--bg)' : 'var(--accent)',
+              }"
+            ></span
+            >Unread only
+          </button>
+          <button class="btn btn-ghost" @click="markAllRead">
+            <RIcon name="checkAll" :size="16" /> Mark all read
+          </button>
+          <div class="seg">
+            <button
+              :class="{ active: state.layout === 'timeline' }"
+              title="Timeline"
+              @click="state.layout = 'timeline'"
+            >
+              <RIcon name="list" :size="16" />
+            </button>
+            <button
+              :class="{ active: state.layout === 'grid' }"
+              title="Grid"
+              @click="state.layout = 'grid'"
+            >
+              <RIcon name="grid" :size="16" />
+            </button>
+            <button
+              :class="{ active: state.layout === 'columns' }"
+              title="Columns"
+              @click="state.layout = 'columns'"
+            >
+              <RIcon name="columns" :size="16" />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="filters">
+        <button
+          v-for="fl in filterDefs"
+          :key="fl.id"
+          class="fchip"
+          :class="{ active: state.filter === fl.id }"
+          @click="state.filter = fl.id"
+        >
+          <span class="dot" :style="{ '--c': fl.c }"></span>{{ fl.label
+          }}<span class="count">{{ countFor(fl.id) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="feed" :class="'layout-' + state.layout">
+      <!-- skeleton -->
+      <div v-if="showSkeleton" class="feed-grid">
+        <SkeletonCard
+          v-for="(k, i) in skeletonKinds"
+          :key="'sk' + i"
+          :kind="k"
+        />
+      </div>
+
+      <!-- loaded -->
+      <template v-else>
+        <div v-if="!visibleItems.length" class="empty">
+          <RIcon name="inbox" :size="40" />
+          <h3>You're all caught up</h3>
+          <p>
+            Nothing left in this filter. Try another source or pull to refresh.
+          </p>
+        </div>
+
+        <!-- timeline & grid -->
+        <div
+          v-else-if="state.layout !== 'columns'"
+          class="feed-grid"
+          :class="{ 'reveal-done': state.revealDone }"
+        >
+          <FeedItem
+            v-for="(item, i) in visibleItems"
+            :key="item.id"
+            :item="item"
+            :class="staggerOn ? 'stagger' : ''"
+            :style="{ '--i': i }"
+            @save="toggleSave(item)"
+            @open="openItem(item)"
+          />
+        </div>
+
+        <!-- columns -->
+        <div v-else class="feed-cols">
+          <section v-for="d in decks" :key="d.type" class="deck">
+            <div class="deck-head">
+              <span
+                class="src-ic"
+                :class="d.meta.cls"
+                :style="{ '--c': 'var(--' + d.meta.cls + ')' }"
+                ><RIcon :name="d.meta.icon" :size="14"
+              /></span>
+              <span class="deck-title">{{ d.meta.label }}</span>
+              <span class="deck-count">{{ d.items.length }}</span>
+            </div>
+            <div class="deck-body" :class="{ 'reveal-done': state.revealDone }">
+              <FeedItem
+                v-for="(item, i) in d.items"
+                :key="item.id"
+                :item="item"
+                :class="staggerOn ? 'stagger' : ''"
+                :style="{ '--i': i }"
+                @save="toggleSave(item)"
+                @open="openItem(item)"
+              />
+            </div>
+          </section>
+        </div>
+      </template>
+    </div>
+  </main>
+</template>
+
+<style>
+/* ---------- Dashboard sub-bar ---------- */
+.subbar {
+  padding: 22px 0 6px;
+}
+.subbar-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.page-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 5px 0 0;
+}
+.subbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: 11px;
+  border: 1px solid var(--border);
+}
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s var(--ease);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.seg button:hover {
+  color: var(--ink);
+}
+.seg button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+/* filter chips row */
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0 4px;
+  flex-wrap: wrap;
+}
+.fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s var(--ease);
+  white-space: nowrap;
+}
+.fchip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.fchip.active {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+.fchip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c, var(--accent));
+}
+.fchip .count {
+  font-size: 10px;
+  color: var(--faint);
+}
+.fchip.active .count {
+  color: color-mix(in oklab, var(--bg) 70%, transparent);
+}
+
+.feed {
+  padding: 18px 0 80px;
+}
+
+/* empty state */
+.empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--muted);
+}
+.empty .ricon {
+  color: var(--faint);
+  margin-bottom: 14px;
+}
+.empty h3 {
+  font-size: 15px;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.empty p {
+  font-size: 12.5px;
+  margin: 0;
+}
+
+/* load more */
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+/* ---------- Layout variants ---------- */
+/* timeline — single column, comfortable reading width */
+.layout-timeline .feed-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  max-width: 660px;
+  margin: 0 auto;
+}
+
+/* grid — masonry-ish via columns */
+.layout-grid .feed-grid {
+  columns: 3 280px;
+  column-gap: var(--gap);
+}
+.layout-grid .feed-grid > * {
+  break-inside: avoid;
+  margin-bottom: var(--gap);
+  display: block;
+}
+
+/* columns — per-source decks */
+.layout-columns .feed-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 1fr);
+  gap: var(--gap);
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+.deck {
+  min-width: 0;
+}
+.deck-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 12px;
+  position: sticky;
+  top: 0;
+}
+.deck-head .src-ic {
+  width: 24px;
+  height: 24px;
+}
+.deck-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.deck-count {
+  font-size: 10px;
+  color: var(--faint);
+  margin-left: auto;
+}
+.deck-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (max-width: 720px) {
+  .layout-grid .feed-grid {
+    columns: 1;
+  }
+}
+</style>

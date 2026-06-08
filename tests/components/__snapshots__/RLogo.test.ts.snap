@@ -1,0 +1,5 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RLogo > matches snapshot (mark only) 1`] = `"<span class="rlogo"><!-- eslint-disable vue/no-v-html --><svg class="rlogo-mark" width="30" height="30" viewBox="0 0 64 64"><rect x="14" y="16" width="36" height="9" rx="4.5" style="fill:var(--accent-strong)" opacity="0.45"></rect><rect x="11" y="28" width="42" height="9" rx="4.5" style="fill:var(--accent-strong)" opacity="0.72"></rect><rect x="16" y="40" width="32" height="9" rx="4.5" style="fill:var(--accent)"></rect></svg><!--v-if--></span>"`;
+
+exports[`RLogo > matches snapshot (with words) 1`] = `"<span class="rlogo"><!-- eslint-disable vue/no-v-html --><svg class="rlogo-mark" width="30" height="30" viewBox="0 0 64 64"><rect x="14" y="16" width="36" height="9" rx="4.5" style="fill:var(--accent-strong)" opacity="0.45"></rect><rect x="11" y="28" width="42" height="9" rx="4.5" style="fill:var(--accent-strong)" opacity="0.72"></rect><rect x="16" y="40" width="32" height="9" rx="4.5" style="fill:var(--accent)"></rect></svg><span class="rlogo-words">Reader</span></span>"`;

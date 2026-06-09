@@ -53,6 +53,17 @@ export default defineConfig({
     {
       name: "chromium",
       dependencies: ["setup"],
+      teardown: "account",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
+    },
+    // Teardown project — runs after all "chromium" tests. Tests here may sign
+    // out (killing the Clerk FAPI session), so nothing else should depend on them.
+    {
+      name: "account",
+      testMatch: /account\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",

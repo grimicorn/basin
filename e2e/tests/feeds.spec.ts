@@ -38,6 +38,23 @@ test.describe("Settings > Feeds", () => {
     await expect(page.getByText("E2E Test Feed")).toBeVisible();
   });
 
+  test("can add a new feed URL", async ({ page }) => {
+    const newUrl = "https://test-add.example.com/feed.xml";
+    await page
+      .locator('input[placeholder="https://example.com/feed.xml"]')
+      .fill(newUrl);
+    await page.locator(".btn-primary").click();
+    // Server saves the URL immediately (no RSS fetch); title is null so the URL
+    // is shown as the feed name via `fd.title ?? fd.url`
+    await expect(
+      page.locator(".feed-row", { hasText: newUrl }),
+    ).toBeVisible({ timeout: 8_000 });
+    // Input should be cleared after a successful add
+    await expect(
+      page.locator('input[placeholder="https://example.com/feed.xml"]'),
+    ).toHaveValue("");
+  });
+
   test("removes a feed via the trash button", async ({ page }) => {
     const feedRow = page.locator(".feed-row", { hasText: "E2E Test Feed" });
     await expect(feedRow).toBeVisible({ timeout: 8_000 });

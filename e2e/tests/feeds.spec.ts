@@ -6,6 +6,10 @@ test.describe("Settings > Feeds", () => {
     await expect(page.locator("h2").getByText("RSS & Podcasts")).toBeVisible({
       timeout: 10_000,
     });
+    // The add button is :disabled="loading" while onMounted(load) is in flight.
+    // The heading appears from SSR before load() completes, so networkidle
+    // waits for the API call to finish (loading → false, button enabled).
+    await page.waitForLoadState("networkidle", { timeout: 15_000 });
   });
 
   test("shows seeded feed in the list", async ({ page }) => {
@@ -46,9 +50,9 @@ test.describe("Settings > Feeds", () => {
     await page.locator(".btn-primary").click();
     // Server saves the URL immediately (no RSS fetch); title is null so the URL
     // is shown as the feed name via `fd.title ?? fd.url`
-    await expect(
-      page.locator(".feed-row", { hasText: newUrl }),
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator(".feed-row", { hasText: newUrl })).toBeVisible({
+      timeout: 8_000,
+    });
     // Input should be cleared after a successful add
     await expect(
       page.locator('input[placeholder="https://example.com/feed.xml"]'),

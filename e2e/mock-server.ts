@@ -1,4 +1,9 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 
 export const MOCK_PORT = Number(process.env.E2E_MOCK_SERVER_PORT ?? 3099);
 export const MOCK_BASE_URL = `http://127.0.0.1:${MOCK_PORT}`;
@@ -30,7 +35,12 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
     res.end(
       JSON.stringify({
         items: [
-          { snippet: { customUrl: "@e2etestchannel", title: "E2E Test Channel" } },
+          {
+            snippet: {
+              customUrl: "@e2etestchannel",
+              title: "E2E Test Channel",
+            },
+          },
         ],
       }),
     );

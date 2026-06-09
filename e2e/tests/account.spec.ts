@@ -19,14 +19,18 @@ test.describe("Settings > Account", () => {
   });
 
   test("sign out button is visible", async ({ page }) => {
-    await expect(
-      page.getByRole("button", { name: /sign out/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /sign out/i })).toBeVisible();
   });
 
   // Keep this test last — it terminates the Clerk FAPI session, making the
   // stored storageState stale for any tests that run after it.
   test("can sign out then sign back in", async ({ page }) => {
+    // The <h2> heading is static HTML and appears before Clerk initializes.
+    // Wait for the user name (rendered via useUser()) as a reliable signal that
+    // clerk.value in useClerk() is non-null — otherwise the optional-chain in
+    // handleSignOut silently no-ops and the page never navigates away.
+    await expect(page.getByText("E2E Test")).toBeVisible({ timeout: 8_000 });
+
     await page.getByRole("button", { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
 

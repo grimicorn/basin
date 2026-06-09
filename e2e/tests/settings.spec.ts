@@ -6,6 +6,10 @@ test.describe("Settings > Reading", () => {
     await expect(
       page.locator("h2").getByText("Reading preferences"),
     ).toBeVisible({ timeout: 10_000 });
+    // The heading is SSR-rendered; wait for Vue to hydrate before clicking
+    // seg buttons. initAppearance() is client-only so handlers aren't
+    // attached until after the JS bundles load and execute.
+    await page.waitForLoadState("networkidle", { timeout: 15_000 });
   });
 
   test("theme toggle buttons are visible", async ({ page }) => {

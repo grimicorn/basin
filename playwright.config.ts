@@ -58,6 +58,9 @@ export default defineConfig({
       name: "chromium",
       dependencies: ["setup"],
       teardown: "account",
+      // Exclude files that belong exclusively to other projects so they don't
+      // run twice with the wrong auth state.
+      testIgnore: [/auth-unauth\.spec\.ts/, /account\.spec\.ts/],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",

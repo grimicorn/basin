@@ -35,6 +35,7 @@ const nuxtGlobals = {
   useSyncQueue: "readonly",
   useFeeds: "readonly",
   useConnections: "readonly",
+  useUserSettings: "readonly",
 };
 
 // Nitro / H3 globals — server-only auto-imports

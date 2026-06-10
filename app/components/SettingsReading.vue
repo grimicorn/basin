@@ -10,7 +10,7 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
   <section class="set-section">
     <h2>Reading preferences</h2>
     <p class="desc">
-      Appearance and behavior for your feed. Saved to this browser.
+      Appearance and behavior for your feed. Saved to your account.
     </p>
 
     <div class="set-pref-row">

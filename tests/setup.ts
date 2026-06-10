@@ -7,11 +7,24 @@ import { useToast } from "../app/composables/useToast.js";
 import { useSearch } from "../app/composables/useSearch.js";
 import { useAppearance } from "../app/composables/useAppearance.js";
 import { useFeed } from "../app/composables/useFeed.js";
+import { USER_SETTINGS_DEFAULTS } from "../app/composables/useUserSettings.ts";
 
 globalThis.useToast = useToast;
 globalThis.useSearch = useSearch;
 globalThis.useAppearance = useAppearance;
 globalThis.useFeed = useFeed;
+
+// Default stub for useUserSettings — returns defaults, no-ops on save.
+// Individual tests can override this with vi.stubGlobal if needed.
+globalThis.useUserSettings = vi.fn(() => ({
+  loading: { value: false },
+  error: { value: null },
+  load: vi.fn().mockResolvedValue({ ...USER_SETTINGS_DEFAULTS }),
+  save: vi.fn().mockResolvedValue({ ...USER_SETTINGS_DEFAULTS }),
+}));
+
+// Nuxt $fetch stub — returns null by default; individual tests override as needed.
+globalThis.$fetch = vi.fn().mockResolvedValue(null);
 
 // Nuxt router / navigation globals
 globalThis.navigateTo = vi.fn();

@@ -2,8 +2,8 @@
 import { computed, watch, onMounted, onUnmounted } from "vue";
 import { SOURCES } from "~/lib/icons";
 
-const { state, closeSearch, moveCursor } = useSearch();
-const { state: feed, openItem } = useFeed();
+const { state, closeSearch, moveCursor, runSearch } = useSearch();
+const { openItem } = useFeed();
 
 const PAGES = [
   { kind: "page", id: "/", title: "Dashboard", sub: "Your unified feed" },
@@ -16,72 +16,75 @@ const PAGES = [
   { kind: "page", id: "/login", title: "Sign in", sub: "Account & session" },
 ];
 
-const pageMatchesQuery = (p, q) =>
-  !q || p.title.toLowerCase().includes(q) || p.sub.toLowerCase().includes(q);
+const pageMatchesQuery = (page, query) =>
+  !query ||
+  page.title.toLowerCase().includes(query) ||
+  page.sub.toLowerCase().includes(query);
 
-const itemHaystack = (i) =>
-  [i.title, i.text, i.caption, i.source, i.excerpt, (i.tags || []).join(" ")]
-    .join(" ")
-    .toLowerCase();
-
-const matchingItems = (items, q) =>
-  items
-    .filter((i) => !q || itemHaystack(i).includes(q))
-    .slice(0, q ? 20 : 6)
-    .map((ref) => ({ kind: "item", ref }));
+const algoliaResultRows = computed(() =>
+  state.results.map((hit) => ({ kind: "item", ref: hit })),
+);
 
 const searchGroups = computed(() => {
-  const q = state.query.trim().toLowerCase();
-  const pages = PAGES.filter((p) => pageMatchesQuery(p, q));
-  const items = matchingItems(feed.items, q);
+  const query = state.query.trim().toLowerCase();
+  const pages = PAGES.filter((page) => pageMatchesQuery(page, query));
   const groups = [];
   if (pages.length) groups.push({ label: "Pages", rows: pages });
-  if (items.length)
-    groups.push({ label: q ? "Results" : "Recent", rows: items });
+  if (algoliaResultRows.value.length)
+    groups.push({
+      label: query ? "Results" : "Recent",
+      rows: algoliaResultRows.value,
+    });
   return groups;
 });
-const searchFlat = computed(() => searchGroups.value.flatMap((g) => g.rows));
 
-const srcVar = (type) => `var(--${SOURCES[type].cls})`;
-const srcLabel = (type) => SOURCES[type].label;
+const searchFlat = computed(() =>
+  searchGroups.value.flatMap((group) => group.rows),
+);
+
+const srcVar = (type) => `var(--${(SOURCES[type] || SOURCES["article"]).cls})`;
+const srcLabel = (type) => (SOURCES[type] || SOURCES["article"]).label;
 
 function chooseRow(row) {
   if (row.kind === "page") navigateTo(row.id);
   else openItem(row.ref);
   closeSearch();
 }
+
 function chooseCursor() {
   const row = searchFlat.value[state.cursor];
   if (row) chooseRow(row);
 }
 
-function onKey(e) {
+function onKey(event) {
   if (!state.open) return;
-  const n = searchFlat.value.length;
+  const total = searchFlat.value.length;
   const dispatch = {
     Escape: () => closeSearch(),
     ArrowDown: () => {
-      e.preventDefault();
-      moveCursor(1, n);
+      event.preventDefault();
+      moveCursor(1, total);
     },
     ArrowUp: () => {
-      e.preventDefault();
-      moveCursor(-1, n);
+      event.preventDefault();
+      moveCursor(-1, total);
     },
     Enter: () => {
-      e.preventDefault();
+      event.preventDefault();
       chooseCursor();
     },
   };
-  dispatch[e.key]?.();
+  dispatch[event.key]?.();
 }
 
 watch(
   () => state.query,
-  () => {
+  (newQuery) => {
     state.cursor = 0;
+    runSearch(newQuery);
   },
 );
+
 onMounted(() => window.addEventListener("keydown", onKey));
 onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
@@ -103,11 +106,11 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
       </div>
 
       <div class="search-results">
-        <template v-for="g in searchGroups" :key="g.label">
-          <div class="sr-group">{{ g.label }}</div>
+        <template v-for="group in searchGroups" :key="group.label">
+          <div class="sr-group">{{ group.label }}</div>
           <div
-            v-for="row in g.rows"
-            :key="row.kind === 'page' ? row.id : 'i' + row.ref.id"
+            v-for="row in group.rows"
+            :key="row.kind === 'page' ? row.id : 'i' + row.ref.objectID"
             class="sr-item"
             :class="{ cursor: searchFlat.indexOf(row) === state.cursor }"
             @mouseenter="state.cursor = searchFlat.indexOf(row)"
@@ -128,10 +131,14 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
               }}</span>
               <div class="sr-main">
                 <div class="sr-title">
-                  {{ row.ref.title || row.ref.text || row.ref.caption }}
+                  {{ row.ref.title }}
                 </div>
                 <div class="sr-sub">
-                  {{ row.ref.source }} · {{ row.ref.meta || row.ref.time }}
+                  {{
+                    row.ref.publishedAt
+                      ? new Date(row.ref.publishedAt).toLocaleDateString()
+                      : ""
+                  }}
                 </div>
               </div>
             </template>
@@ -139,7 +146,15 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
           </div>
         </template>
 
-        <div v-if="!searchFlat.length" class="empty" style="padding: 48px 20px">
+        <div v-if="state.searching" class="empty" style="padding: 48px 20px">
+          <p>Searching…</p>
+        </div>
+
+        <div
+          v-else-if="!searchFlat.length"
+          class="empty"
+          style="padding: 48px 20px"
+        >
           <h3>No matches</h3>
           <p>Try a different word, source, or tag.</p>
         </div>

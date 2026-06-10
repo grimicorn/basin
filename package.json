@@ -30,6 +30,7 @@
     "@clerk/nuxt": "^2.5.3",
     "@electric-sql/pglite": "^0.5.1",
     "@neondatabase/serverless": "^1.1.0",
+    "algoliasearch": "^5.53.0",
     "drizzle-orm": "^0.45.2",
     "nuxt": "^4.0.0"
   },

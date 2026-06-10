@@ -36,7 +36,7 @@ const PROVIDERS: Omit<Connection, "connected" | "account" | "since">[] = [
   },
 ];
 
-const OAUTH_READY = new Set(["youtube"]);
+const OAUTH_READY = new Set(["youtube", "twitter"]);
 
 function formatSince(iso: string | null): string {
   if (!iso) return "";

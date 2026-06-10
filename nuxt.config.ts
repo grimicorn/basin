@@ -15,6 +15,8 @@ export default defineNuxtConfig({
     databaseUrl: "",
     googleClientId: "",
     googleClientSecret: "",
+    twitterClientId: "",
+    twitterClientSecret: "",
   },
   devtools: { enabled: true },
   future: { compatibilityVersion: 4 },

@@ -56,6 +56,9 @@ const nitroGlobals = {
   buildYouTubeAuthUrl: "readonly",
   exchangeCodeForTokens: "readonly",
   getYouTubeChannelHandle: "readonly",
+  buildTwitterAuthUrl: "readonly",
+  exchangeTwitterCodeForTokens: "readonly",
+  getTwitterUserInfo: "readonly",
 };
 
 export default [

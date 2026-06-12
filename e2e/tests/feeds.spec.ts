@@ -54,11 +54,13 @@ test.describe("Settings > Feeds", () => {
       .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
       .fill(newUrl);
     await page.locator(".btn-primary").click();
-    // Discover resolves the URL as a valid feed (content-type: application/rss+xml),
-    // so the same URL is saved. Title is null so the URL is shown as the feed name.
-    await expect(page.locator(".feed-row", { hasText: newUrl })).toBeVisible({
-      timeout: 8_000,
-    });
+
+    // The feed is stored without a title (feeds.post.ts does not parse feed
+    // metadata), so .feed-name falls back to displaying the URL.
+    const feedRow = page.locator(".feed-row", { hasText: newUrl });
+    await expect(feedRow).toBeVisible({ timeout: 8_000 });
+    await expect(feedRow.locator(".feed-name")).toHaveText(newUrl);
+
     // Input should be cleared after a successful add
     await expect(
       page.locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`),

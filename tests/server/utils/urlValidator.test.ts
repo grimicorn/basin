@@ -15,11 +15,18 @@ vi.stubGlobal(
 
 import { validateFeedUrl } from "../../../server/utils/urlValidator";
 
-const mockResolve = vi.spyOn(dnsModule.promises, "resolve");
+const mockResolve4 = vi.spyOn(dnsModule.promises, "resolve4");
+const mockResolve6 = vi.spyOn(dnsModule.promises, "resolve6");
 
 describe("validateFeedUrl", () => {
   beforeEach(() => {
-    mockResolve.mockReset();
+    mockResolve4.mockReset();
+    mockResolve6.mockReset();
+    // Default: IPv6 fails (no AAAA records), IPv4 succeeds with a public address
+    mockResolve4.mockResolvedValue(["93.184.216.34"]);
+    mockResolve6.mockRejectedValue(new Error("ENODATA"));
+    // Clear any test allowlist from the environment
+    delete process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS;
   });
 
   describe("scheme validation", () => {
@@ -36,13 +43,11 @@ describe("validateFeedUrl", () => {
     });
 
     it("accepts http URLs", async () => {
-      mockResolve.mockResolvedValueOnce(["93.184.216.34"]);
       const result = await validateFeedUrl("http://example.com/feed");
       expect(result).toBe("http://example.com/feed");
     });
 
     it("accepts https URLs", async () => {
-      mockResolve.mockResolvedValueOnce(["93.184.216.34"]);
       const result = await validateFeedUrl("https://example.com/feed");
       expect(result).toBe("https://example.com/feed");
     });
@@ -108,34 +113,111 @@ describe("validateFeedUrl", () => {
         "URL resolves to a disallowed address",
       );
     });
+
+    it("rejects IPv6 ULA fc00::", async () => {
+      await expect(validateFeedUrl("http://[fc00::1]/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("rejects IPv6 ULA fd00::", async () => {
+      await expect(validateFeedUrl("http://[fd00::1]/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("rejects IPv6 unspecified ::", async () => {
+      await expect(validateFeedUrl("http://[::]/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("rejects IPv6 multicast ff02::", async () => {
+      await expect(validateFeedUrl("http://[ff02::1]/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("rejects IPv4-mapped IPv6 ::ffff:127.0.0.1 (dotted-decimal form)", async () => {
+      await expect(
+        validateFeedUrl("http://[::ffff:127.0.0.1]/feed"),
+      ).rejects.toThrow("URL resolves to a disallowed address");
+    });
+
+    it("rejects IPv4-mapped IPv6 ::ffff:192.168.1.1 (dotted-decimal form)", async () => {
+      await expect(
+        validateFeedUrl("http://[::ffff:192.168.1.1]/feed"),
+      ).rejects.toThrow("URL resolves to a disallowed address");
+    });
   });
 
   describe("DNS resolution blocking", () => {
-    it("rejects when the host resolves to a loopback address", async () => {
-      mockResolve.mockResolvedValueOnce(["127.0.0.1"]);
+    it("rejects when the host resolves to a loopback IPv4 address", async () => {
+      mockResolve4.mockResolvedValueOnce(["127.0.0.1"]);
+      mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
       await expect(
         validateFeedUrl("http://internal.example.com/feed"),
       ).rejects.toThrow("URL resolves to a disallowed address");
     });
 
-    it("rejects when the host resolves to a private RFC1918 address", async () => {
-      mockResolve.mockResolvedValueOnce(["192.168.5.10"]);
+    it("rejects when the host resolves to a private RFC1918 IPv4 address", async () => {
+      mockResolve4.mockResolvedValueOnce(["192.168.5.10"]);
+      mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
       await expect(
         validateFeedUrl("http://corp-internal.example.com/feed"),
       ).rejects.toThrow("URL resolves to a disallowed address");
     });
 
-    it("rejects when DNS resolution fails", async () => {
-      mockResolve.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    it("rejects when the host resolves to a blocked IPv6 address", async () => {
+      mockResolve4.mockRejectedValueOnce(new Error("ENODATA"));
+      mockResolve6.mockResolvedValueOnce(["::1"]);
+      await expect(
+        validateFeedUrl("http://ipv6-internal.example.com/feed"),
+      ).rejects.toThrow("URL resolves to a disallowed address");
+    });
+
+    it("rejects when both A and AAAA DNS lookups fail", async () => {
+      mockResolve4.mockRejectedValueOnce(new Error("ENOTFOUND"));
+      mockResolve6.mockRejectedValueOnce(new Error("ENOTFOUND"));
       await expect(
         validateFeedUrl("http://does-not-exist.invalid/feed"),
       ).rejects.toThrow("Could not resolve host");
     });
 
-    it("allows a public IP address", async () => {
-      mockResolve.mockResolvedValueOnce(["93.184.216.34"]);
+    it("allows a public IPv4 address", async () => {
+      mockResolve4.mockResolvedValueOnce(["93.184.216.34"]);
+      mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
       const result = await validateFeedUrl("https://example.com");
       expect(result).toBe("https://example.com/");
+    });
+
+    it("allows a host that resolves to public IPv4 even when AAAA lookup fails", async () => {
+      mockResolve4.mockResolvedValueOnce(["93.184.216.34"]);
+      mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
+      const result = await validateFeedUrl("https://example.com/feed");
+      expect(result).toBe("https://example.com/feed");
+    });
+  });
+
+  describe("allowlist bypass for testing", () => {
+    it("allows a loopback host:port that is explicitly allowlisted", async () => {
+      process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS = "127.0.0.1:3099";
+      const result = await validateFeedUrl("http://127.0.0.1:3099/feed.xml");
+      expect(result).toBe("http://127.0.0.1:3099/feed.xml");
+    });
+
+    it("still blocks a loopback address that is NOT in the allowlist", async () => {
+      process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS = "127.0.0.1:3099";
+      await expect(validateFeedUrl("http://127.0.0.1/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("blocks a loopback address when the allowlist is empty", async () => {
+      process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS = "";
+      await expect(validateFeedUrl("http://127.0.0.1/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
     });
   });
 });

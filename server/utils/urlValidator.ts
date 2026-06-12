@@ -14,6 +14,18 @@ const BLOCKED_IPV4_RANGES: Array<{ prefix: number[]; bits: number }> = [
   { prefix: [0], bits: 8 },
 ];
 
+// Hosts explicitly allowed for local development and e2e testing only.
+// Set NUXT_FEED_DISCOVERY_ALLOWED_HOSTS to a comma-separated list of
+// host:port strings (e.g. "127.0.0.1:3099") to bypass SSRF checks.
+function allowedTestHosts(): Set<string> {
+  const raw = process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS ?? "";
+  const hosts = raw
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+  return new Set(hosts);
+}
+
 function parseIpv4Octets(address: string): number[] | null {
   const parts = address.split(".");
   if (parts.length !== 4) return null;
@@ -50,13 +62,79 @@ function stripIpv6Brackets(address: string): string {
   return address;
 }
 
+// Check whether an IPv4-mapped IPv6 address (::ffff:x.x.x.x) maps to a
+// blocked IPv4 range. Handles both colon notation (::ffff:192.168.1.1) and
+// hex notation (::ffff:c0a8:0101).
+function isBlockedIpv4MappedAddress(normalized: string): boolean {
+  const mappedPrefix = "::ffff:";
+  if (!normalized.startsWith(mappedPrefix)) return false;
+
+  const suffix = normalized.slice(mappedPrefix.length);
+
+  // Dotted-decimal form: ::ffff:192.168.1.1
+  if (suffix.includes(".")) return isBlockedIpv4(suffix);
+
+  // Hex form: ::ffff:c0a8:0101 — convert two 16-bit hex groups to four octets
+  const hexParts = suffix.split(":");
+  if (hexParts.length !== 2) return false;
+
+  const high = parseInt(hexParts[0], 16);
+  const low = parseInt(hexParts[1], 16);
+  if (isNaN(high) || isNaN(low)) return false;
+
+  const octets = [
+    (high >> 8) & 0xff,
+    high & 0xff,
+    (low >> 8) & 0xff,
+    low & 0xff,
+  ];
+  return isBlockedIpv4(octets.join("."));
+}
+
 function isBlockedIpv6(address: string): boolean {
   const normalized = stripIpv6Brackets(address).toLowerCase();
-  return normalized === "::1" || normalized.startsWith("fe80:");
+
+  // Loopback
+  if (normalized === "::1") return true;
+
+  // Unspecified address
+  if (normalized === "::") return true;
+
+  // Link-local (fe80::/10)
+  if (normalized.startsWith("fe80:")) return true;
+
+  // ULA (fc00::/7 — covers fc00:: and fd00::)
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+
+  // Multicast (ff00::/8)
+  if (normalized.startsWith("ff")) return true;
+
+  // IPv4-mapped / IPv4-embedded (::ffff:x.x.x.x)
+  if (isBlockedIpv4MappedAddress(normalized)) return true;
+
+  return false;
 }
 
 function isBlockedAddress(address: string): boolean {
   return isBlockedIpv4(address) || isBlockedIpv6(address);
+}
+
+async function resolveAllAddresses(hostname: string): Promise<string[]> {
+  const [ipv4Results, ipv6Results] = await Promise.allSettled([
+    dns.resolve4(hostname),
+    dns.resolve6(hostname),
+  ]);
+
+  const addresses: string[] = [];
+
+  if (ipv4Results.status === "fulfilled") {
+    addresses.push(...ipv4Results.value);
+  }
+  if (ipv6Results.status === "fulfilled") {
+    addresses.push(...ipv6Results.value);
+  }
+
+  return addresses;
 }
 
 export async function validateFeedUrl(rawUrl: string): Promise<string> {
@@ -74,7 +152,13 @@ export async function validateFeedUrl(rawUrl: string): Promise<string> {
     });
   }
 
-  const { hostname } = parsed;
+  const { hostname, port } = parsed;
+  const hostWithPort = port ? `${hostname}:${port}` : hostname;
+
+  // Allow explicitly allowlisted hosts (for local dev and e2e testing only).
+  if (allowedTestHosts().has(hostWithPort)) {
+    return parsed.href;
+  }
 
   if (isBlockedAddress(hostname)) {
     throw createError({
@@ -85,8 +169,15 @@ export async function validateFeedUrl(rawUrl: string): Promise<string> {
 
   let addresses: string[];
   try {
-    addresses = await dns.resolve(hostname);
+    addresses = await resolveAllAddresses(hostname);
   } catch {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Could not resolve host",
+    });
+  }
+
+  if (addresses.length === 0) {
     throw createError({
       statusCode: 400,
       statusMessage: "Could not resolve host",

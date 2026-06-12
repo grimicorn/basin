@@ -98,7 +98,8 @@ export async function validateFeedUrl(
   try {
     const body = await fetchFeedBody(url, fetchImpl);
     return looksLikeValidFeed(body);
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
     return false;
   }
 }

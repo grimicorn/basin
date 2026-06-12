@@ -220,4 +220,19 @@ describe("validateFeedUrl", () => {
     expect(result).toBe(false);
     expect(mockFetch).not.toHaveBeenCalled();
   });
+
+  it("re-throws AbortError so the caller can emit a 504 timeout response", async () => {
+    const abortError = new DOMException(
+      "The operation was aborted",
+      "AbortError",
+    );
+    const mockFetch = vi.fn().mockRejectedValue(abortError);
+
+    await expect(
+      validateFeedUrl(
+        "https://slow.example.com/feed.xml",
+        mockFetch as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow(abortError);
+  });
 });

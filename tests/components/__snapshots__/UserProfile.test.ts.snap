@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`UserProfile > matches snapshot 1`] = `
+"<form data-v-f6022b20="" class="profile-form">
+  <div data-v-f6022b20="" class="profile-avatar-row">
+    <avatar-button-stub data-v-f6022b20="" class="h-16 w-16"></avatar-button-stub>
+    <div data-v-f6022b20="" class="profile-avatar-actions"><button data-v-f6022b20="" type="button" class="btn">
+        <r-icon-stub data-v-f6022b20="" name="edit" size="14"></r-icon-stub> Change avatar
+      </button><input data-v-f6022b20="" type="file" accept="image/*" class="profile-avatar-input" aria-label="Upload avatar image"></div>
+  </div>
+  <div data-v-f6022b20="" class="profile-fields">
+    <div data-v-f6022b20="" class="profile-field-row"><label data-v-f6022b20="" class="profile-label" for="profile-first-name">First name</label>
+      <div data-v-f6022b20="" class="field"><input data-v-f6022b20="" id="profile-first-name" type="text" placeholder="First name"></div>
+    </div>
+    <div data-v-f6022b20="" class="profile-field-row"><label data-v-f6022b20="" class="profile-label" for="profile-last-name">Last name</label>
+      <div data-v-f6022b20="" class="field"><input data-v-f6022b20="" id="profile-last-name" type="text" placeholder="Last name"></div>
+    </div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+  <div data-v-f6022b20="" class="profile-actions"><button data-v-f6022b20="" type="submit" class="btn btn-primary">Save</button></div>
+</form>"
+`;

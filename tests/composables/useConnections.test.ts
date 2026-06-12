@@ -82,13 +82,11 @@ describe("useConnections", () => {
       expect(mockLocation.href).toBe("");
     });
 
-    it("shows a toast for Instagram instead of navigating", () => {
+    it("navigates to /api/auth/instagram for the Instagram provider", () => {
       const { connect } = useConnections();
       connect("instagram");
-      expect(mockShowToast).toHaveBeenCalledWith(
-        expect.stringContaining("Instagram"),
-      );
-      expect(mockLocation.href).toBe("");
+      expect(mockLocation.href).toBe("/api/auth/instagram");
+      expect(mockShowToast).not.toHaveBeenCalled();
     });
   });
 

@@ -10,49 +10,66 @@ export const MOCK_BASE_URL = `http://127.0.0.1:${MOCK_PORT}`;
 
 let server: Server | null = null;
 
-function handle(req: IncomingMessage, res: ServerResponse): void {
-  const method = req.method ?? "GET";
-  const path = (req.url ?? "/").split("?")[0];
+type RouteKey = `${"GET" | "POST"} ${string}`;
+type RouteHandler = (_res: ServerResponse) => void;
 
+function jsonOk(res: ServerResponse, body: unknown): void {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+const routes: Record<RouteKey, RouteHandler> = {
   // ── OAuth 2.0 token exchange (shared by all providers) ───────────────────
-  if (method === "POST" && path === "/token") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        access_token: "mock_access_token",
-        refresh_token: "mock_refresh_token",
-        expires_in: 3600,
-        scope: "https://www.googleapis.com/auth/youtube.readonly",
-        token_type: "Bearer",
-      }),
-    );
-    return;
-  }
+  "POST /token": (res) =>
+    jsonOk(res, {
+      access_token: "mock_access_token",
+      refresh_token: "mock_refresh_token",
+      expires_in: 3600,
+      scope: "https://www.googleapis.com/auth/youtube.readonly",
+      token_type: "Bearer",
+    }),
 
   // ── YouTube: channel info ────────────────────────────────────────────────
-  if (method === "GET" && path === "/youtube/v3/channels") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        items: [
-          {
-            snippet: {
-              customUrl: "@e2etestchannel",
-              title: "E2E Test Channel",
-            },
+  "GET /youtube/v3/channels": (res) =>
+    jsonOk(res, {
+      items: [
+        {
+          snippet: {
+            customUrl: "@e2etestchannel",
+            title: "E2E Test Channel",
           },
-        ],
-      }),
-    );
-    return;
-  }
+        },
+      ],
+    }),
+
+  // ── Instagram: token exchange ────────────────────────────────────────────
+  "POST /v19.0/oauth/access_token": (res) =>
+    jsonOk(res, {
+      access_token: "mock_instagram_access_token",
+      token_type: "bearer",
+    }),
+
+  // ── Instagram: user info ─────────────────────────────────────────────────
+  "GET /v19.0/me": (res) =>
+    jsonOk(res, {
+      id: "123456789",
+      username: "e2etestuser",
+    }),
 
   // Add future providers here:
-  // ── X (Twitter): user lookup ─────────────────────────────────────────────
-  // if (method === "GET" && path === "/2/users/me") { ... }
-  //
-  // ── Instagram: user info ─────────────────────────────────────────────────
-  // if (method === "GET" && path.startsWith("/v20.0/me")) { ... }
+  // "GET /2/users/me": (res) => jsonOk(res, { ... }),  // X (Twitter)
+};
+
+function handle(req: IncomingMessage, res: ServerResponse): void {
+  const method = (req.method ?? "GET") as "GET" | "POST";
+  const path = (req.url ?? "/").split("?")[0];
+  const key: RouteKey = `${method} ${path}`;
+  const handler = routes[key];
+
+  if (handler) {
+    handler(res);
+    return;
+  }
 
   // Loud 404 so missing mocks are immediately obvious in the test output
   console.error(`[mock-server] No handler for ${method} ${path}`);

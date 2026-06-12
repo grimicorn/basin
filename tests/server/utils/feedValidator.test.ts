@@ -23,6 +23,33 @@ function makeMockFetch(body: string, status = 200) {
   });
 }
 
+function makeMockFetchWithRedirect(redirectUrl: string, finalBody: string) {
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(finalBody);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoded);
+      controller.close();
+    },
+  });
+
+  return vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 301,
+      headers: { get: (name: string) => (name === "location" ? redirectUrl : null) },
+      body: null,
+      text: () => Promise.resolve(""),
+    })
+    .mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: stream,
+      text: () => Promise.resolve(finalBody),
+    });
+}
+
 describe("looksLikeValidFeed", () => {
   it("returns true for an RSS 2.0 document", () => {
     const body = `<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>`;
@@ -101,6 +128,79 @@ describe("fetchFeedBody", () => {
         mockFetch as unknown as typeof fetch,
       ),
     ).rejects.toThrow("Feed server responded with status 404");
+  });
+
+  it("follows a redirect and returns the final body", async () => {
+    const feedBody = `<?xml version="1.0"?><rss version="2.0"/>`;
+    const mockFetch = makeMockFetchWithRedirect(
+      "https://redirected.example.com/feed.xml",
+      feedBody,
+    );
+
+    const body = await fetchFeedBody(
+      "https://example.com/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(body).toBe(feedBody);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws when too many redirects occur", async () => {
+    const alwaysRedirectFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 301,
+      headers: {
+        get: (name: string) =>
+          name === "location" ? "https://example.com/other.xml" : null,
+      },
+      body: null,
+      text: () => Promise.resolve(""),
+    });
+
+    await expect(
+      fetchFeedBody(
+        "https://example.com/feed.xml",
+        alwaysRedirectFetch as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("Too many redirects");
+  });
+
+  it("throws when the redirect Location header is missing", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 301,
+      headers: { get: () => null },
+      body: null,
+      text: () => Promise.resolve(""),
+    });
+
+    await expect(
+      fetchFeedBody(
+        "https://example.com/feed.xml",
+        mockFetch as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("Redirect response missing Location header");
+  });
+
+  it("throws when the redirect target is a private URL", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 301,
+      headers: {
+        get: (name: string) =>
+          name === "location" ? "https://192.168.1.1/feed.xml" : null,
+      },
+      body: null,
+      text: () => Promise.resolve(""),
+    });
+
+    await expect(
+      fetchFeedBody(
+        "https://example.com/feed.xml",
+        mockFetch as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("Feed redirect target is not allowed");
   });
 
   it("uses FEED_FETCH_PROXY_URL to override the target URL when set", async () => {
@@ -207,6 +307,79 @@ describe("validateFeedUrl", () => {
 
     expect(result).toBe(false);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for localhost hostname", async () => {
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedUrl(
+      "https://localhost/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for 0.0.0.0 address", async () => {
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedUrl(
+      "https://0.0.0.0/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for IPv6-mapped IPv4 addresses (::ffff:)", async () => {
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedUrl(
+      "https://[::ffff:192.168.1.1]/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for IPv6 loopback address (::1)", async () => {
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedUrl(
+      "https://[::1]/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for IPv6 ULA addresses (fc00::/7)", async () => {
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedUrl(
+      "https://[fc00::1]/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("does not block legitimate domains that start with fc or fd", async () => {
+    const feedBody = `<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>`;
+    const mockFetch = makeMockFetch(feedBody);
+
+    const result = await validateFeedUrl(
+      "https://fdroid.org/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(true);
+    expect(mockFetch).toHaveBeenCalled();
   });
 
   it("returns false for non-http/https URLs", async () => {

@@ -6,13 +6,15 @@ export const FEED_FETCH_PROXY_URL = process.env.FEED_FETCH_PROXY_URL ?? "";
 
 const FEED_FETCH_TIMEOUT_MS = 8_000;
 const MAX_FEED_BODY_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_REDIRECTS = 5;
 
 // Anchored to the start of the document so an HTML page embedding one of
 // these tags in its body does not pass as a valid feed.
 const RSS_ATOM_PATTERN = /^(\s*<\?xml[^?]*\?>\s*)?<(rss|feed|rdf:RDF)[^>]*>/i;
 
+// IPv6 hostnames from the URL API are always bracket-wrapped: [::1], [fc00::1], etc.
 const PRIVATE_IP_PATTERN =
-  /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|::1$|fc|fd)/i;
+  /^(localhost$|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.|\[::1\]|\[::ffff:|\[fc[\da-f]{2}:|\[fd[\da-f]{2}:)/i;
 
 const ALLOWED_PROTOCOLS = new Set(["https:"]);
 
@@ -44,6 +46,7 @@ function isAllowedUrl(url: string): boolean {
 export async function fetchFeedBody(
   url: string,
   fetchImpl: typeof fetch = fetch,
+  redirectsRemaining: number = MAX_REDIRECTS,
 ): Promise<string> {
   // Validate the original URL before any proxy resolution
   if (!isAllowedUrl(url)) {
@@ -75,9 +78,13 @@ export async function fetchFeedBody(
         throw new Error("Feed redirect target is not allowed");
       }
 
+      if (redirectsRemaining <= 0) {
+        throw new Error("Too many redirects");
+      }
+
       // Follow the redirect by recursively calling fetchFeedBody
       clearTimeout(timeoutId);
-      return await fetchFeedBody(redirectUrl, fetchImpl);
+      return await fetchFeedBody(redirectUrl, fetchImpl, redirectsRemaining - 1);
     }
 
     // Only accept 2xx status codes

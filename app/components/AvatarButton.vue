@@ -1,5 +1,9 @@
 <script setup>
+import { computed } from "vue";
+import { useGravatar } from "~/composables/useGravatar";
+
 const { user } = useUser();
+
 const initials = computed(() => {
   if (!user.value) return "?";
   return (
@@ -9,15 +13,22 @@ const initials = computed(() => {
       .join("") || "?"
   );
 });
+
+const email = computed(
+  () => user.value?.primaryEmailAddress?.emailAddress ?? null,
+);
+
+const { gravatarSrc } = useGravatar(email);
+
+const avatarSrc = computed(() => {
+  if (user.value?.hasImage) return user.value.imageUrl;
+  return gravatarSrc.value;
+});
 </script>
 
 <template>
   <span v-if="user" class="avatar-btn h-8 w-8">
-    <img
-      v-if="user.hasImage"
-      :src="user.imageUrl"
-      :alt="`${user.fullName} Avatar`"
-    />
+    <img v-if="avatarSrc" :src="avatarSrc" :alt="`${user.fullName} Avatar`" />
     <template v-else>
       {{ initials }}
     </template>

@@ -1,8 +1,12 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`AvatarButton > prefers the profile image over Gravatar when hasImage is true 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8"><img data-v-c5cff849="" src="https://example.com/avatar.jpg" alt="Demo User Avatar"></span>"`;
+
+exports[`AvatarButton > renders Gravatar image when no profile image is set but Gravatar exists 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8"><img data-v-c5cff849="" src="https://www.gravatar.com/avatar/abc123?d=404&amp;s=80" alt="Demo User Avatar"></span>"`;
+
 exports[`AvatarButton > renders avatar image when user hasImage 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8"><img data-v-c5cff849="" src="https://example.com/avatar.jpg" alt="Demo User Avatar"></span>"`;
 
-exports[`AvatarButton > renders initials when user has no image 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8">DU</span>"`;
+exports[`AvatarButton > renders initials when user has no image and no Gravatar 1`] = `"<span data-v-c5cff849="" class="avatar-btn h-8 w-8">DU</span>"`;
 
 exports[`AvatarButton > renders nothing when no user is signed in 1`] = `"<!--v-if-->"`;
 

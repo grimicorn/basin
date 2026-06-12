@@ -28,4 +28,10 @@ function handleSignOut() {
       </button>
     </div>
   </section>
+
+  <section class="set-section">
+    <h2>Edit profile</h2>
+    <p class="desc">Update your name and profile photo.</p>
+    <UserProfile />
+  </section>
 </template>

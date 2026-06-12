@@ -14,5 +14,10 @@ exports[`SettingsAccount > matches snapshot 1`] = `
       <r-icon-stub name="logout" size="16"></r-icon-stub> Sign out
     </button>
   </div>
+</section>
+<section class="set-section">
+  <h2>Edit profile</h2>
+  <p class="desc">Update your name and profile photo.</p>
+  <user-profile-stub></user-profile-stub>
 </section>"
 `;

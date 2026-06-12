@@ -12,6 +12,7 @@ export function useFeeds() {
   const items = ref<Feed[]>([]);
   const newUrl = ref("");
   const loading = ref(false);
+  const discovering = ref(false);
   const error = ref<string | null>(null);
 
   async function authHeaders(): Promise<Record<string, string>> {
@@ -33,25 +34,57 @@ export function useFeeds() {
     }
   }
 
-  async function add() {
-    const url = newUrl.value.trim();
-    if (!url) return;
-    error.value = null;
+  async function discoverFeedUrl(rawUrl: string): Promise<string | null> {
+    const headers = await authHeaders();
+    try {
+      const result = await $fetch<{ feedUrl: string }>("/api/feeds/discover", {
+        method: "POST",
+        body: { url: rawUrl },
+        headers,
+      });
+      return result.feedUrl;
+    } catch {
+      return null;
+    }
+  }
+
+  async function addResolvedFeed(resolvedUrl: string) {
+    loading.value = true;
     try {
       const feed = await $fetch<Feed>("/api/feeds", {
         method: "POST",
-        body: { url },
+        body: { url: resolvedUrl },
         headers: await authHeaders(),
       });
       items.value.unshift(feed);
       newUrl.value = "";
     } catch {
       error.value = "Failed to add feed — check the URL and try again";
+    } finally {
+      loading.value = false;
     }
   }
 
+  async function add() {
+    const rawUrl = newUrl.value.trim();
+    if (!rawUrl) return;
+
+    error.value = null;
+    discovering.value = true;
+    const resolvedUrl = await discoverFeedUrl(rawUrl);
+    discovering.value = false;
+
+    if (!resolvedUrl) {
+      error.value =
+        "No feed found at that URL — check the address and try again";
+      return;
+    }
+
+    await addResolvedFeed(resolvedUrl);
+  }
+
   async function remove(id: number) {
-    const idx = items.value.findIndex((f) => f.id === id);
+    const idx = items.value.findIndex((feed) => feed.id === id);
     if (idx === -1) return;
     const [removed] = items.value.splice(idx, 1);
     error.value = null;
@@ -66,5 +99,5 @@ export function useFeeds() {
     }
   }
 
-  return { items, newUrl, loading, error, load, add, remove };
+  return { items, newUrl, loading, discovering, error, load, add, remove };
 }

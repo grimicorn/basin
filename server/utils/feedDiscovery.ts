@@ -89,15 +89,14 @@ async function probeCommonFeedPaths(
   return null;
 }
 
-export async function discoverFeedUrl(
+async function checkDirectUrl(
+  fetchFn: FetchFn,
   inputUrl: string,
-  fetchFn: FetchFn = fetch,
 ): Promise<string | null> {
   const response = await fetchWithHead(fetchFn, inputUrl);
   if (!response) return null;
 
   const contentType = response.headers.get("content-type") ?? "";
-
   if (isFeedContentType(contentType)) return inputUrl;
 
   const body = await response.text();
@@ -110,8 +109,15 @@ export async function discoverFeedUrl(
     return inputUrl;
   }
 
-  const discoveredFromHtml = extractFeedUrlFromHtml(body, inputUrl);
-  if (discoveredFromHtml) return discoveredFromHtml;
+  return extractFeedUrlFromHtml(body, inputUrl);
+}
+
+export async function discoverFeedUrl(
+  inputUrl: string,
+  fetchFn: FetchFn = fetch,
+): Promise<string | null> {
+  const directResult = await checkDirectUrl(fetchFn, inputUrl);
+  if (directResult) return directResult;
 
   return probeCommonFeedPaths(fetchFn, inputUrl);
 }

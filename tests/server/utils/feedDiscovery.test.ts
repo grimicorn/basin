@@ -187,10 +187,22 @@ describe("discoverFeedUrl", () => {
   });
 
   describe("null when no feed is found", () => {
-    it("returns null when the initial fetch fails", async () => {
+    it("returns null when the initial fetch and all common paths fail", async () => {
       const fetchFn = makeFetchFn({});
       const result = await discoverFeedUrl("https://example.com", fetchFn);
       expect(result).toBeNull();
+    });
+
+    it("falls through to common path probing when the initial fetch fails", async () => {
+      const fetchFn = makeFetchFn({
+        "https://example.com/feed": {
+          ok: true,
+          contentType: "application/rss+xml",
+          body: RSS_BODY,
+        },
+      });
+      const result = await discoverFeedUrl("https://example.com", fetchFn);
+      expect(result).toBe("https://example.com/feed");
     });
 
     it("returns null when the page has no feed link and all common paths fail", async () => {

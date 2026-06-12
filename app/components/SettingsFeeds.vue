@@ -1,12 +1,21 @@
 <script setup>
-const { items, newUrl, loading, discovering, error, add, remove, load } =
-  useFeeds();
+const {
+  items,
+  newUrl,
+  loading,
+  isAdding,
+  discovering,
+  error,
+  add,
+  remove,
+  load,
+} = useFeeds();
 onMounted(load);
 
-const busy = computed(() => loading.value || discovering.value);
+const busy = computed(() => isAdding.value || discovering.value);
 const buttonLabel = computed(() => {
   if (discovering.value) return "Finding feed…";
-  if (loading.value) return "Adding…";
+  if (isAdding.value) return "Adding…";
   return "Add feed";
 });
 

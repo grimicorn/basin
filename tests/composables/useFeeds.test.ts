@@ -108,15 +108,36 @@ describe("useFeeds", () => {
       expect(newUrl.value).toBe("");
     });
 
-    it("sets error and keeps newUrl when discover finds no feed", async () => {
+    it("sets 'no feed found' error and keeps newUrl when discover returns 422", async () => {
+      const notFoundError = Object.assign(new Error("No feed found"), {
+        statusCode: 422,
+      });
       mockFetch.mockResolvedValueOnce([]); // load
-      mockFetch.mockRejectedValueOnce(new Error("422 no feed")); // discover fails
+      mockFetch.mockRejectedValueOnce(notFoundError); // discover returns 422
       const { error, newUrl, load, add } = useFeeds();
       await load();
       newUrl.value = "https://not-a-feed-site.com";
       await add();
-      expect(error.value).toBeTruthy();
+      expect(error.value).toBe(
+        "No feed found at that URL — check the address and try again",
+      );
       expect(newUrl.value).toBe("https://not-a-feed-site.com");
+    });
+
+    it("sets a generic error and keeps newUrl when discover throws a non-422 error", async () => {
+      const networkError = Object.assign(new Error("Network failure"), {
+        statusCode: 500,
+      });
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockRejectedValueOnce(networkError); // discover throws non-422
+      const { error, newUrl, load, add } = useFeeds();
+      await load();
+      newUrl.value = "https://example.com";
+      await add();
+      expect(error.value).toBe(
+        "Something went wrong while finding the feed — try again",
+      );
+      expect(newUrl.value).toBe("https://example.com");
     });
 
     it("sets error and keeps newUrl when the POST to /api/feeds fails", async () => {

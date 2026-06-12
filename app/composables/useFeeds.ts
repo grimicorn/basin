@@ -6,12 +6,22 @@ export interface Feed {
   createdAt: string | null;
 }
 
+export class DiscoveryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DiscoveryError";
+  }
+}
+
+const STATUS_NO_FEED_FOUND = 422;
+
 export function useFeeds() {
   const { getToken } = useAuth();
 
   const items = ref<Feed[]>([]);
   const newUrl = ref("");
   const loading = ref(false);
+  const isAdding = ref(false);
   const discovering = ref(false);
   const error = ref<string | null>(null);
 
@@ -43,13 +53,24 @@ export function useFeeds() {
         headers,
       });
       return result.feedUrl;
-    } catch {
-      return null;
+    } catch (err: unknown) {
+      const statusCode =
+        err instanceof Error &&
+        "statusCode" in err &&
+        typeof (err as { statusCode: unknown }).statusCode === "number"
+          ? (err as { statusCode: number }).statusCode
+          : null;
+
+      if (statusCode === STATUS_NO_FEED_FOUND) return null;
+
+      throw new DiscoveryError(
+        err instanceof Error ? err.message : "Discovery request failed",
+      );
     }
   }
 
   async function addResolvedFeed(resolvedUrl: string) {
-    loading.value = true;
+    isAdding.value = true;
     try {
       const feed = await $fetch<Feed>("/api/feeds", {
         method: "POST",
@@ -61,7 +82,7 @@ export function useFeeds() {
     } catch {
       error.value = "Failed to add feed — check the URL and try again";
     } finally {
-      loading.value = false;
+      isAdding.value = false;
     }
   }
 
@@ -71,16 +92,22 @@ export function useFeeds() {
 
     error.value = null;
     discovering.value = true;
-    const resolvedUrl = await discoverFeedUrl(rawUrl);
-    discovering.value = false;
 
-    if (!resolvedUrl) {
-      error.value =
-        "No feed found at that URL — check the address and try again";
-      return;
+    try {
+      const resolvedUrl = await discoverFeedUrl(rawUrl);
+      discovering.value = false;
+
+      if (!resolvedUrl) {
+        error.value =
+          "No feed found at that URL — check the address and try again";
+        return;
+      }
+
+      await addResolvedFeed(resolvedUrl);
+    } catch {
+      discovering.value = false;
+      error.value = "Something went wrong while finding the feed — try again";
     }
-
-    await addResolvedFeed(resolvedUrl);
   }
 
   async function remove(id: number) {
@@ -99,5 +126,15 @@ export function useFeeds() {
     }
   }
 
-  return { items, newUrl, loading, discovering, error, load, add, remove };
+  return {
+    items,
+    newUrl,
+    loading,
+    isAdding,
+    discovering,
+    error,
+    load,
+    add,
+    remove,
+  };
 }

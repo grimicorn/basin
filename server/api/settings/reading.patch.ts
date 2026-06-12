@@ -19,6 +19,15 @@ const BOOLEAN_FIELDS = [
   "compactNotifications",
 ] as const;
 
+const STRING_FIELDS = [
+  "theme",
+  "accentColor",
+  "readingFont",
+  "spacing",
+  "radius",
+  "layout",
+] as const;
+
 type BooleanField = (typeof BOOLEAN_FIELDS)[number];
 
 type ReadingSettingsPatch = {
@@ -67,23 +76,23 @@ function validatePatch(body: ReadingSettingsPatch): string | null {
   );
 }
 
+function pickDefinedFields(
+  body: ReadingSettingsPatch,
+  fields: ReadonlyArray<keyof ReadingSettingsPatch>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    fields
+      .filter((field) => body[field] !== undefined)
+      .map((field) => [field, body[field]]),
+  );
+}
+
 function buildUpdateValues(body: ReadingSettingsPatch) {
-  const values: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (body.theme !== undefined) values.theme = body.theme;
-  if (body.accentColor !== undefined) values.accentColor = body.accentColor;
-  if (body.readingFont !== undefined) values.readingFont = body.readingFont;
-  if (body.spacing !== undefined) values.spacing = body.spacing;
-  if (body.radius !== undefined) values.radius = body.radius;
-  if (body.layout !== undefined) values.layout = body.layout;
-  if (body.showUnreadOnly !== undefined)
-    values.showUnreadOnly = body.showUnreadOnly;
-  if (body.autoplayMediaPreviews !== undefined)
-    values.autoplayMediaPreviews = body.autoplayMediaPreviews;
-  if (body.compactNotifications !== undefined)
-    values.compactNotifications = body.compactNotifications;
-
-  return values;
+  return {
+    updatedAt: new Date(),
+    ...pickDefinedFields(body, STRING_FIELDS),
+    ...pickDefinedFields(body, BOOLEAN_FIELDS),
+  };
 }
 
 export default defineEventHandler(async (event) => {

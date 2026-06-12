@@ -3,3 +3,4 @@ reviews:
     enabled: true
     base_branches:
       - "main"
+  request_changes_workflow: true

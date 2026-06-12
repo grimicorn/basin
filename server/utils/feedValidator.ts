@@ -43,12 +43,75 @@ function isAllowedUrl(url: string): boolean {
   return true;
 }
 
+function resolveRedirectUrl(
+  location: string | null,
+  targetUrl: string,
+): string {
+  if (!location) {
+    throw new Error("Redirect response missing Location header");
+  }
+  return new URL(location, targetUrl).toString();
+}
+
+function assertRedirectAllowed(
+  redirectUrl: string,
+  redirectsRemaining: number,
+): void {
+  if (!isAllowedUrl(redirectUrl)) {
+    throw new Error("Feed redirect target is not allowed");
+  }
+  if (redirectsRemaining <= 0) {
+    throw new Error("Too many redirects");
+  }
+}
+
+async function readBodyChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<Uint8Array[]> {
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_FEED_BODY_BYTES) {
+      reader.cancel();
+      throw new Error("Feed response exceeded maximum allowed size");
+    }
+    chunks.push(value);
+  }
+
+  return chunks;
+}
+
+function mergeChunks(chunks: Uint8Array[]): string {
+  const merged = chunks.reduce((accumulated, chunk) => {
+    const combined = new Uint8Array(accumulated.length + chunk.length);
+    combined.set(accumulated, 0);
+    combined.set(chunk, accumulated.length);
+    return combined;
+  }, new Uint8Array(0));
+
+  return new TextDecoder().decode(merged);
+}
+
+async function readResponseBody(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Response body is not readable");
+  }
+
+  const chunks = await readBodyChunks(reader);
+  return mergeChunks(chunks);
+}
+
 export async function fetchFeedBody(
   url: string,
   fetchImpl: typeof fetch = fetch,
   redirectsRemaining: number = MAX_REDIRECTS,
 ): Promise<string> {
-  // Validate the original URL before any proxy resolution
   if (!isAllowedUrl(url)) {
     throw new Error("Feed URL is not allowed");
   }
@@ -63,26 +126,12 @@ export async function fetchFeedBody(
       redirect: "manual",
     });
 
-    // Handle redirects manually to validate each hop
     if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) {
-        throw new Error("Redirect response missing Location header");
-      }
-
-      // Resolve relative redirects against the target URL
-      const redirectUrl = new URL(location, targetUrl).toString();
-
-      // Validate the redirect target against the original URL rules
-      if (!isAllowedUrl(redirectUrl)) {
-        throw new Error("Feed redirect target is not allowed");
-      }
-
-      if (redirectsRemaining <= 0) {
-        throw new Error("Too many redirects");
-      }
-
-      // Follow the redirect by recursively calling fetchFeedBody
+      const redirectUrl = resolveRedirectUrl(
+        response.headers.get("location"),
+        targetUrl,
+      );
+      assertRedirectAllowed(redirectUrl, redirectsRemaining);
       clearTimeout(timeoutId);
       return await fetchFeedBody(
         redirectUrl,
@@ -91,39 +140,11 @@ export async function fetchFeedBody(
       );
     }
 
-    // Only accept 2xx status codes
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`Feed server responded with status ${response.status}`);
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("Response body is not readable");
-    }
-
-    const chunks: Uint8Array[] = [];
-    let totalBytes = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_FEED_BODY_BYTES) {
-        reader.cancel();
-        throw new Error("Feed response exceeded maximum allowed size");
-      }
-      chunks.push(value);
-    }
-
-    return new TextDecoder().decode(
-      chunks.reduce((merged, chunk) => {
-        const combined = new Uint8Array(merged.length + chunk.length);
-        combined.set(merged, 0);
-        combined.set(chunk, merged.length);
-        return combined;
-      }, new Uint8Array(0)),
-    );
+    return await readResponseBody(response);
   } finally {
     clearTimeout(timeoutId);
   }

@@ -51,15 +51,23 @@ export async function exchangeInstagramCode(
   return response.json() as Promise<InstagramTokenResponse>;
 }
 
-export async function getInstagramUsername(
+export interface InstagramUserInfo {
+  id: string;
+  username: string;
+}
+
+export async function getInstagramUserInfo(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<string> {
+): Promise<InstagramUserInfo> {
   const response = await fetchImpl(`${INSTAGRAM_USER_URL}${accessToken}`);
   const data = (await response.json()) as {
     id?: string;
     username?: string;
     error?: { message: string };
   };
-  return data.username ?? data.id ?? "";
+  return {
+    id: data.id ?? "",
+    username: data.username ?? data.id ?? "",
+  };
 }

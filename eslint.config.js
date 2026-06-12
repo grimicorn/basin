@@ -59,7 +59,7 @@ const nitroGlobals = {
   getYouTubeChannelHandle: "readonly",
   buildInstagramAuthUrl: "readonly",
   exchangeInstagramCode: "readonly",
-  getInstagramUsername: "readonly",
+  getInstagramUserInfo: "readonly",
 };
 
 export default [

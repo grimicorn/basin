@@ -25,6 +25,7 @@ function buildTokenExpiry(): Date {
 async function upsertInstagramIntegration(
   userId: number,
   accessToken: string,
+  accountId: string,
   username: string,
 ): Promise<void> {
   const database = useDb();
@@ -37,6 +38,7 @@ async function upsertInstagramIntegration(
       accessToken,
       expiresAt,
       scopes: INSTAGRAM_SCOPES_LIST,
+      providerAccountId: accountId,
       providerUsername: username,
     })
     .onConflictDoUpdate({
@@ -45,6 +47,7 @@ async function upsertInstagramIntegration(
         accessToken,
         expiresAt,
         scopes: INSTAGRAM_SCOPES_LIST,
+        providerAccountId: accountId,
         providerUsername: username,
         updatedAt: new Date(),
       },
@@ -57,10 +60,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const { code, state } = getQuery(event);
-  const cookieState = getCookie(event, "oauth_state");
+  const cookieState = getCookie(event, "oauth_state_instagram");
 
   validateOAuthCallback(code, state, cookieState);
-  deleteCookie(event, "oauth_state");
+  deleteCookie(event, "oauth_state_instagram");
 
   const { origin } = getRequestURL(event);
   const redirectUri = `${origin}/api/auth/instagram/callback`;
@@ -74,11 +77,12 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const username = await getInstagramUsername(tokenResponse.access_token);
+  const userInfo = await getInstagramUserInfo(tokenResponse.access_token);
   await upsertInstagramIntegration(
     event.context.user.id,
     tokenResponse.access_token,
-    username,
+    userInfo.id,
+    userInfo.username,
   );
 
   return sendRedirect(event, "/settings/connections");

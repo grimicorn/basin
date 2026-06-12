@@ -8,7 +8,7 @@ vi.stubGlobal("useRuntimeConfig", () => ({
 import {
   buildInstagramAuthUrl,
   exchangeInstagramCode,
-  getInstagramUsername,
+  getInstagramUserInfo,
 } from "../../../server/utils/instagram";
 
 describe("buildInstagramAuthUrl", () => {
@@ -99,37 +99,40 @@ describe("exchangeInstagramCode", () => {
   });
 });
 
-describe("getInstagramUsername", () => {
+describe("getInstagramUserInfo", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("returns the username when present", async () => {
+  it("returns the id and username when both are present", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ id: "123456", username: "testuser" }),
     });
 
-    const username = await getInstagramUsername("access-token", mockFetch);
+    const userInfo = await getInstagramUserInfo("access-token", mockFetch);
 
-    expect(username).toBe("testuser");
+    expect(userInfo.id).toBe("123456");
+    expect(userInfo.username).toBe("testuser");
   });
 
-  it("falls back to id when username is absent", async () => {
+  it("uses id as username fallback when username is absent", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ id: "123456" }),
     });
 
-    const username = await getInstagramUsername("access-token", mockFetch);
+    const userInfo = await getInstagramUserInfo("access-token", mockFetch);
 
-    expect(username).toBe("123456");
+    expect(userInfo.id).toBe("123456");
+    expect(userInfo.username).toBe("123456");
   });
 
-  it("returns an empty string when neither username nor id is present", async () => {
+  it("returns empty strings when neither username nor id is present", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({}),
     });
 
-    const username = await getInstagramUsername("access-token", mockFetch);
+    const userInfo = await getInstagramUserInfo("access-token", mockFetch);
 
-    expect(username).toBe("");
+    expect(userInfo.id).toBe("");
+    expect(userInfo.username).toBe("");
   });
 
   it("calls the Meta Graph API with the access token in the URL", async () => {
@@ -137,7 +140,7 @@ describe("getInstagramUsername", () => {
       json: () => Promise.resolve({ id: "1", username: "user" }),
     });
 
-    await getInstagramUsername("my-token", mockFetch);
+    await getInstagramUserInfo("my-token", mockFetch);
 
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("my-token"));
   });

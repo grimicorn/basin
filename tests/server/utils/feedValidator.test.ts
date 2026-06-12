@@ -38,7 +38,9 @@ function makeMockFetchWithRedirect(redirectUrl: string, finalBody: string) {
     .mockResolvedValueOnce({
       ok: false,
       status: 301,
-      headers: { get: (name: string) => (name === "location" ? redirectUrl : null) },
+      headers: {
+        get: (name: string) => (name === "location" ? redirectUrl : null),
+      },
       body: null,
       text: () => Promise.resolve(""),
     })

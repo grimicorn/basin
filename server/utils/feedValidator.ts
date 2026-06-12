@@ -84,7 +84,11 @@ export async function fetchFeedBody(
 
       // Follow the redirect by recursively calling fetchFeedBody
       clearTimeout(timeoutId);
-      return await fetchFeedBody(redirectUrl, fetchImpl, redirectsRemaining - 1);
+      return await fetchFeedBody(
+        redirectUrl,
+        fetchImpl,
+        redirectsRemaining - 1,
+      );
     }
 
     // Only accept 2xx status codes

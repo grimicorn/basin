@@ -104,6 +104,7 @@ describe("getInstagramUserInfo", () => {
 
   it("returns the id and username when both are present", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ id: "123456", username: "testuser" }),
     });
 
@@ -115,6 +116,7 @@ describe("getInstagramUserInfo", () => {
 
   it("uses id as username fallback when username is absent", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ id: "123456" }),
     });
 
@@ -124,19 +126,33 @@ describe("getInstagramUserInfo", () => {
     expect(userInfo.username).toBe("123456");
   });
 
-  it("returns empty strings when neither username nor id is present", async () => {
+  it("throws when response.ok is false", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
       json: () => Promise.resolve({}),
     });
 
-    const userInfo = await getInstagramUserInfo("access-token", mockFetch);
+    await expect(
+      getInstagramUserInfo("access-token", mockFetch),
+    ).rejects.toThrow("Instagram API returned 400");
+  });
 
-    expect(userInfo.id).toBe("");
-    expect(userInfo.username).toBe("");
+  it("throws when the API returns an error field", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ error: { message: "Invalid OAuth access token" } }),
+    });
+
+    await expect(
+      getInstagramUserInfo("access-token", mockFetch),
+    ).rejects.toThrow("Instagram API error: Invalid OAuth access token");
   });
 
   it("calls the Meta Graph API with the access token in the URL", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ id: "1", username: "user" }),
     });
 

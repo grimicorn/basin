@@ -61,11 +61,17 @@ export async function getInstagramUserInfo(
   fetchImpl: typeof fetch = fetch,
 ): Promise<InstagramUserInfo> {
   const response = await fetchImpl(`${INSTAGRAM_USER_URL}${accessToken}`);
+  if (!response.ok) {
+    throw new Error(`Instagram API returned ${response.status}`);
+  }
   const data = (await response.json()) as {
     id?: string;
     username?: string;
     error?: { message: string };
   };
+  if (data.error) {
+    throw new Error(`Instagram API error: ${data.error.message}`);
+  }
   return {
     id: data.id ?? "",
     username: data.username ?? data.id ?? "",

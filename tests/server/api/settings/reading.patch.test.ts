@@ -15,6 +15,7 @@ const storedSettings = {
   accentColor: "teal",
   readingFont: "mono",
   spacing: "compact",
+  radius: "default",
   layout: "grid",
   showUnreadOnly: true,
   autoplayMediaPreviews: false,
@@ -48,6 +49,7 @@ describe("PATCH /api/settings/reading", () => {
       accentColor: "teal",
       readingFont: "mono",
       spacing: "compact",
+      radius: "default",
       layout: "grid",
       showUnreadOnly: true,
       autoplayMediaPreviews: false,
@@ -95,6 +97,14 @@ describe("PATCH /api/settings/reading", () => {
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it("throws 400 for an invalid radius value", async () => {
+    const event = {
+      context: { user: { id: 1 } },
+      body: { radius: "none" },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it("accepts a partial patch with only layout", async () => {
     const event = {
       context: { user: { id: 1 } },
@@ -111,5 +121,29 @@ describe("PATCH /api/settings/reading", () => {
     };
     const result = await handler(event);
     expect(result).toBeTruthy();
+  });
+
+  it("throws 400 when showUnreadOnly is not a boolean", async () => {
+    const event = {
+      context: { user: { id: 1 } },
+      body: { showUnreadOnly: "yes" },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("throws 400 when autoplayMediaPreviews is not a boolean", async () => {
+    const event = {
+      context: { user: { id: 1 } },
+      body: { autoplayMediaPreviews: 1 },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("throws 400 when compactNotifications is not a boolean", async () => {
+    const event = {
+      context: { user: { id: 1 } },
+      body: { compactNotifications: "true" },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
   });
 });

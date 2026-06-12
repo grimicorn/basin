@@ -14,6 +14,7 @@ const mockSettings = {
   accentColor: "teal",
   readingFont: "mono",
   spacing: "compact",
+  radius: "round",
   layout: "grid",
   showUnreadOnly: true,
   autoplayMediaPreviews: false,
@@ -39,6 +40,7 @@ describe("GET /api/settings/reading", () => {
       accentColor: "teal",
       readingFont: "mono",
       spacing: "compact",
+      radius: "round",
       layout: "grid",
       showUnreadOnly: true,
       autoplayMediaPreviews: false,
@@ -55,6 +57,7 @@ describe("GET /api/settings/reading", () => {
       accentColor: "violet",
       readingFont: "serif",
       spacing: "cozy",
+      radius: "sharp",
       layout: "timeline",
       showUnreadOnly: false,
       autoplayMediaPreviews: false,
@@ -67,5 +70,10 @@ describe("GET /api/settings/reading", () => {
     const event = { context: { user: { id: 42 } } };
     await handler(event);
     expect(mockFindFirst).toHaveBeenCalledTimes(1);
+    expect(mockFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.anything(),
+      }),
+    );
   });
 });

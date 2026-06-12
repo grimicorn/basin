@@ -80,11 +80,11 @@ export function useFeed() {
     state.unreadOnly = settings.showUnreadOnly ?? false;
   }
 
-  function setupWatchers() {
+  async function setupWatchers() {
     if (initialized || !import.meta.client) return;
     initialized = true;
 
-    loadSettingsFromDb();
+    await loadSettingsFromDb();
 
     watch(
       () => state.layout,

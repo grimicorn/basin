@@ -98,6 +98,7 @@ export const userSettings = pgTable("user_settings", {
   accentColor: text("accent_color").notNull().default("violet"),
   readingFont: text("reading_font").notNull().default("serif"),
   spacing: text("spacing").notNull().default("cozy"),
+  radius: text("radius").notNull().default("sharp"),
   layout: text("layout").notNull().default("timeline"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

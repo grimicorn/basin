@@ -49,6 +49,7 @@ function applyDbSettings(dbSettings) {
   state.accent = dbSettings.accentColor ?? DEFAULTS.accent;
   state.reading = dbSettings.readingFont ?? DEFAULTS.reading;
   state.density = dbSettings.spacing ?? DEFAULTS.density;
+  state.radius = dbSettings.radius ?? DEFAULTS.radius;
 }
 
 function buildPatch(changedState) {
@@ -57,6 +58,7 @@ function buildPatch(changedState) {
     accentColor: changedState.accent,
     readingFont: changedState.reading,
     spacing: changedState.density,
+    radius: changedState.radius,
   };
 }
 

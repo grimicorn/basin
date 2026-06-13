@@ -77,21 +77,31 @@ function handleFeedProxy(req: IncomingMessage, res: ServerResponse): void {
   res.end(MINIMAL_RSS_FEED);
 }
 
+type RouteHandler = (_req: IncomingMessage, _res: ServerResponse) => void;
+
+// Each entry is [method, path, handler]. Matched top-to-bottom.
+// Add future providers here (e.g. ["GET", "/v20.0/me", handleInstagramUser]).
+const ROUTES: [string, string, RouteHandler][] = [
+  ["POST", "/token", (_req, res) => handleTokenExchange(res)],
+  ["GET", "/youtube/v3/channels", (_req, res) => handleYouTubeChannels(res)],
+  ["GET", "/feed-proxy", handleFeedProxy],
+  [
+    "POST",
+    "/xrpc/com.atproto.server.createSession",
+    (_req, res) => handleBlueskySession(res),
+  ],
+];
+
 function handle(req: IncomingMessage, res: ServerResponse): void {
   const method = req.method ?? "GET";
   const path = (req.url ?? "/").split("?")[0];
 
-  if (method === "POST" && path === "/token") return handleTokenExchange(res);
-  if (method === "GET" && path === "/youtube/v3/channels")
-    return handleYouTubeChannels(res);
-  if (method === "GET" && path === "/feed-proxy")
-    return handleFeedProxy(req, res);
-  if (method === "POST" && path === "/xrpc/com.atproto.server.createSession")
-    return handleBlueskySession(res);
+  const route = ROUTES.find(([m, p]) => m === method && p === path);
 
-  // Add future providers here:
-  // ── Instagram: user info ─────────────────────────────────────────────────
-  // if (method === "GET" && path.startsWith("/v20.0/me")) { ... }
+  if (route) {
+    route[2](req, res);
+    return;
+  }
 
   // Loud 404 so missing mocks are immediately obvious in the test output
   console.error(`[mock-server] No handler for ${method} ${path}`);

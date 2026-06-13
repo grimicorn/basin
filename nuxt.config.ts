@@ -31,6 +31,9 @@ export default defineNuxtConfig({
   css: [mainCss],
   vite: {
     plugins: [tailwindcss()],
+    build: {
+      sourcemap: "hidden",
+    },
     optimizeDeps: {
       include: ["@vue/devtools-core", "@vue/devtools-kit"],
       exclude: ["@electric-sql/pglite"],

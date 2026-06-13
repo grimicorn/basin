@@ -1,0 +1,53 @@
+import { integrations } from "../../db/schema";
+
+export default defineEventHandler(async (event) => {
+  const user = event.context.user;
+  if (!user) {
+    throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+  }
+
+  const body = await readBody(event);
+  const handle = body?.handle?.trim();
+  const appPassword = body?.appPassword?.trim();
+
+  if (!handle || !appPassword) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Handle and app password are required",
+    });
+  }
+
+  let session;
+  try {
+    session = await createBlueskySession(handle, appPassword);
+  } catch {
+    throw createError({
+      statusCode: 401,
+      statusMessage: "Invalid Bluesky handle or app password",
+    });
+  }
+
+  const db = useDb();
+  await db
+    .insert(integrations)
+    .values({
+      userId: user.id,
+      provider: "bluesky",
+      accessToken: session.accessJwt,
+      refreshToken: session.refreshJwt,
+      providerAccountId: session.did,
+      providerUsername: session.handle,
+    })
+    .onConflictDoUpdate({
+      target: [integrations.userId, integrations.provider],
+      set: {
+        accessToken: session.accessJwt,
+        refreshToken: session.refreshJwt,
+        providerAccountId: session.did,
+        providerUsername: session.handle,
+        updatedAt: new Date(),
+      },
+    });
+
+  return { ok: true, handle: session.handle };
+});

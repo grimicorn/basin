@@ -33,6 +33,13 @@ export function useFeeds() {
     }
   }
 
+  function addErrorMessage(err: unknown): string {
+    const statusCode = (err as { statusCode?: number })?.statusCode;
+    if (statusCode === 422)
+      return "That URL doesn't appear to be a valid RSS or Atom feed";
+    return "Failed to add feed — please try again";
+  }
+
   async function add() {
     const url = newUrl.value.trim();
     if (!url) return;
@@ -45,8 +52,8 @@ export function useFeeds() {
       });
       items.value.unshift(feed);
       newUrl.value = "";
-    } catch {
-      error.value = "Failed to add feed — check the URL and try again";
+    } catch (err) {
+      error.value = addErrorMessage(err);
     }
   }
 

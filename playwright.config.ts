@@ -95,6 +95,9 @@ export default defineConfig({
       // never hit the real Google APIs. Add equivalent vars here for X/Instagram.
       GOOGLE_TOKEN_URL: `${MOCK_BASE_URL}/token`,
       YOUTUBE_CHANNELS_URL: `${MOCK_BASE_URL}/youtube/v3/channels?part=snippet&mine=true`,
+      // Route feed-validation fetches through the mock server so no real HTTP
+      // requests are made when adding a feed URL during e2e tests.
+      FEED_FETCH_PROXY_URL: `${MOCK_BASE_URL}/feed-proxy`,
     },
     stdout: "pipe",
     stderr: "pipe",

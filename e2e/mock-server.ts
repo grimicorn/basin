@@ -8,44 +8,71 @@ import {
 export const MOCK_PORT = Number(process.env.E2E_MOCK_SERVER_PORT ?? 3099);
 export const MOCK_BASE_URL = `http://127.0.0.1:${MOCK_PORT}`;
 
+const MINIMAL_RSS_FEED =
+  '<?xml version="1.0"?><rss version="2.0"><channel><title>Mock Feed</title></channel></rss>';
+
 let server: Server | null = null;
+
+function parseQueryParams(url: string): URLSearchParams {
+  return new URLSearchParams((url ?? "").split("?")[1] ?? "");
+}
+
+// ── OAuth 2.0 token exchange (shared by all providers) ───────────────────
+function handleTokenExchange(res: ServerResponse): void {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(
+    JSON.stringify({
+      access_token: "mock_access_token",
+      refresh_token: "mock_refresh_token",
+      expires_in: 3600,
+      scope: "https://www.googleapis.com/auth/youtube.readonly",
+      token_type: "Bearer",
+    }),
+  );
+}
+
+// ── YouTube: channel info ────────────────────────────────────────────────
+function handleYouTubeChannels(res: ServerResponse): void {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(
+    JSON.stringify({
+      items: [
+        {
+          snippet: {
+            customUrl: "@e2etestchannel",
+            title: "E2E Test Channel",
+          },
+        },
+      ],
+    }),
+  );
+}
+
+// ── Feed proxy: returns a minimal valid RSS feed for any URL ─────────────
+// Used by the feed validator (FEED_FETCH_PROXY_URL) so e2e tests never
+// make real outbound HTTP requests when adding a feed.
+function handleFeedProxy(req: IncomingMessage, res: ServerResponse): void {
+  const feedUrl = parseQueryParams(req.url ?? "").get("url");
+
+  if (!feedUrl) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Missing required query parameter: url" }));
+    return;
+  }
+
+  res.writeHead(200, { "Content-Type": "application/rss+xml" });
+  res.end(MINIMAL_RSS_FEED);
+}
 
 function handle(req: IncomingMessage, res: ServerResponse): void {
   const method = req.method ?? "GET";
   const path = (req.url ?? "/").split("?")[0];
 
-  // ── OAuth 2.0 token exchange (shared by all providers) ───────────────────
-  if (method === "POST" && path === "/token") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        access_token: "mock_access_token",
-        refresh_token: "mock_refresh_token",
-        expires_in: 3600,
-        scope: "https://www.googleapis.com/auth/youtube.readonly",
-        token_type: "Bearer",
-      }),
-    );
-    return;
-  }
-
-  // ── YouTube: channel info ────────────────────────────────────────────────
-  if (method === "GET" && path === "/youtube/v3/channels") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        items: [
-          {
-            snippet: {
-              customUrl: "@e2etestchannel",
-              title: "E2E Test Channel",
-            },
-          },
-        ],
-      }),
-    );
-    return;
-  }
+  if (method === "POST" && path === "/token") return handleTokenExchange(res);
+  if (method === "GET" && path === "/youtube/v3/channels")
+    return handleYouTubeChannels(res);
+  if (method === "GET" && path === "/feed-proxy")
+    return handleFeedProxy(req, res);
 
   // Add future providers here:
   // ── X (Twitter): user lookup ─────────────────────────────────────────────

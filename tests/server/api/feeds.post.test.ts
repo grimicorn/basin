@@ -6,7 +6,14 @@ const mockInsert = vi.fn();
 
 vi.stubGlobal("useDb", () => ({ insert: mockInsert }));
 
+vi.mock("../../../server/utils/feedValidator", () => ({
+  validateFeedUrl: vi.fn(),
+}));
+
 import handler from "../../../server/api/feeds.post";
+import { validateFeedUrl } from "../../../server/utils/feedValidator";
+
+const mockValidateFeedUrl = vi.mocked(validateFeedUrl);
 
 const mockFeed = {
   id: 1,
@@ -20,6 +27,8 @@ describe("POST /api/feeds", () => {
     vi.resetAllMocks();
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockReturnValue({ returning: mockReturning });
+    // Default to a valid feed so existing tests don't need to care about validation
+    mockValidateFeedUrl.mockResolvedValue(true);
   });
 
   it("throws 401 when unauthenticated", async () => {
@@ -38,6 +47,25 @@ describe("POST /api/feeds", () => {
   it("throws 400 when URL is blank", async () => {
     const event = { context: { user: { id: 1 } }, body: { url: "   " } };
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("throws 422 when the URL does not point to a valid feed", async () => {
+    mockValidateFeedUrl.mockResolvedValue(false);
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/not-a-feed" },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it("does not insert the feed when validation fails", async () => {
+    mockValidateFeedUrl.mockResolvedValue(false);
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/not-a-feed" },
+    };
+    await expect(handler(event)).rejects.toBeDefined();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("inserts the feed and returns it", async () => {

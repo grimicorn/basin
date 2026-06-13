@@ -89,6 +89,32 @@ describe("useFeeds", () => {
       expect(error.value).toBeTruthy();
       expect(newUrl.value).toBe("not-a-real-url");
     });
+
+    it("shows a specific error message when the server returns 422", async () => {
+      mockFetch.mockResolvedValueOnce([]);
+      const invalidFeedError = Object.assign(new Error("Unprocessable"), {
+        statusCode: 422,
+      });
+      mockFetch.mockRejectedValueOnce(invalidFeedError);
+      const { error, newUrl, load, add } = useFeeds();
+      await load();
+      newUrl.value = "https://example.com/not-a-feed";
+      await add();
+      expect(error.value).toContain("valid RSS or Atom feed");
+    });
+
+    it("shows a generic error message for non-422 failures", async () => {
+      mockFetch.mockResolvedValueOnce([]);
+      const serverError = Object.assign(new Error("Server Error"), {
+        statusCode: 500,
+      });
+      mockFetch.mockRejectedValueOnce(serverError);
+      const { error, newUrl, load, add } = useFeeds();
+      await load();
+      newUrl.value = "https://example.com/feed.xml";
+      await add();
+      expect(error.value).toContain("Failed to add feed");
+    });
   });
 
   describe("remove()", () => {

@@ -151,7 +151,6 @@ describe("useFeeds", () => {
       expect(error.value).toBeTruthy();
       expect(newUrl.value).toBe("https://a.com");
     });
-
   });
 
   describe("remove()", () => {

@@ -8,7 +8,7 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
   <div class="add-feed">
     <div class="field">
       <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com/feed.xml">
-    </div><button class="btn btn-primary">
+    </div><button type="button" class="btn btn-primary">
       <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
     </button>
   </div>
@@ -42,7 +42,7 @@ exports[`SettingsFeeds > shows empty state when there are no feeds 1`] = `
   <div class="add-feed">
     <div class="field">
       <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com/feed.xml">
-    </div><button class="btn btn-primary">
+    </div><button type="button" class="btn btn-primary">
       <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
     </button>
   </div>

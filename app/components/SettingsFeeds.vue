@@ -1,4 +1,12 @@
 <script setup>
+// Pre-fetch the Clerk token during setup (before onMounted) so it is already
+// in-flight or resolved by the time load() calls authHeaders(). Without this,
+// the awaited getToken() inside authHeaders() can introduce a gap where no
+// network request is in flight, causing Playwright's networkidle to fire
+// before /api/feeds is requested.
+const { getToken } = useAuth();
+void getToken.value();
+
 const { items, newUrl, loading, error, add, remove, load } = useFeeds();
 onMounted(load);
 
@@ -27,7 +35,12 @@ function sourceColor(source) {
           @keyup.enter="add"
         />
       </div>
-      <button class="btn btn-primary" :disabled="loading" @click="add">
+      <button
+        type="button"
+        class="btn btn-primary"
+        :disabled="loading"
+        @click="add"
+      >
         <RIcon name="plus" :size="16" /> Add feed
       </button>
     </div>

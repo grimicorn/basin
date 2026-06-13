@@ -61,6 +61,12 @@ function handleBlueskySession(res: ServerResponse): void {
   res.end(JSON.stringify(BLUESKY_MOCK_SESSION));
 }
 
+// ── Bluesky: timeline feed ────────────────────────────────────────────────
+function handleBlueskyTimeline(res: ServerResponse): void {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ feed: [], cursor: undefined }));
+}
+
 // ── Feed proxy: returns a minimal valid RSS feed for any URL ─────────────
 // Used by the feed validator (FEED_FETCH_PROXY_URL) so e2e tests never
 // make real outbound HTTP requests when adding a feed.
@@ -89,6 +95,11 @@ const ROUTES: [string, string, RouteHandler][] = [
     "POST",
     "/xrpc/com.atproto.server.createSession",
     (_req, res) => handleBlueskySession(res),
+  ],
+  [
+    "GET",
+    "/xrpc/app.bsky.feed.getTimeline",
+    (_req, res) => handleBlueskyTimeline(res),
   ],
 ];
 

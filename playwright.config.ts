@@ -98,6 +98,10 @@ export default defineConfig({
       // Route feed-validation fetches through the mock server so no real HTTP
       // requests are made when adding a feed URL during e2e tests.
       FEED_FETCH_PROXY_URL: `${MOCK_BASE_URL}/feed-proxy`,
+      // Route Bluesky API calls to the local mock server so e2e tests
+      // never hit the real Bluesky APIs.
+      BLUESKY_SESSION_URL: `${MOCK_BASE_URL}/xrpc/com.atproto.server.createSession`,
+      BLUESKY_TIMELINE_URL: `${MOCK_BASE_URL}/xrpc/app.bsky.feed.getTimeline`,
     },
     stdout: "pipe",
     stderr: "pipe",

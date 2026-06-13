@@ -101,6 +101,7 @@ export function useConnections() {
   }
 
   function normalizeBlueskyHandle(handle: string): string {
+    handle = handle.trim();
     const stripped = handle.startsWith("@") ? handle.slice(1) : handle;
     return stripped.includes(".") ? stripped : `${stripped}.bsky.social`;
   }

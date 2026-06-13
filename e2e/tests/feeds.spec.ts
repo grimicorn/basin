@@ -6,11 +6,12 @@ test.describe("Settings > Feeds", () => {
     await expect(page.locator("h2").getByText("RSS & Podcasts")).toBeVisible({
       timeout: 10_000,
     });
-    // The add button is :disabled="loading" while onMounted(load) is in flight.
-    // Wait for it to become enabled — this is a deterministic signal that
-    // load() has completed and the feed list has rendered, regardless of how
-    // long the DB (e.g. tsvector triggers on INSERT) takes to respond.
-    await expect(page.locator(".btn-primary")).toBeEnabled({ timeout: 15_000 });
+    // The heading appears from SSR before load() completes, so wait for the
+    // seeded feed to be visible — this is a deterministic signal that load()
+    // has finished and the feed list has rendered.
+    await expect(page.getByText("E2E Test Feed")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("shows seeded feed in the list", async ({ page }) => {

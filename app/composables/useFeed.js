@@ -34,7 +34,7 @@ const filterDefs = [
   { id: "article", label: "RSS", c: "var(--src-rss)" },
   { id: "podcast", label: "Podcasts", c: "var(--src-podcast)" },
   { id: "video", label: "YouTube", c: "var(--src-video)" },
-  { id: "tweet", label: "X", c: "var(--src-tweet)" },
+  { id: "tweet", label: "Bluesky", c: "var(--src-tweet)" },
   { id: "photo", label: "Instagram", c: "var(--src-photo)" },
   { id: "saved", label: "Saved", c: "var(--accent)" },
 ];

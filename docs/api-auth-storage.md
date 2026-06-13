@@ -16,7 +16,7 @@ export const integrations = pgTable(
     userId: integer("user_id")
       .references(() => users.id)
       .notNull(),
-    provider: text("provider").notNull(), // 'youtube' | 'instagram' | 'twitter'
+    provider: text("provider").notNull(), // 'youtube' | 'instagram' | 'bluesky'
 
     // Tokens — always encrypted at rest
     accessToken: text("access_token").notNull(), // all providers
@@ -116,11 +116,13 @@ export async function getValidToken(userId: number, provider: string) {
 
 ## Per-Provider Notes
 
-| Provider  | OAuth version | Expiry       | Notes                                              |
-| --------- | ------------- | ------------ | -------------------------------------------------- |
-| YouTube   | 2.0           | 1 hour       | `accessToken` + `refreshToken`, refresh via Google |
-| Instagram | 2.0           | 60 days      | Long-lived token, refresh before expiry            |
-| Twitter   | 1.0a or 2.0   | Never (1.0a) | 1.0a needs `tokenSecret`, 2.0 behaves like YouTube |
+| Provider  | OAuth version      | Expiry  | Notes                                                                |
+| --------- | ------------------ | ------- | -------------------------------------------------------------------- |
+| YouTube   | 2.0                | 1 hour  | `accessToken` + `refreshToken`, refresh via Google                   |
+| Instagram | 2.0                | 60 days | Long-lived token, refresh before expiry                              |
+| Bluesky   | App Password (JWT) | ~2 hrs  | `accessToken` = accessJwt, `refreshToken` = refreshJwt from AT Proto |
 
-Twitter's v2 API supports OAuth 2.0 now but some endpoints still require 1.0a —
-worth keeping `tokenSecret` around even if you go 2.0 for most things.
+Bluesky uses app passwords rather than traditional OAuth. The `createSession`
+XRPC call returns short-lived JWTs; use the refreshJwt to get a new accessJwt
+via `com.atproto.server.refreshSession` before the access token expires.
+The `tokenSecret` column is unused for Bluesky — it was kept for OAuth 1.0a providers.

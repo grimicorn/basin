@@ -63,7 +63,7 @@ export const SOURCES = {
   article: { icon: "rss", label: "RSS", cls: "src-rss" },
   podcast: { icon: "mic", label: "Podcast", cls: "src-podcast" },
   video: { icon: "video", label: "YouTube", cls: "src-video" },
-  tweet: { icon: "chat", label: "X", cls: "src-tweet" },
+  tweet: { icon: "chat", label: "Bluesky", cls: "src-tweet" },
   photo: { icon: "photo", label: "Instagram", cls: "src-photo" },
 };
 

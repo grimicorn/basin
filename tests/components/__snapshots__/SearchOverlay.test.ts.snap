@@ -43,7 +43,7 @@ exports[`SearchOverlay > matches snapshot (open, empty query) 1`] = `
           <div class="sr-sub">Wolfgang's Channel · 18:42</div>
         </div><span class="sr-arrow"><r-icon-stub name="arrowRight" size="16"></r-icon-stub></span>
       </div>
-      <div class="sr-item"><span class="sr-pill" style="--c: var(--src-tweet);">X</span>
+      <div class="sr-item"><span class="sr-pill" style="--c: var(--src-tweet);">Bluesky</span>
         <div class="sr-main">
           <div class="sr-title">the best abstraction is the one you can delete in an afternoon. everything else is a liability wearing a nice hat.</div>
           <div class="sr-sub">Dan Abramov · 342 · 28</div>

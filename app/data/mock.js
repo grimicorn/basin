@@ -304,9 +304,9 @@ export const connections = [
     since: "Connected Apr 2026",
   },
   {
-    id: "twitter",
-    name: "X / Twitter",
-    desc: "Home timeline & lists",
+    id: "bluesky",
+    name: "Bluesky",
+    desc: "Following feed",
     connected: true,
     account: "@you",
     color: "var(--src-tweet)",

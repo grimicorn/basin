@@ -1,4 +1,4 @@
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { migrate } from "drizzle-orm/neon-http/migrator";
@@ -9,7 +9,9 @@ import { truncateE2eData, seedE2eData } from "./seed";
 async function runMigrations(dbUrl: string) {
   const sql = neon(dbUrl);
   const db = drizzle(sql);
-  const migrationsFolder = path.resolve(__dirname, "../server/db/migrations");
+  const migrationsFolder = fileURLToPath(
+    new URL("../server/db/migrations", import.meta.url),
+  );
   await migrate(db, { migrationsFolder });
 }
 

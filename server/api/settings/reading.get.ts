@@ -1,6 +1,3 @@
-import { eq } from "drizzle-orm";
-import { userSettings } from "../../db/schema";
-
 const DEFAULTS = {
   theme: "system",
   accentColor: "violet",
@@ -19,7 +16,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
 
   const settings = await useDb().query.userSettings.findFirst({
-    where: eq(userSettings.userId, user.id),
+    where: { userId: user.id },
   });
 
   if (!settings) return DEFAULTS;

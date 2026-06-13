@@ -311,6 +311,34 @@ describe("validateFeedUrl", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("returns true for hosts in NUXT_FEED_DISCOVERY_ALLOWED_HOSTS (e2e override)", async () => {
+    const originalAllowedHosts = process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS;
+    process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS = "127.0.0.1:3099";
+
+    try {
+      const { validateFeedUrl: freshValidateFeedUrl } = await import(
+        "../../../server/utils/feedValidator?cachebust=" + Date.now()
+      );
+
+      const feedBody = `<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>`;
+      const mockFetch = makeMockFetch(feedBody);
+
+      const result = await freshValidateFeedUrl(
+        "http://127.0.0.1:3099/feed.xml",
+        mockFetch as unknown as typeof fetch,
+      );
+
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalled();
+    } finally {
+      if (originalAllowedHosts === undefined) {
+        delete process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS;
+      } else {
+        process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS = originalAllowedHosts;
+      }
+    }
+  });
+
   it("returns false for localhost hostname", async () => {
     const mockFetch = vi.fn();
 

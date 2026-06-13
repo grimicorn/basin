@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { MOCK_BASE_URL } from "../mock-server";
 
 const FEED_INPUT_PLACEHOLDER =
   "https://example.com or https://example.com/feed.xml";
@@ -9,10 +10,11 @@ test.describe("Settings > Feeds", () => {
     await expect(page.locator("h2").getByText("RSS & Podcasts")).toBeVisible({
       timeout: 10_000,
     });
-    // The add button is :disabled="loading" while onMounted(load) is in flight.
-    // The heading appears from SSR before load() completes, so networkidle
-    // waits for the API call to finish (loading → false, button enabled).
-    await page.waitForLoadState("networkidle", { timeout: 15_000 });
+    // The add button is :disabled="loading || busy" while onMounted(load) is in
+    // flight. The heading appears from SSR before load() completes, so waiting
+    // for the button to be enabled is a reliable signal that the /api/feeds call
+    // has finished and the feed list has been populated.
+    await expect(page.locator(".btn-primary")).toBeEnabled({ timeout: 15_000 });
   });
 
   test("shows seeded feed in the list", async ({ page }) => {
@@ -46,9 +48,10 @@ test.describe("Settings > Feeds", () => {
   });
 
   test("can add a new feed URL", async ({ page }) => {
-    // Use a unique URL per run to avoid duplicate key errors if teardown
-    // did not complete cleanly in a prior run (e.g. concurrent CI jobs).
-    const newUrl = `https://test-add-${crypto.randomUUID()}.example.com/feed.xml`;
+    // Use the mock server's /feed.xml endpoint so the discover step resolves
+    // without real outbound HTTP requests. The mock returns a valid RSS document
+    // with content-type application/rss+xml so both discovery and validation pass.
+    const newUrl = `${MOCK_BASE_URL}/feed.xml`;
     await page
       .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
       .fill(newUrl);

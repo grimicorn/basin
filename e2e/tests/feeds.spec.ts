@@ -43,7 +43,9 @@ test.describe("Settings > Feeds", () => {
   });
 
   test("can add a new feed URL", async ({ page }) => {
-    const newUrl = "https://test-add.example.com/feed.xml";
+    // Use a unique URL per run to avoid duplicate key errors if teardown
+    // did not complete cleanly in a prior run (e.g. concurrent CI jobs).
+    const newUrl = `https://test-add-${crypto.randomUUID()}.example.com/feed.xml`;
     await page
       .locator('input[placeholder="https://example.com/feed.xml"]')
       .fill(newUrl);

@@ -1,13 +1,24 @@
+import path from "node:path";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import { migrate } from "drizzle-orm/neon-http/migrator";
 import { getOrCreateTestClerkUser } from "./helpers/clerk";
 import { startMockServer } from "./mock-server";
 import { truncateE2eData, seedE2eData } from "./seed";
+
+async function runMigrations(dbUrl: string) {
+  const sql = neon(dbUrl);
+  const db = drizzle(sql);
+  const migrationsFolder = path.resolve(__dirname, "../server/db/migrations");
+  await migrate(db, { migrationsFolder });
+}
 
 export default async function globalSetup() {
   const dbUrl = process.env.E2E_DATABASE_URL;
   if (!dbUrl) throw new Error("E2E_DATABASE_URL is not set");
 
-  // The e2e Neon branch is forked from main and already has the schema.
-  // For schema changes, run: DATABASE_URL=<e2e_url> npm run db:push
+  console.log("\n[e2e setup] Running migrations...");
+  await runMigrations(dbUrl);
 
   await startMockServer();
 

@@ -58,6 +58,7 @@ const nitroGlobals = {
   buildYouTubeAuthUrl: "readonly",
   exchangeCodeForTokens: "readonly",
   getYouTubeChannelHandle: "readonly",
+  createBlueskySession: "readonly",
 };
 
 export default [

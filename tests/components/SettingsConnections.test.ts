@@ -11,12 +11,14 @@ const connected = makeConnection({
   since: "Connected Jan 2024",
 });
 const disconnected = makeConnection({
-  id: "twitter",
-  name: "X / Twitter",
+  id: "bluesky",
+  name: "Bluesky",
   connected: false,
+  color: "var(--src-tweet)",
 });
 
 const mockConnect = vi.fn();
+const mockConnectBluesky = vi.fn();
 const mockDisconnect = vi.fn();
 const mockLoad = vi.fn();
 
@@ -30,6 +32,7 @@ function stubConnections(
     error: ref(opts.error ?? null),
     load: mockLoad,
     connect: mockConnect,
+    connectBluesky: mockConnectBluesky,
     disconnect: mockDisconnect,
   }));
 }
@@ -63,10 +66,10 @@ describe("SettingsConnections", () => {
     expect(mockDisconnect).toHaveBeenCalledWith(connected.id);
   });
 
-  it("calls connect when button is clicked for a disconnected account", async () => {
+  it("shows the Bluesky form when Connect is clicked for bluesky", async () => {
     const wrapper = shallowMount(SettingsConnections);
     await wrapper.findAll("button.btn")[1].trigger("click");
-    expect(mockConnect).toHaveBeenCalledWith(disconnected.id);
+    expect(wrapper.find(".bluesky-form").exists()).toBe(true);
   });
 
   it("shows a live dot for connected accounts", () => {
@@ -85,7 +88,43 @@ describe("SettingsConnections", () => {
     stubConnections(undefined, { loading: true });
     const wrapper = shallowMount(SettingsConnections);
     const buttons = wrapper.findAll("button.btn");
-    buttons.forEach((btn) => expect(btn.attributes("disabled")).toBeDefined());
+    buttons.forEach((button) =>
+      expect(button.attributes("disabled")).toBeDefined(),
+    );
+  });
+
+  it("hides the bluesky form by default", () => {
+    const wrapper = shallowMount(SettingsConnections);
+    expect(wrapper.find(".bluesky-form").exists()).toBe(false);
+  });
+
+  it("hides the bluesky form after cancel is clicked", async () => {
+    const wrapper = shallowMount(SettingsConnections);
+    await wrapper.findAll("button.btn")[1].trigger("click");
+    expect(wrapper.find(".bluesky-form").exists()).toBe(true);
+    const formButtons = wrapper.findAll(".bluesky-actions button");
+    const cancelButton = formButtons.find((btn) => btn.text() === "Cancel");
+    await cancelButton!.trigger("click");
+    expect(wrapper.find(".bluesky-form").exists()).toBe(false);
+  });
+
+  it("calls connectBluesky with handle and app password on form submit", async () => {
+    mockConnectBluesky.mockResolvedValue({
+      ok: true,
+      handle: "you.bsky.social",
+    });
+    const wrapper = shallowMount(SettingsConnections);
+    await wrapper.findAll("button.btn")[1].trigger("click");
+    await wrapper.find("#bluesky-handle").setValue("you.bsky.social");
+    await wrapper.find("#bluesky-app-password").setValue("xxxx-xxxx-xxxx-xxxx");
+    const connectButton = wrapper
+      .findAll(".bluesky-actions button")
+      .find((btn) => btn.text() === "Connect");
+    await connectButton!.trigger("click");
+    expect(mockConnectBluesky).toHaveBeenCalledWith(
+      "you.bsky.social",
+      "xxxx-xxxx-xxxx-xxxx",
+    );
   });
 
   it("matches snapshot", () => {

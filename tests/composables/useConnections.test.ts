@@ -18,6 +18,13 @@ const mockIntegration = {
   createdAt: new Date("2024-01-01").toISOString(),
 };
 
+const mockBlueskyIntegration = {
+  id: 2,
+  provider: "bluesky",
+  providerUsername: "you.bsky.social",
+  createdAt: new Date("2024-01-01").toISOString(),
+};
+
 describe("useConnections", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -29,7 +36,9 @@ describe("useConnections", () => {
       mockFetch.mockResolvedValue([mockIntegration]);
       const { items, load } = useConnections();
       await load();
-      const youtube = items.value.find((c) => c.id === "youtube");
+      const youtube = items.value.find(
+        (connection) => connection.id === "youtube",
+      );
       expect(youtube?.connected).toBe(true);
     });
 
@@ -37,7 +46,9 @@ describe("useConnections", () => {
       mockFetch.mockResolvedValue([mockIntegration]);
       const { items, load } = useConnections();
       await load();
-      const youtube = items.value.find((c) => c.id === "youtube");
+      const youtube = items.value.find(
+        (connection) => connection.id === "youtube",
+      );
       expect(youtube?.account).toBe("@mychannel");
       expect(youtube?.since).toMatch(/Connected/);
     });
@@ -46,7 +57,9 @@ describe("useConnections", () => {
       mockFetch.mockResolvedValue([]);
       const { items, load } = useConnections();
       await load();
-      expect(items.value.every((c) => !c.connected)).toBe(true);
+      expect(items.value.every((connection) => !connection.connected)).toBe(
+        true,
+      );
     });
 
     it("sets error on fetch failure and leaves items unchanged", async () => {
@@ -73,15 +86,6 @@ describe("useConnections", () => {
       expect(mockLocation.href).toBe("/api/auth/youtube");
     });
 
-    it("shows a toast for Twitter instead of navigating", () => {
-      const { connect } = useConnections();
-      connect("twitter");
-      expect(mockShowToast).toHaveBeenCalledWith(
-        expect.stringContaining("Twitter"),
-      );
-      expect(mockLocation.href).toBe("");
-    });
-
     it("shows a toast for Instagram instead of navigating", () => {
       const { connect } = useConnections();
       connect("instagram");
@@ -89,6 +93,69 @@ describe("useConnections", () => {
         expect.stringContaining("Instagram"),
       );
       expect(mockLocation.href).toBe("");
+    });
+
+    it("does not navigate or show a toast for bluesky (form-based flow)", () => {
+      const { connect } = useConnections();
+      connect("bluesky");
+      expect(mockShowToast).not.toHaveBeenCalled();
+      expect(mockLocation.href).toBe("");
+    });
+  });
+
+  describe("normalizeBlueskyHandle()", () => {
+    async function postedHandle(handle: string): Promise<string> {
+      mockFetch.mockResolvedValueOnce({ ok: true, handle });
+      mockFetch.mockResolvedValueOnce([]);
+      const { connectBluesky } = useConnections();
+      await connectBluesky(handle, "xxxx-xxxx-xxxx-xxxx");
+      return mockFetch.mock.calls[0][1].body.handle;
+    }
+
+    it("appends .bsky.social when given a bare handle", async () => {
+      expect(await postedHandle("grimicorn")).toBe("grimicorn.bsky.social");
+    });
+
+    it("strips leading @ and appends .bsky.social", async () => {
+      expect(await postedHandle("@grimicorn")).toBe("grimicorn.bsky.social");
+    });
+
+    it("passes through a fully qualified handle unchanged", async () => {
+      expect(await postedHandle("grimicorn.bsky.social")).toBe(
+        "grimicorn.bsky.social",
+      );
+    });
+
+    it("strips leading @ from a fully qualified handle", async () => {
+      expect(await postedHandle("@grimicorn.bsky.social")).toBe(
+        "grimicorn.bsky.social",
+      );
+    });
+  });
+
+  describe("connectBluesky()", () => {
+    it("posts to /api/auth/bluesky and reloads connections on success", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, handle: "you.bsky.social" });
+      mockFetch.mockResolvedValueOnce([mockBlueskyIntegration]);
+      const { connectBluesky, items } = useConnections();
+      await connectBluesky("you.bsky.social", "xxxx-xxxx-xxxx-xxxx");
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/auth/bluesky",
+        expect.objectContaining({ method: "POST" }),
+      );
+      const bluesky = items.value.find(
+        (connection) => connection.id === "bluesky",
+      );
+      expect(bluesky?.connected).toBe(true);
+    });
+
+    it("sets error when the request fails", async () => {
+      mockFetch.mockRejectedValue(new Error("Network error"));
+      const { connectBluesky, error } = useConnections();
+      await expect(
+        connectBluesky("you.bsky.social", "xxxx-xxxx-xxxx-xxxx"),
+      ).rejects.toBeTruthy();
+      expect(error.value).toBeTruthy();
     });
   });
 
@@ -99,7 +166,9 @@ describe("useConnections", () => {
       const { items, load, disconnect } = useConnections();
       await load();
       await disconnect("youtube");
-      const youtube = items.value.find((c) => c.id === "youtube");
+      const youtube = items.value.find(
+        (connection) => connection.id === "youtube",
+      );
       expect(youtube?.connected).toBe(false);
       expect(youtube?.account).toBe("");
       expect(youtube?.since).toBe("");
@@ -123,7 +192,9 @@ describe("useConnections", () => {
       const { items, error, load, disconnect } = useConnections();
       await load();
       await disconnect("youtube");
-      const youtube = items.value.find((c) => c.id === "youtube");
+      const youtube = items.value.find(
+        (connection) => connection.id === "youtube",
+      );
       expect(youtube?.connected).toBe(true);
       expect(error.value).toBeTruthy();
     });

@@ -1,26 +1,32 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`SettingsConnections > matches snapshot 1`] = `
-"<section class="set-section">
-  <h2>Connected accounts</h2>
-  <p class="desc"> Link YouTube, X, and Instagram to fold their timelines into your feed. </p>
+"<section data-v-d3b98f0f="" class="set-section">
+  <h2 data-v-d3b98f0f="">Connected accounts</h2>
+  <p data-v-d3b98f0f="" class="desc"> Link YouTube, Bluesky, and Instagram to fold their timelines into your feed. </p>
   <!--v-if-->
-  <div class="conn-grid">
-    <div class="conn"><span class="conn-ic" style="--c: var(--src-video);"><r-icon-stub name="video" size="22"></r-icon-stub></span>
-      <div class="conn-info">
-        <div class="conn-name">YouTube <span class="live"></span></div>
-        <div class="conn-desc">Subscribe to channels</div>
-        <div class="conn-since">@mychannel · Connected Jan 2024</div>
-      </div><button class="btn">Disconnect</button>
+  <div data-v-d3b98f0f="" class="conn-grid">
+    <div data-v-d3b98f0f="" class="conn">
+      <div data-v-d3b98f0f="" class="conn-row"><span data-v-d3b98f0f="" class="conn-ic" style="--c: var(--src-video);"><r-icon-stub data-v-d3b98f0f="" name="video" size="22"></r-icon-stub></span>
+        <div data-v-d3b98f0f="" class="conn-info">
+          <div data-v-d3b98f0f="" class="conn-name">YouTube <span data-v-d3b98f0f="" class="live"></span></div>
+          <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
+          <div data-v-d3b98f0f="" class="conn-since">@mychannel · Connected Jan 2024</div>
+        </div><button data-v-d3b98f0f="" class="btn">Disconnect</button>
+      </div>
+      <!--v-if-->
     </div>
-    <div class="conn"><span class="conn-ic" style="--c: var(--src-video);"><r-icon-stub name="chat" size="22"></r-icon-stub></span>
-      <div class="conn-info">
-        <div class="conn-name">X / Twitter
+    <div data-v-d3b98f0f="" class="conn">
+      <div data-v-d3b98f0f="" class="conn-row"><span data-v-d3b98f0f="" class="conn-ic" style="--c: var(--src-tweet);"><r-icon-stub data-v-d3b98f0f="" name="chat" size="22"></r-icon-stub></span>
+        <div data-v-d3b98f0f="" class="conn-info">
+          <div data-v-d3b98f0f="" class="conn-name">Bluesky
+            <!--v-if-->
+          </div>
+          <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
           <!--v-if-->
-        </div>
-        <div class="conn-desc">Subscribe to channels</div>
-        <!--v-if-->
-      </div><button class="btn btn-primary">Connect</button>
+        </div><button data-v-d3b98f0f="" class="btn btn-primary">Connect</button>
+      </div>
+      <!--v-if-->
     </div>
   </div>
 </section>"

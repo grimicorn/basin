@@ -100,8 +100,8 @@ function isBlockedIpv6(address: string): boolean {
   // Unspecified address
   if (normalized === "::") return true;
 
-  // Link-local (fe80::/10)
-  if (normalized.startsWith("fe80:")) return true;
+  // Link-local (fe80::/10 — second byte 0x80–0xbf, i.e. fe80–febf)
+  if (/^fe[89ab][0-9a-f]:/.test(normalized)) return true;
 
   // ULA (fc00::/7 — covers fc00:: and fd00::)
   if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;

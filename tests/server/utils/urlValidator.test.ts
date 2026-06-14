@@ -114,6 +114,18 @@ describe("validateFeedUrl", () => {
       );
     });
 
+    it("rejects IPv6 link-local fe90:: (fe80::/10 range)", async () => {
+      await expect(validateFeedUrl("http://[fe90::1]/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("rejects IPv6 link-local febf:: (fe80::/10 range)", async () => {
+      await expect(validateFeedUrl("http://[febf::1]/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
     it("rejects IPv6 ULA fc00::", async () => {
       await expect(validateFeedUrl("http://[fc00::1]/feed")).rejects.toThrow(
         "URL resolves to a disallowed address",

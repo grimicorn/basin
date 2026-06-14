@@ -98,8 +98,8 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
           Cozy
         </button>
         <button
-          :class="{ active: appearance.density === 'comfortable' }"
-          @click="appearance.density = 'comfortable'"
+          :class="{ active: appearance.density === 'roomy' }"
+          @click="appearance.density = 'roomy'"
         >
           Roomy
         </button>

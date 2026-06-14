@@ -15,7 +15,7 @@ const DEFAULTS = {
   theme: "system", // system | light | dark
   accent: "violet", // key of ACCENTS
   reading: "mono", // mono | serif
-  density: "cozy", // compact | cozy | comfortable
+  density: "cozy", // compact | cozy | roomy
   radius: "sharp", // sharp | default | round
   loadingStyle: "both", // skeleton | fade | both
 };

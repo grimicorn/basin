@@ -9,6 +9,7 @@ export interface UserSettings {
   accentColor: string;
   readingFont: string;
   spacing: string;
+  radius: string;
   layout: string;
   showUnreadOnly: boolean;
   autoplayMediaPreviews: boolean;
@@ -22,21 +23,22 @@ export const USER_SETTINGS_DEFAULTS: UserSettings = {
   accentColor: "violet",
   readingFont: "serif",
   spacing: "cozy",
+  radius: "sharp",
   layout: "timeline",
   showUnreadOnly: false,
   autoplayMediaPreviews: false,
   compactNotifications: false,
 };
 
-async function buildAuthHeaders(): Promise<Record<string, string>> {
-  const { getToken } = useAuth();
-  const token = await getToken.value();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export function useUserSettings() {
+  const { getToken } = useAuth();
   const loading = ref(false);
   const error = ref<string | null>(null);
+
+  async function buildAuthHeaders(): Promise<Record<string, string>> {
+    const token = await getToken.value();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
 
   async function load(): Promise<UserSettings> {
     loading.value = true;

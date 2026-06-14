@@ -1,4 +1,19 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+// Register the PATCH waiter BEFORE clicking so the response is never missed.
+function waitForSettingSave(page: Page) {
+  return page.waitForResponse(
+    (resp) =>
+      resp.url().includes("/api/settings/reading") &&
+      resp.request().method() === "PATCH",
+    { timeout: 5_000 },
+  );
+}
+
+async function reloadAndWait(page: Page) {
+  await page.reload();
+  await page.waitForLoadState("networkidle", { timeout: 15_000 });
+}
 
 test.describe("Settings > Reading", () => {
   test.beforeEach(async ({ page }) => {
@@ -6,38 +21,150 @@ test.describe("Settings > Reading", () => {
     await expect(
       page.locator("h2").getByText("Reading preferences"),
     ).toBeVisible({ timeout: 10_000 });
-    // The heading is SSR-rendered; wait for Vue to hydrate before clicking
-    // seg buttons. initAppearance() is client-only so handlers aren't
-    // attached until after the JS bundles load and execute.
+    // Wait for Vue to hydrate and for initAppearance() to finish loading
+    // settings from the DB before any test interactions.
     await page.waitForLoadState("networkidle", { timeout: 15_000 });
   });
 
-  test("theme toggle buttons are visible", async ({ page }) => {
+  test("theme: switching to dark persists across reload", async ({ page }) => {
     const themeRow = page.locator(".set-pref-row").filter({ hasText: "Theme" });
-    await expect(themeRow.locator(".seg")).toBeVisible();
-    await expect(themeRow.locator(".seg button")).toHaveCount(3);
+    const save = waitForSettingSave(page);
+    await themeRow.locator("button", { hasText: "Dark" }).click();
+    await save;
+
+    await reloadAndWait(page);
+    await expect(themeRow.locator("button", { hasText: "Dark" })).toHaveClass(
+      /active/,
+    );
   });
 
-  test("can switch theme to dark", async ({ page }) => {
-    const themeRow = page.locator(".set-pref-row").filter({ hasText: "Theme" });
-    await themeRow.locator(".seg button", { hasText: "Dark" }).click();
-    await expect(
-      themeRow.locator(".seg button", { hasText: "Dark" }),
-    ).toHaveClass(/active/);
+  test("accent color: switching to blue persists across reload", async ({
+    page,
+  }) => {
+    const accentRow = page
+      .locator(".set-pref-row")
+      .filter({ hasText: "Accent color" });
+    const save = waitForSettingSave(page);
+    await accentRow.locator('.twk-sw[title="blue"]').click();
+    await save;
+
+    await reloadAndWait(page);
+    await expect(accentRow.locator('.twk-sw[title="blue"]')).toHaveClass(/on/);
   });
 
-  test("reading font toggle is visible", async ({ page }) => {
+  test("reading font: switching to serif persists across reload", async ({
+    page,
+  }) => {
     const fontRow = page
       .locator(".set-pref-row")
       .filter({ hasText: "Reading font" });
-    await expect(fontRow.locator(".seg")).toBeVisible();
+    const save = waitForSettingSave(page);
+    await fontRow.locator("button", { hasText: "Serif" }).click();
+    await save;
+
+    await reloadAndWait(page);
+    await expect(fontRow.locator("button", { hasText: "Serif" })).toHaveClass(
+      /active/,
+    );
   });
 
-  test("spacing toggle is visible", async ({ page }) => {
+  test("spacing: switching to compact persists across reload", async ({
+    page,
+  }) => {
     const spacingRow = page
       .locator(".set-pref-row")
       .filter({ hasText: "Spacing" });
-    await expect(spacingRow.locator(".seg")).toBeVisible();
+    const save = waitForSettingSave(page);
+    await spacingRow.locator("button", { hasText: "Compact" }).click();
+    await save;
+
+    await reloadAndWait(page);
+    await expect(
+      spacingRow.locator("button", { hasText: "Compact" }),
+    ).toHaveClass(/active/);
+  });
+
+  test("show unread only: toggling persists across reload", async ({ page }) => {
+    const unreadRow = page
+      .locator(".set-pref-row")
+      .filter({ hasText: "Show unread only" });
+    const toggle = unreadRow.locator(".toggle");
+
+    const wasBefore = await toggle.evaluate((el) =>
+      el.classList.contains("on"),
+    );
+    const save = waitForSettingSave(page);
+    await toggle.click();
+    await save;
+
+    await reloadAndWait(page);
+    if (wasBefore) {
+      await expect(toggle).not.toHaveClass(/on/);
+    } else {
+      await expect(toggle).toHaveClass(/on/);
+    }
+  });
+
+  test("autoplay media previews: toggling persists across reload", async ({
+    page,
+  }) => {
+    const autoplayRow = page
+      .locator(".set-pref-row")
+      .filter({ hasText: "Autoplay media previews" });
+    const toggle = autoplayRow.locator(".toggle");
+
+    const wasBefore = await toggle.evaluate((el) =>
+      el.classList.contains("on"),
+    );
+    const save = waitForSettingSave(page);
+    await toggle.click();
+    await save;
+
+    await reloadAndWait(page);
+    if (wasBefore) {
+      await expect(toggle).not.toHaveClass(/on/);
+    } else {
+      await expect(toggle).toHaveClass(/on/);
+    }
+  });
+
+  test("compact notifications: toggling persists across reload", async ({
+    page,
+  }) => {
+    const notifRow = page
+      .locator(".set-pref-row")
+      .filter({ hasText: "Compact notifications" });
+    const toggle = notifRow.locator(".toggle");
+
+    const wasBefore = await toggle.evaluate((el) =>
+      el.classList.contains("on"),
+    );
+    const save = waitForSettingSave(page);
+    await toggle.click();
+    await save;
+
+    await reloadAndWait(page);
+    if (wasBefore) {
+      await expect(toggle).not.toHaveClass(/on/);
+    } else {
+      await expect(toggle).toHaveClass(/on/);
+    }
+  });
+
+  test("default layout: switching to grid persists across reload", async ({
+    page,
+  }) => {
+    const layoutRow = page
+      .locator(".set-pref-row")
+      .filter({ hasText: "Default layout" });
+    const save = waitForSettingSave(page);
+    await layoutRow.locator("button", { hasText: "Grid" }).click();
+    await save;
+
+    await reloadAndWait(page);
+    await expect(layoutRow.locator("button", { hasText: "Grid" })).toHaveClass(
+      /active/,
+    );
   });
 });
 

@@ -5,7 +5,7 @@ const { state: feed } = useFeed();
 </script>
 
 <template>
-  <div class="app-shell">
+  <div>
     <div v-if="feed.loading" class="topbar-progress"><i></i></div>
     <AppHeader />
     <slot />

@@ -1,7 +1,7 @@
 /* useAppearance — theme + visual tweaks, persisted to the database and
    applied to <html> via data-* attributes and CSS custom properties.
    Singleton: every component shares one reactive instance. */
-import { reactive, watch } from "vue";
+import { reactive, ref, watch } from "vue";
 
 export const ACCENTS = {
   violet: { a: "oklch(0.6 0.17 285)", s: "oklch(0.54 0.18 285)" },
@@ -21,6 +21,7 @@ const DEFAULTS = {
 };
 
 const state = reactive({ ...DEFAULTS });
+const ready = ref(false);
 let initialized = false;
 
 function applyToDom() {
@@ -70,6 +71,7 @@ async function initAppearance() {
   const dbSettings = await load();
   applyDbSettings(dbSettings);
   applyToDom();
+  ready.value = true;
 
   watch(
     state,
@@ -99,5 +101,5 @@ export function useAppearance() {
     state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
   };
 
-  return { state, ACCENTS, accentList, themeIcon, cycleTheme, applyToDom };
+  return { state, ready, ACCENTS, accentList, themeIcon, cycleTheme, applyToDom };
 }

@@ -632,3 +632,13 @@ body {
   color: var(--ink);
   box-shadow: var(--shadow);
 }
+
+
+/* Prevent flash of wrong theme/accent/radius while user settings load from DB */
+.app-shell {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.app-shell.app-ready {
+  opacity: 1;
+}

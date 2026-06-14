@@ -73,9 +73,11 @@ test.describe("Settings > Feeds", () => {
   });
 
   test("removes a feed via the trash button", async ({ page }) => {
-    // Add a fresh feed so this test is self-contained and retry-safe —
-    // deleting the seeded "E2E Test Feed" would break retries and other tests.
-    const removeUrl = `https://test-remove-${crypto.randomUUID()}.example.com/feed.xml`;
+    // Use the mock server's feed endpoint so discovery succeeds. A unique query
+    // param avoids a duplicate-URL conflict with the "can add" test which inserts
+    // the bare /feed.xml URL in the same run. Each retry generates a new param,
+    // keeping the test retry-safe.
+    const removeUrl = `${MOCK_BASE_URL}/feed.xml?id=${crypto.randomUUID()}`;
     await page
       .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
       .fill(removeUrl);

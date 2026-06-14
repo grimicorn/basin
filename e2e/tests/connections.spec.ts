@@ -102,11 +102,12 @@ test.describe("Settings > Connections", () => {
     });
   });
 
-  test("Instagram connection card is shown", async ({ page }) => {
+  // Instagram is temporarily disabled pending Business approval — skip until re-enabled.
+  test.skip("Instagram connection card is shown", async ({ page }) => {
     await expect(page.locator(".conn", { hasText: "Instagram" })).toBeVisible();
   });
 
-  test("Instagram shows as not connected (no seed integration)", async ({
+  test.skip("Instagram shows as not connected (no seed integration)", async ({
     page,
   }) => {
     const instagramCard = page.locator(".conn", { hasText: "Instagram" });
@@ -119,7 +120,7 @@ test.describe("Settings > Connections", () => {
   // Serial block so retries replay the connect step before disconnect.
   // Without serial, a disconnect retry runs without the connect having run,
   // which fails deterministically because the integration is absent from the DB.
-  test.describe.serial("Instagram OAuth flow", () => {
+  test.describe.serial.skip("Instagram OAuth flow", () => {
     test("can connect Instagram via OAuth", async ({ page }) => {
       // Playwright cannot intercept navigation requests to facebook.com —
       // Chromium treats that domain specially and the CDP Fetch intercept never

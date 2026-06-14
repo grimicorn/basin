@@ -7,13 +7,13 @@ const mockInsert = vi.fn();
 vi.stubGlobal("useDb", () => ({ insert: mockInsert }));
 
 vi.mock("../../../server/utils/feedValidator", () => ({
-  validateFeedUrl: vi.fn(),
+  validateFeedContent: vi.fn(),
 }));
 
 import handler from "../../../server/api/feeds.post";
-import { validateFeedUrl } from "../../../server/utils/feedValidator";
+import { validateFeedContent } from "../../../server/utils/feedValidator";
 
-const mockValidateFeedUrl = vi.mocked(validateFeedUrl);
+const mockValidateFeedUrl = vi.mocked(validateFeedContent);
 
 const mockFeed = {
   id: 1,

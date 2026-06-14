@@ -58,6 +58,9 @@ const nitroGlobals = {
   buildYouTubeAuthUrl: "readonly",
   exchangeCodeForTokens: "readonly",
   getYouTubeChannelHandle: "readonly",
+  buildInstagramAuthUrl: "readonly",
+  exchangeInstagramCode: "readonly",
+  getInstagramUserInfo: "readonly",
   createBlueskySession: "readonly",
 };
 

@@ -31,6 +31,8 @@ function makeStub(
     items: ref(overrides.items ?? [rssItem, podItem]),
     newUrl: ref(""),
     loading: ref(false),
+    isAdding: ref(false),
+    discovering: ref(false),
     error: ref(overrides.error ?? null),
     load: vi.fn(),
     add: vi.fn(),

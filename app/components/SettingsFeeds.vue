@@ -1,6 +1,23 @@
 <script setup>
-const { items, newUrl, loading, error, add, remove, load } = useFeeds();
+const {
+  items,
+  newUrl,
+  loading,
+  isAdding,
+  discovering,
+  error,
+  add,
+  remove,
+  load,
+} = useFeeds();
 onMounted(load);
+
+const busy = computed(() => isAdding.value || discovering.value);
+const buttonLabel = computed(() => {
+  if (discovering.value) return "Finding feed…";
+  if (isAdding.value) return "Adding…";
+  return "Add feed";
+});
 
 function sourceColor(source) {
   return source === "podcast" ? "var(--src-podcast)" : "var(--src-rss)";
@@ -11,8 +28,8 @@ function sourceColor(source) {
   <section class="set-section">
     <h2>RSS &amp; Podcasts</h2>
     <p class="desc">
-      Paste any feed URL — Reader auto-detects whether it's an article feed or a
-      podcast.
+      Paste a feed URL or a plain website address — Reader will find the feed
+      automatically.
     </p>
 
     <p v-if="error" class="desc feed-error">{{ error }}</p>
@@ -22,13 +39,13 @@ function sourceColor(source) {
         <RIcon name="rss" :size="16" />
         <input
           v-model="newUrl"
-          placeholder="https://example.com/feed.xml"
-          :disabled="loading"
+          placeholder="https://example.com or https://example.com/feed.xml"
+          :disabled="busy"
           @keyup.enter="add"
         />
       </div>
-      <button class="btn btn-primary" :disabled="loading" @click="add">
-        <RIcon name="plus" :size="16" /> Add feed
+      <button class="btn btn-primary" :disabled="busy" @click="add">
+        <RIcon name="plus" :size="16" /> {{ buttonLabel }}
       </button>
     </div>
 

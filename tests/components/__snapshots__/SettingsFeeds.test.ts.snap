@@ -3,11 +3,11 @@
 exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
 "<section class="set-section">
   <h2>RSS &amp; Podcasts</h2>
-  <p class="desc"> Paste any feed URL — Reader auto-detects whether it's an article feed or a podcast. </p>
+  <p class="desc"> Paste a feed URL or a plain website address — Reader will find the feed automatically. </p>
   <!--v-if-->
   <div class="add-feed">
     <div class="field">
-      <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com/feed.xml">
+      <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com or https://example.com/feed.xml">
     </div><button class="btn btn-primary">
       <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
     </button>
@@ -37,11 +37,11 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
 exports[`SettingsFeeds > shows empty state when there are no feeds 1`] = `
 "<section class="set-section">
   <h2>RSS &amp; Podcasts</h2>
-  <p class="desc"> Paste any feed URL — Reader auto-detects whether it's an article feed or a podcast. </p>
+  <p class="desc"> Paste a feed URL or a plain website address — Reader will find the feed automatically. </p>
   <!--v-if-->
   <div class="add-feed">
     <div class="field">
-      <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com/feed.xml">
+      <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com or https://example.com/feed.xml">
     </div><button class="btn btn-primary">
       <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
     </button>

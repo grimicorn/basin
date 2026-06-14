@@ -31,23 +31,23 @@ describe("GET /api/auth/youtube", () => {
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 });
   });
 
-  it("sets the oauth_state cookie as httpOnly with lax sameSite", async () => {
+  it("sets the oauth_state_youtube cookie as httpOnly with lax sameSite", async () => {
     const event = { context: { user: { id: 1 } } };
     await handler(event);
     expect(mockSetCookie).toHaveBeenCalledWith(
       event,
-      "oauth_state",
+      "oauth_state_youtube",
       expect.any(String),
       expect.objectContaining({ httpOnly: true, sameSite: "lax" }),
     );
   });
 
-  it("sets the oauth_state cookie with a 600s TTL", async () => {
+  it("sets the oauth_state_youtube cookie with a 600s TTL", async () => {
     const event = { context: { user: { id: 1 } } };
     await handler(event);
     expect(mockSetCookie).toHaveBeenCalledWith(
       event,
-      "oauth_state",
+      "oauth_state_youtube",
       expect.any(String),
       expect.objectContaining({ maxAge: 600 }),
     );

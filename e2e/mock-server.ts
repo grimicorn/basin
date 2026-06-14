@@ -13,39 +13,66 @@ const MINIMAL_RSS_FEED =
 
 let server: Server | null = null;
 
+type RouteKey = `${"GET" | "POST"} ${string}`;
+type RouteHandler = (_req: IncomingMessage, _res: ServerResponse) => void;
+
 function parseQueryParams(url: string): URLSearchParams {
   return new URLSearchParams((url ?? "").split("?")[1] ?? "");
 }
 
-// ── OAuth 2.0 token exchange (shared by all providers) ───────────────────
-function handleTokenExchange(res: ServerResponse): void {
+function jsonResponse(res: ServerResponse, body: unknown): void {
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(
-    JSON.stringify({
-      access_token: "mock_access_token",
-      refresh_token: "mock_refresh_token",
-      expires_in: 3600,
-      scope: "https://www.googleapis.com/auth/youtube.readonly",
-      token_type: "Bearer",
-    }),
-  );
+  res.end(JSON.stringify(body));
+}
+
+// ── OAuth 2.0 token exchange (shared by all providers) ───────────────────
+function handleTokenExchange(_req: IncomingMessage, res: ServerResponse): void {
+  jsonResponse(res, {
+    access_token: "mock_access_token",
+    refresh_token: "mock_refresh_token",
+    expires_in: 3600,
+    scope: "https://www.googleapis.com/auth/youtube.readonly",
+    token_type: "Bearer",
+  });
 }
 
 // ── YouTube: channel info ────────────────────────────────────────────────
-function handleYouTubeChannels(res: ServerResponse): void {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(
-    JSON.stringify({
-      items: [
-        {
-          snippet: {
-            customUrl: "@e2etestchannel",
-            title: "E2E Test Channel",
-          },
+function handleYouTubeChannels(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  jsonResponse(res, {
+    items: [
+      {
+        snippet: {
+          customUrl: "@e2etestchannel",
+          title: "E2E Test Channel",
         },
-      ],
-    }),
-  );
+      },
+    ],
+  });
+}
+
+// ── Instagram: token exchange ────────────────────────────────────────────
+function handleInstagramTokenExchange(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  jsonResponse(res, {
+    access_token: "mock_instagram_access_token",
+    token_type: "bearer",
+  });
+}
+
+// ── Instagram: user info ─────────────────────────────────────────────────
+function handleInstagramUserInfo(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  jsonResponse(res, {
+    id: "123456789",
+    username: "e2etestuser",
+  });
 }
 
 // ── Feed proxy: returns a minimal valid RSS feed for any URL ─────────────
@@ -64,27 +91,55 @@ function handleFeedProxy(req: IncomingMessage, res: ServerResponse): void {
   res.end(MINIMAL_RSS_FEED);
 }
 
-function handle(req: IncomingMessage, res: ServerResponse): void {
-  const method = req.method ?? "GET";
-  const path = (req.url ?? "/").split("?")[0];
+// ── RSS feed stub for feed-discovery e2e tests ───────────────────────────
+function handleFeedXml(_req: IncomingMessage, res: ServerResponse): void {
+  res.writeHead(200, {
+    "Content-Type": "application/rss+xml; charset=utf-8",
+  });
+  res.end(
+    `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>E2E Mock Feed</title>
+    <link>${MOCK_BASE_URL}/feed.xml</link>
+    <description>Mock RSS feed for e2e tests</description>
+  </channel>
+</rss>`,
+  );
+}
 
-  if (method === "POST" && path === "/token") return handleTokenExchange(res);
-  if (method === "GET" && path === "/youtube/v3/channels")
-    return handleYouTubeChannels(res);
-  if (method === "GET" && path === "/feed-proxy")
-    return handleFeedProxy(req, res);
+const routes: Record<RouteKey, RouteHandler> = {
+  "POST /token": handleTokenExchange,
+  "GET /youtube/v3/channels": handleYouTubeChannels,
+  "POST /v19.0/oauth/access_token": handleInstagramTokenExchange,
+  "GET /v19.0/me": handleInstagramUserInfo,
+  "GET /feed-proxy": handleFeedProxy,
+  "GET /feed.xml": handleFeedXml,
+};
 
-  // Add future providers here:
-  // ── X (Twitter): user lookup ─────────────────────────────────────────────
-  // if (method === "GET" && path === "/2/users/me") { ... }
-  //
-  // ── Instagram: user info ─────────────────────────────────────────────────
-  // if (method === "GET" && path.startsWith("/v20.0/me")) { ... }
-
+function handleNotFound(
+  method: string,
+  path: string,
+  res: ServerResponse,
+): void {
   // Loud 404 so missing mocks are immediately obvious in the test output
   console.error(`[mock-server] No handler for ${method} ${path}`);
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: `No mock handler for ${method} ${path}` }));
+}
+
+function handle(req: IncomingMessage, res: ServerResponse): void {
+  const method = (req.method ?? "GET") as "GET" | "POST";
+  const path = (req.url ?? "/").split("?")[0] as string;
+  const routeKey: RouteKey = `${method} ${path}`;
+  const routeHandler = routes[routeKey];
+
+  if (routeHandler) {
+    routeHandler(req, res);
+    return;
+  }
+
+  handleNotFound(method, path, res);
 }
 
 export function startMockServer(): Promise<void> {

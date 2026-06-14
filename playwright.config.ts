@@ -92,9 +92,16 @@ export default defineConfig({
       NUXT_GOOGLE_CLIENT_ID: process.env.NUXT_GOOGLE_CLIENT_ID ?? "",
       NUXT_GOOGLE_CLIENT_SECRET: process.env.NUXT_GOOGLE_CLIENT_SECRET ?? "",
       // Route outbound Google API calls to the local mock server so e2e tests
-      // never hit the real Google APIs. Add equivalent vars here for X/Instagram.
+      // never hit the real Google APIs.
       GOOGLE_TOKEN_URL: `${MOCK_BASE_URL}/token`,
       YOUTUBE_CHANNELS_URL: `${MOCK_BASE_URL}/youtube/v3/channels?part=snippet&mine=true`,
+      // Route outbound Instagram API calls to the local mock server so e2e tests
+      // never hit the real Instagram/Facebook APIs.
+      INSTAGRAM_TOKEN_URL: `${MOCK_BASE_URL}/v19.0/oauth/access_token`,
+      INSTAGRAM_USER_URL: `${MOCK_BASE_URL}/v19.0/me?fields=id,username&access_token=`,
+      // Allow the mock server's loopback address through SSRF validation so
+      // feed-discovery e2e tests can use the mock RSS endpoint.
+      NUXT_FEED_DISCOVERY_ALLOWED_HOSTS: `127.0.0.1:${MOCK_PORT}`,
       // Route feed-validation fetches through the mock server so no real HTTP
       // requests are made when adding a feed URL during e2e tests.
       FEED_FETCH_PROXY_URL: `${MOCK_BASE_URL}/feed-proxy`,

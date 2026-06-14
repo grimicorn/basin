@@ -73,12 +73,12 @@ describe("GET /api/auth/youtube/callback", () => {
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it("deletes the oauth_state cookie on a valid flow", async () => {
+  it("deletes the oauth_state_youtube cookie on a valid flow", async () => {
     const event = { context: { user: { id: 1 } } };
     mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });
     mockGetCookie.mockReturnValue("state123");
     await handler(event);
-    expect(mockDeleteCookie).toHaveBeenCalledWith(event, "oauth_state");
+    expect(mockDeleteCookie).toHaveBeenCalledWith(event, "oauth_state_youtube");
   });
 
   it("exchanges the code and inserts the integration", async () => {

@@ -86,13 +86,20 @@ describe("useConnections", () => {
       expect(mockLocation.href).toBe("/api/auth/youtube");
     });
 
-    it("shows a toast for Instagram instead of navigating", () => {
+    it("shows a toast for unknown providers instead of navigating", () => {
       const { connect } = useConnections();
-      connect("instagram");
+      connect("twitter");
       expect(mockShowToast).toHaveBeenCalledWith(
-        expect.stringContaining("Instagram"),
+        expect.stringContaining("twitter"),
       );
       expect(mockLocation.href).toBe("");
+    });
+
+    it("navigates to /api/auth/instagram for the Instagram provider", () => {
+      const { connect } = useConnections();
+      connect("instagram");
+      expect(mockLocation.href).toBe("/api/auth/instagram");
+      expect(mockShowToast).not.toHaveBeenCalled();
     });
 
     it("does not navigate or show a toast for bluesky (form-based flow)", () => {
@@ -134,6 +141,14 @@ describe("useConnections", () => {
   });
 
   describe("connectBluesky()", () => {
+    it("throws and sets error when handle normalizes to an empty string", async () => {
+      const { connectBluesky, error } = useConnections();
+      await expect(connectBluesky("@", "xxxx-xxxx-xxxx-xxxx")).rejects.toThrow(
+        "Bluesky handle is required",
+      );
+      expect(error.value).toBe("Bluesky handle is required");
+    });
+
     it("posts to /api/auth/bluesky and reloads connections on success", async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, handle: "you.bsky.social" });
       mockFetch.mockResolvedValueOnce([mockBlueskyIntegration]);

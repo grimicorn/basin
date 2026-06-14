@@ -28,15 +28,16 @@ const PROVIDERS: Omit<Connection, "connected" | "account" | "since">[] = [
     desc: "Following feed",
     color: "var(--src-tweet)",
   },
-  {
-    id: "instagram",
-    name: "Instagram",
-    desc: "Following feed",
-    color: "var(--src-photo)",
-  },
+  // Disabled until Business approval is completed
+  // {
+  //   id: "instagram",
+  //   name: "Instagram",
+  //   desc: "Following feed",
+  //   color: "var(--src-photo)",
+  // },
 ];
 
-const OAUTH_PROVIDERS = new Set(["youtube"]);
+const OAUTH_PROVIDERS = new Set(["youtube", "instagram"]);
 const FORM_PROVIDERS = new Set(["bluesky"]);
 
 function formatSince(iso: string | null): string {
@@ -103,11 +104,16 @@ export function useConnections() {
   function normalizeBlueskyHandle(handle: string): string {
     handle = handle.trim();
     const stripped = handle.startsWith("@") ? handle.slice(1) : handle;
+    if (!stripped.trim()) return "";
     return stripped.includes(".") ? stripped : `${stripped}.bsky.social`;
   }
 
   async function connectBluesky(handle: string, appPassword: string) {
     handle = normalizeBlueskyHandle(handle);
+    if (!handle) {
+      error.value = "Bluesky handle is required";
+      throw new Error(error.value);
+    }
     loading.value = true;
     error.value = null;
     try {
@@ -121,9 +127,9 @@ export function useConnections() {
       );
       await load();
       return result;
-    } catch {
+    } catch (err) {
       error.value = "Failed to connect Bluesky";
-      throw error.value;
+      throw err instanceof Error ? err : new Error(error.value);
     } finally {
       loading.value = false;
     }

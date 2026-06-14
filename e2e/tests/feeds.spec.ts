@@ -10,10 +10,11 @@ test.describe("Settings > Feeds", () => {
     await expect(page.locator("h2").getByText("RSS & Podcasts")).toBeVisible({
       timeout: 10_000,
     });
-    // Wait for the seeded feed to appear, which confirms that the initial
-    // /api/feeds load() call has completed and the list has been populated.
-    // The add button is no longer tied to the list-loading state, so we use
-    // feed list content as the sync point instead.
+    // Wait for the seeded feed to be visible — this is an unambiguous signal that
+    // load() has completed and Vue has rendered the list. Both networkidle and
+    // toBeEnabled() on the add button can pass before onMounted(load) fires due
+    // to the SSR rendering gap, causing the test to click a disabled button or
+    // interact with a stale UI.
     await expect(page.getByText("E2E Test Feed")).toBeVisible({
       timeout: 15_000,
     });
@@ -72,7 +73,15 @@ test.describe("Settings > Feeds", () => {
   });
 
   test("removes a feed via the trash button", async ({ page }) => {
-    const feedRow = page.locator(".feed-row", { hasText: "E2E Test Feed" });
+    // Add a fresh feed so this test is self-contained and retry-safe —
+    // deleting the seeded "E2E Test Feed" would break retries and other tests.
+    const removeUrl = `https://test-remove-${crypto.randomUUID()}.example.com/feed.xml`;
+    await page
+      .locator('input[placeholder="https://example.com/feed.xml"]')
+      .fill(removeUrl);
+    await page.locator(".btn-primary").click();
+
+    const feedRow = page.locator(".feed-row", { hasText: removeUrl });
     await expect(feedRow).toBeVisible({ timeout: 8_000 });
     await feedRow.locator('button[title="Remove"]').click();
     await expect(feedRow).not.toBeVisible({ timeout: 5_000 });

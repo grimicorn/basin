@@ -22,13 +22,19 @@ CREATE INDEX IF NOT EXISTS "feed_items_search_vector_gin_idx"
 --> statement-breakpoint
 
 -- Trigger function that keeps search_vector up to date on every write.
+-- Skips recomputation when neither title nor content changed (e.g. updating
+-- readAt or starred), using IS DISTINCT FROM to handle NULLs correctly.
 CREATE OR REPLACE FUNCTION feed_items_search_vector_update()
 RETURNS trigger AS $$
 BEGIN
-  NEW.search_vector := to_tsvector(
-    'english',
-    coalesce(NEW.title, '') || ' ' || coalesce(NEW.content, '')
-  );
+  IF (TG_OP = 'INSERT' OR
+      NEW.title IS DISTINCT FROM OLD.title OR
+      NEW.content IS DISTINCT FROM OLD.content) THEN
+    NEW.search_vector := to_tsvector(
+      'english',
+      coalesce(NEW.title, '') || ' ' || coalesce(NEW.content, '')
+    );
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

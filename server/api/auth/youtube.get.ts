@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const state = randomBytes(32).toString("hex");
-  setCookie(event, "oauth_state", state, {
+  setCookie(event, "oauth_state_youtube", state, {
     httpOnly: true,
     maxAge: 600,
     sameSite: "lax",

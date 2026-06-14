@@ -141,6 +141,14 @@ describe("useConnections", () => {
   });
 
   describe("connectBluesky()", () => {
+    it("throws and sets error when handle normalizes to an empty string", async () => {
+      const { connectBluesky, error } = useConnections();
+      await expect(connectBluesky("@", "xxxx-xxxx-xxxx-xxxx")).rejects.toThrow(
+        "Bluesky handle is required",
+      );
+      expect(error.value).toBe("Bluesky handle is required");
+    });
+
     it("posts to /api/auth/bluesky and reloads connections on success", async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, handle: "you.bsky.social" });
       mockFetch.mockResolvedValueOnce([mockBlueskyIntegration]);

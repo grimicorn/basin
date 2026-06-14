@@ -111,7 +111,7 @@ export function useConnections() {
     handle = normalizeBlueskyHandle(handle);
     if (!handle) {
       error.value = "Bluesky handle is required";
-      return;
+      throw new Error(error.value);
     }
     loading.value = true;
     error.value = null;

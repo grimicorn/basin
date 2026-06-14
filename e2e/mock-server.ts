@@ -14,7 +14,7 @@ const MINIMAL_RSS_FEED =
 let server: Server | null = null;
 
 type RouteKey = `${"GET" | "POST"} ${string}`;
-type RouteHandler = (_req: IncomingMessage, _res: ServerResponse) => void;
+type RouteHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
 function parseQueryParams(url: string): URLSearchParams {
   return new URLSearchParams((url ?? "").split("?")[1] ?? "");

@@ -3,7 +3,7 @@
 exports[`SettingsConnections > matches snapshot 1`] = `
 "<section data-v-d3b98f0f="" class="set-section">
   <h2 data-v-d3b98f0f="">Connected accounts</h2>
-  <p data-v-d3b98f0f="" class="desc"> Link YouTube, Bluesky, and Instagram to fold their timelines into your feed. </p>
+  <p data-v-d3b98f0f="" class="desc"> Link YouTube and Bluesky to fold their timelines into your feed. </p>
   <!--v-if-->
   <div data-v-d3b98f0f="" class="conn-grid">
     <div data-v-d3b98f0f="" class="conn">

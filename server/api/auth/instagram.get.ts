@@ -6,14 +6,14 @@ export default defineEventHandler(async (event) => {
   }
 
   const state = randomBytes(32).toString("hex");
-  setCookie(event, "oauth_state_youtube", state, {
+  setCookie(event, "oauth_state_instagram", state, {
     httpOnly: true,
     maxAge: 600,
     sameSite: "lax",
   });
 
   const { origin } = getRequestURL(event);
-  const redirectUri = `${origin}/api/auth/youtube/callback`;
+  const redirectUri = `${origin}/api/auth/instagram/callback`;
 
-  return sendRedirect(event, buildYouTubeAuthUrl(redirectUri, state));
+  return sendRedirect(event, buildInstagramAuthUrl(redirectUri, state));
 });

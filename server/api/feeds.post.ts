@@ -1,5 +1,5 @@
 import { feeds } from "../db/schema";
-import { validateFeedUrl } from "../utils/feedValidator";
+import { validateFeedContent } from "../utils/feedValidator";
 
 const FEED_VALIDATION_TIMEOUT_MS = 10_000;
 
@@ -22,7 +22,7 @@ async function validateWithTimeout(url: string): Promise<boolean> {
       init?: Parameters<typeof fetch>[1],
     ) => fetch(input, { ...init, signal: controller.signal });
 
-    return await validateFeedUrl(url, boundFetch as typeof fetch);
+    return await validateFeedContent(url, boundFetch as typeof fetch);
   } finally {
     clearTimeout(timeoutId);
   }

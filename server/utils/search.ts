@@ -1,17 +1,8 @@
 import { sql, eq } from "drizzle-orm";
 import { feedItems, feeds } from "../db/schema";
+import { FEED_SOURCE_TO_ITEM_TYPE } from "../../app/utils/feedSources";
 
 export const SEARCH_RESULT_LIMIT = 20;
-
-// Maps the feed-level source value (stored in the feeds table) to the
-// item type key used by the front-end SOURCES map (icons.js).
-const FEED_SOURCE_TO_ITEM_TYPE: Record<string, string> = {
-  rss: "article",
-  podcast: "podcast",
-  video: "video",
-  tweet: "tweet",
-  photo: "photo",
-};
 
 // Formats a Date into a short relative time string (e.g. "2h", "3d", "Jan 5")
 // to match the `time` field shape used by mock feed items in the UI.

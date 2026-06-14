@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   index,
   integer,
   pgTable,
@@ -8,6 +9,16 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+// Drizzle does not ship a first-class tsvector type yet, so we define a
+// passthrough custom type. The column is populated and maintained by a
+// database trigger (see migration 0001_add_feed_items_search_vector.sql) —
+// Drizzle never writes to it directly.
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -53,8 +64,12 @@ export const feedItems = pgTable(
     savedAt: timestamp("saved_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
+    searchVector: tsvector("search_vector"),
   },
-  (table) => [index("feed_items_tags_gin_idx").using("gin", table.tags)],
+  (table) => [
+    index("feed_items_tags_gin_idx").using("gin", table.tags),
+    index("feed_items_search_vector_gin_idx").using("gin", table.searchVector),
+  ],
 );
 
 export const integrations = pgTable(

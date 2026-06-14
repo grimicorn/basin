@@ -49,14 +49,19 @@ globalThis.createError = ({
 }) => Object.assign(new Error(statusMessage), { statusCode });
 globalThis.readBody = (event: any) => Promise.resolve(event.body ?? {});
 globalThis.getRouterParam = (event: any, name: string) => event.params?.[name];
+globalThis.getQuery = (event: any) => event.query ?? {};
 
 // Vue composition API — mirrors Nuxt's auto-import so components can use
 // ref/computed/watch/etc. without explicit imports.
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 globalThis.ref = ref;
 globalThis.computed = computed;
 globalThis.watch = watch;
 globalThis.onMounted = onMounted;
+globalThis.onUnmounted = onUnmounted;
+
+// Nuxt's $fetch global — tests override per-suite as needed.
+globalThis.$fetch = vi.fn().mockResolvedValue([]);
 
 // Clerk composable stubs
 const mockClerkUser = ref({

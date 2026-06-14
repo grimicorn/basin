@@ -15,6 +15,13 @@
       "when": 1748000001000,
       "tag": "0001_add_radius_to_user_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748000002000,
+      "tag": "0002_add_feed_items_search_vector",
+      "breakpoints": true
     }
   ]
 }

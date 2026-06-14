@@ -77,14 +77,23 @@ test.describe("Settings > Reading", () => {
     const fontRow = page
       .locator(".set-pref-row")
       .filter({ hasText: "Reading font" });
+    const serifBtn = fontRow.locator("button", { hasText: "Serif" });
+
+    // If serif is already active from a prior CI run, switch to mono first so
+    // the serif click below is always a real state change that triggers a PATCH.
+    // Without this guard a no-op click starves waitForSettingSave and times out.
+    if (await serifBtn.evaluate((el) => el.classList.contains("active"))) {
+      const reset = waitForSettingSave(page);
+      await fontRow.locator("button", { hasText: "Mono" }).click();
+      await reset;
+    }
+
     const save = waitForSettingSave(page);
-    await fontRow.locator("button", { hasText: "Serif" }).click();
+    await serifBtn.click();
     await save;
 
     await reloadAndWait(page);
-    await expect(fontRow.locator("button", { hasText: "Serif" })).toHaveClass(
-      /active/,
-    );
+    await expect(serifBtn).toHaveClass(/active/);
   });
 
   test("spacing: switching to compact persists across reload", async ({

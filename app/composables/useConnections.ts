@@ -28,12 +28,13 @@ const PROVIDERS: Omit<Connection, "connected" | "account" | "since">[] = [
     desc: "Following feed",
     color: "var(--src-tweet)",
   },
-  {
-    id: "instagram",
-    name: "Instagram",
-    desc: "Following feed",
-    color: "var(--src-photo)",
-  },
+  // Disabled until Business approval is completed
+  // {
+  //   id: "instagram",
+  //   name: "Instagram",
+  //   desc: "Following feed",
+  //   color: "var(--src-photo)",
+  // },
 ];
 
 const OAUTH_PROVIDERS = new Set(["youtube", "instagram"]);

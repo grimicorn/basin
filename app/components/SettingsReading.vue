@@ -1,9 +1,6 @@
 <script setup>
-import { reactive } from "vue";
-
 const { state } = useFeed();
 const { state: appearance, accentList } = useAppearance();
-const prefs = reactive({ autoplay: false, compactNotif: true });
 </script>
 
 <template>
@@ -125,8 +122,8 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
       </div>
       <button
         class="toggle"
-        :class="{ on: prefs.autoplay }"
-        @click="prefs.autoplay = !prefs.autoplay"
+        :class="{ on: appearance.autoplay }"
+        @click="appearance.autoplay = !appearance.autoplay"
       ></button>
     </div>
 
@@ -137,8 +134,8 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
       </div>
       <button
         class="toggle"
-        :class="{ on: prefs.compactNotif }"
-        @click="prefs.compactNotif = !prefs.compactNotif"
+        :class="{ on: appearance.compactNotif }"
+        @click="appearance.compactNotif = !appearance.compactNotif"
       ></button>
     </div>
 

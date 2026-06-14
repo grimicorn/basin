@@ -18,6 +18,8 @@ const DEFAULTS = {
   density: "cozy", // compact | cozy | roomy
   radius: "sharp", // sharp | default | round
   loadingStyle: "both", // skeleton | fade | both
+  autoplay: false,
+  compactNotif: false,
 };
 
 const state = reactive({ ...DEFAULTS });
@@ -51,6 +53,8 @@ function applyDbSettings(dbSettings) {
   state.reading = dbSettings.readingFont ?? DEFAULTS.reading;
   state.density = dbSettings.spacing ?? DEFAULTS.density;
   state.radius = dbSettings.radius ?? DEFAULTS.radius;
+  state.autoplay = dbSettings.autoplayMediaPreviews ?? DEFAULTS.autoplay;
+  state.compactNotif = dbSettings.compactNotifications ?? DEFAULTS.compactNotif;
 }
 
 function buildPatch(changedState) {
@@ -60,6 +64,8 @@ function buildPatch(changedState) {
     readingFont: changedState.reading,
     spacing: changedState.density,
     radius: changedState.radius,
+    autoplayMediaPreviews: changedState.autoplay,
+    compactNotifications: changedState.compactNotif,
   };
 }
 

@@ -1,18 +1,18 @@
 import { config } from "@vue/test-utils";
-import { vi } from "vitest";
+import { vi, beforeEach } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
 
 // Real composables as globals — mirrors Nuxt's auto-import behavior.
-// useToast first: it has no deps and useFeed calls useToast() as a global.
 import { useToast } from "../app/composables/useToast.js";
 import { useSearch } from "../app/composables/useSearch.js";
-import { useAppearance } from "../app/composables/useAppearance.js";
-import { useFeed } from "../app/composables/useFeed.js";
 import { USER_SETTINGS_DEFAULTS } from "../app/composables/useUserSettings.ts";
+import { useAppearanceStore } from "../app/stores/appearance.ts";
+import { useFeedStore } from "../app/stores/feed.ts";
 
 globalThis.useToast = useToast;
 globalThis.useSearch = useSearch;
-globalThis.useAppearance = useAppearance;
-globalThis.useFeed = useFeed;
+globalThis.useAppearanceStore = useAppearanceStore;
+globalThis.useFeedStore = useFeedStore;
 
 // Default stub for useUserSettings — returns defaults, no-ops on save.
 // Individual tests can override this with vi.stubGlobal if needed.
@@ -88,6 +88,14 @@ globalThis.useUserProfile = () => ({
   success: ref(false),
   saveProfile: vi.fn(),
   uploadAvatar: vi.fn(),
+});
+
+// Create a fresh Pinia instance before each test for store isolation.
+// config.global.plugins ensures mounted components see the same instance.
+beforeEach(() => {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  config.global.plugins = [pinia];
 });
 
 // Global stubs — covers Nuxt built-ins, Vue Transition, and every app

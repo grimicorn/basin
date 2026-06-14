@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import DefaultLayout from "~/layouts/default.vue";
-import { useFeed } from "~/composables/useFeed";
-
-const { state } = useFeed();
+import { useFeedStore } from "~/stores/feed";
 
 describe("default layout", () => {
+  let state: ReturnType<typeof useFeedStore>["state"];
+
   beforeEach(() => {
+    state = useFeedStore().state;
     state.loading = false;
   });
 

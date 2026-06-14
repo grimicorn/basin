@@ -1,7 +1,5 @@
-/* useFeed — the app's content store (items, feeds, connections) plus all
-   feed actions and the reader-detail state. Singleton reactive instance.
-   Replace the mock seed + the action bodies with real API calls later. */
-import { reactive, computed, watch } from "vue";
+import { defineStore } from "pinia";
+import { reactive, computed } from "vue";
 import {
   items as seedItems,
   feeds as seedFeeds,
@@ -9,69 +7,76 @@ import {
 } from "~/data/mock";
 import { SOURCES } from "~/lib/icons";
 
-const clone = (x) => JSON.parse(JSON.stringify(x));
+const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 
-const state = reactive({
-  items: clone(seedItems),
-  feeds: clone(seedFeeds),
-  connections: clone(seedConnections),
-  filter: "all",
-  layout: "timeline",
-  unreadOnly: false,
-  loading: true,
-  revealDone: true,
-  activeItem: null,
-  detailLoading: false,
-  newFeedUrl: "",
-});
+export const useFeedStore = defineStore("feed", () => {
+  const state = reactive({
+    items: clone(seedItems),
+    feeds: clone(seedFeeds),
+    connections: clone(seedConnections),
+    filter: "all",
+    layout: "timeline",
+    unreadOnly: false,
+    loading: true,
+    revealDone: true,
+    activeItem: null as Record<string, unknown> | null,
+    detailLoading: false,
+    newFeedUrl: "",
+  });
 
-let timers = { load: null, reveal: null, detail: null };
-let initialized = false;
+  const timers: Record<string, ReturnType<typeof setTimeout> | null> = {
+    load: null,
+    reveal: null,
+    detail: null,
+  };
+  let initialized = false;
 
-/* ---------- computeds (created once) ---------- */
-const filterDefs = [
-  { id: "all", label: "All", c: "var(--accent)" },
-  { id: "article", label: "RSS", c: "var(--src-rss)" },
-  { id: "podcast", label: "Podcasts", c: "var(--src-podcast)" },
-  { id: "video", label: "YouTube", c: "var(--src-video)" },
-  { id: "tweet", label: "X", c: "var(--src-tweet)" },
-  { id: "photo", label: "Instagram", c: "var(--src-photo)" },
-  { id: "saved", label: "Saved", c: "var(--accent)" },
-];
+  const filterDefs = [
+    { id: "all", label: "All", c: "var(--accent)" },
+    { id: "article", label: "RSS", c: "var(--src-rss)" },
+    { id: "podcast", label: "Podcasts", c: "var(--src-podcast)" },
+    { id: "video", label: "YouTube", c: "var(--src-video)" },
+    { id: "tweet", label: "X", c: "var(--src-tweet)" },
+    { id: "photo", label: "Instagram", c: "var(--src-photo)" },
+    { id: "saved", label: "Saved", c: "var(--accent)" },
+  ];
 
-const unreadCount = computed(() => state.items.filter((i) => i.unread).length);
+  const skeletonKinds = [
+    "article",
+    "video",
+    "tweet",
+    "podcast",
+    "photo",
+    "article",
+  ];
 
-const visibleItems = computed(() => {
-  let list = state.items;
-  if (state.unreadOnly) list = list.filter((i) => i.unread);
-  if (state.filter === "saved") return list.filter((i) => i.saved);
-  if (state.filter !== "all")
-    return list.filter((i) => i.type === state.filter);
-  return list;
-});
+  const unreadCount = computed(
+    () => state.items.filter((i: Record<string, unknown>) => i.unread).length,
+  );
 
-const decks = computed(() => {
-  const order = ["article", "podcast", "video", "tweet", "photo"];
-  return order
-    .map((t) => ({
-      type: t,
-      meta: SOURCES[t],
-      items: state.items.filter((i) => i.type === t),
-    }))
-    .filter((d) => d.items.length);
-});
+  const visibleItems = computed(() => {
+    let list = state.items;
+    if (state.unreadOnly)
+      list = list.filter((i: Record<string, unknown>) => i.unread);
+    if (state.filter === "saved")
+      return list.filter((i: Record<string, unknown>) => i.saved);
+    if (state.filter !== "all")
+      return list.filter(
+        (i: Record<string, unknown>) => i.type === state.filter,
+      );
+    return list;
+  });
 
-const skeletonKinds = [
-  "article",
-  "video",
-  "tweet",
-  "podcast",
-  "photo",
-  "article",
-];
-
-export function useFeed() {
-  const { showToast } = useToast();
+  const decks = computed(() => {
+    const order = ["article", "podcast", "video", "tweet", "photo"];
+    return order
+      .map((t) => ({
+        type: t,
+        meta: SOURCES[t as keyof typeof SOURCES],
+        items: state.items.filter((i: Record<string, unknown>) => i.type === t),
+      }))
+      .filter((d) => d.items.length);
+  });
 
   async function loadSettingsFromDb() {
     const { load } = useUserSettings();
@@ -89,14 +94,14 @@ export function useFeed() {
 
     watch(
       () => state.layout,
-      (layout) => {
+      (layout: string) => {
         save({ layout });
         runFeedLoad(380);
       },
     );
     watch(
       () => state.unreadOnly,
-      (showUnreadOnly) => {
+      (showUnreadOnly: boolean) => {
         save({ showUnreadOnly });
       },
     );
@@ -104,7 +109,6 @@ export function useFeed() {
       () => state.filter,
       () => runFeedLoad(420),
     );
-    // first paint
     setTimeout(() => {
       state.loading = false;
     }, 650);
@@ -113,10 +117,10 @@ export function useFeed() {
   function runFeedLoad(ms = 650) {
     state.loading = true;
     state.revealDone = false;
-    clearTimeout(timers.load);
+    if (timers.load) clearTimeout(timers.load);
     timers.load = setTimeout(() => {
       state.loading = false;
-      clearTimeout(timers.reveal);
+      if (timers.reveal) clearTimeout(timers.reveal);
       timers.reveal = setTimeout(() => {
         state.revealDone = true;
       }, 950);
@@ -124,33 +128,38 @@ export function useFeed() {
   }
 
   function refresh() {
+    const { showToast } = useToast();
     runFeedLoad(800);
     showToast("Checking all feeds…");
   }
 
-  const countFor = (id) => {
+  function countFor(id: string) {
     if (id === "all") return state.items.length;
-    if (id === "saved") return state.items.filter((i) => i.saved).length;
-    return state.items.filter((i) => i.type === id).length;
-  };
+    if (id === "saved")
+      return state.items.filter((i: Record<string, unknown>) => i.saved).length;
+    return state.items.filter((i: Record<string, unknown>) => i.type === id)
+      .length;
+  }
 
-  function toggleSave(item) {
+  function toggleSave(item: Record<string, unknown>) {
+    const { showToast } = useToast();
     item.saved = !item.saved;
     showToast(item.saved ? "Saved for later" : "Removed from saved");
   }
 
   function markAllRead() {
-    state.items.forEach((i) => {
+    const { showToast } = useToast();
+    state.items.forEach((i: Record<string, unknown>) => {
       i.unread = false;
     });
     showToast("Marked all as read");
   }
 
-  function openItem(item) {
+  function openItem(item: Record<string, unknown>) {
     item.unread = false;
     state.activeItem = item;
     state.detailLoading = true;
-    clearTimeout(timers.detail);
+    if (timers.detail) clearTimeout(timers.detail);
     timers.detail = setTimeout(() => {
       state.detailLoading = false;
     }, 520);
@@ -162,16 +171,19 @@ export function useFeed() {
     if (import.meta.client) document.body.style.overflow = "";
   }
 
-  function detailNav(dir) {
+  function detailNav(dir: number) {
     const list = visibleItems.value;
     if (!state.activeItem || !list.length) return;
-    let idx = list.findIndex((i) => i.id === state.activeItem.id);
+    let idx = list.findIndex(
+      (i: Record<string, unknown>) => i.id === state.activeItem!.id,
+    );
     if (idx === -1) return;
     idx = (idx + dir + list.length) % list.length;
     openItem(list[idx]);
   }
 
   function addFeed() {
+    const { showToast } = useToast();
     const url = state.newFeedUrl.trim();
     if (!url) return;
     const isPod = /podcast|simplecast|megaphone|\.mp3|audio/i.test(url);
@@ -188,18 +200,22 @@ export function useFeed() {
     showToast("Feed added · fetching latest");
   }
 
-  function removeFeed(id) {
-    state.feeds = state.feeds.filter((f) => f.id !== id);
+  function removeFeed(id: string) {
+    const { showToast } = useToast();
+    state.feeds = state.feeds.filter(
+      (f: Record<string, unknown>) => f.id !== id,
+    );
     showToast("Feed removed");
   }
 
-  function toggleConn(c) {
+  function toggleConn(c: Record<string, unknown>) {
+    const { showToast } = useToast();
     c.connected = !c.connected;
     c.since = c.connected ? "Connected just now" : "";
     showToast(c.connected ? `${c.name} connected` : `${c.name} disconnected`);
   }
 
-  const cardComponentName = (type) =>
+  const cardComponentName = (type: string) =>
     ({
       article: "ArticleCard",
       video: "VideoCard",
@@ -208,21 +224,26 @@ export function useFeed() {
       photo: "PhotoCard",
     })[type];
 
-  /* synthesized detail content (falls back when an item lacks an authored body) */
-  const articleBody = (item) =>
-    item.body && item.body.length
-      ? item.body
+  const articleBody = (item: Record<string, unknown>) =>
+    item.body && (item.body as unknown[]).length
+      ? (item.body as string[])
       : [
-          item.excerpt,
+          item.excerpt as string,
           "Read the full piece at the source for the complete story, figures, and links.",
         ];
-  const podcastNotes = (item) =>
-    item.notes && item.notes.length
-      ? item.notes
-      : [item.excerpt || "Episode notes weren't provided for this show."];
-  const videoDesc = (item) =>
-    item.desc ||
+
+  const podcastNotes = (item: Record<string, unknown>) =>
+    item.notes && (item.notes as unknown[]).length
+      ? (item.notes as string[])
+      : [
+          (item.excerpt as string) ||
+            "Episode notes weren't provided for this show.",
+        ];
+
+  const videoDesc = (item: Record<string, unknown>) =>
+    (item.desc as string) ||
     `${item.title} — watch the full video on the channel. ${item.views || ""}.`;
+
   const tweetReplies = () => [
     {
       who: "replyguy",
@@ -237,20 +258,21 @@ export function useFeed() {
       likes: "4",
     },
   ];
+
   const photoComments = () => [
     { who: "northern.light", text: "the light here is unreal 🔥" },
     { who: "wanderframe", text: "saving this for inspiration" },
   ];
 
-  const sourceMeta = (type) => SOURCES[type];
+  const sourceMeta = (type: string) => SOURCES[type as keyof typeof SOURCES];
 
   return {
     state,
     filterDefs,
+    skeletonKinds,
     unreadCount,
     visibleItems,
     decks,
-    skeletonKinds,
     countFor,
     setupWatchers,
     runFeedLoad,
@@ -271,4 +293,4 @@ export function useFeed() {
     photoComments,
     sourceMeta,
   };
-}
+});

@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import IndexPage from "~/pages/dashboard.vue";
-import { useFeed } from "~/composables/useFeed";
-
-const { state } = useFeed();
+import { useFeedStore } from "~/stores/feed";
 
 describe("dashboard page", () => {
+  let state: ReturnType<typeof useFeedStore>["state"];
+
   beforeEach(() => {
+    state = useFeedStore().state;
     state.items = [];
     state.feeds = [];
     state.loading = false;

@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { useFeed } from "~/composables/useFeed";
+import { setActivePinia, createPinia } from "pinia";
+import { useFeedStore } from "~/stores/feed";
 import { makeFeed, makeConnection } from "../fixtures";
-
-const feed = useFeed();
-const { state } = feed;
 
 const item = (overrides: Record<string, unknown> = {}) => ({
   id: Math.floor(Math.random() * 1e9),
@@ -20,8 +18,14 @@ const item = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-describe("useFeed", () => {
+describe("useFeedStore", () => {
+  let feed: ReturnType<typeof useFeedStore>;
+  let state: ReturnType<typeof useFeedStore>["state"];
+
   beforeEach(() => {
+    setActivePinia(createPinia());
+    feed = useFeedStore();
+    state = feed.state;
     vi.useFakeTimers();
     state.items = [
       item({ id: 1, type: "article", unread: true, saved: false }),
@@ -59,39 +63,39 @@ describe("useFeed", () => {
 
   describe("unreadCount", () => {
     it("returns the number of unread items", () => {
-      expect(feed.unreadCount.value).toBe(3);
+      expect(feed.unreadCount).toBe(3);
     });
 
     it("updates when an item changes", () => {
       state.items[0].unread = false;
-      expect(feed.unreadCount.value).toBe(2);
+      expect(feed.unreadCount).toBe(2);
     });
   });
 
   describe("visibleItems", () => {
     it("returns all items when filter is all", () => {
       state.filter = "all";
-      expect(feed.visibleItems.value).toHaveLength(5);
+      expect(feed.visibleItems).toHaveLength(5);
     });
 
     it("filters by type", () => {
       state.filter = "article";
-      const visible = feed.visibleItems.value;
+      const visible = feed.visibleItems;
       expect(visible).toHaveLength(1);
       expect(visible[0].type).toBe("article");
     });
 
     it("filters saved items", () => {
       state.filter = "saved";
-      expect(feed.visibleItems.value).toHaveLength(2);
-      expect(feed.visibleItems.value.every((i) => i.saved)).toBe(true);
+      expect(feed.visibleItems).toHaveLength(2);
+      expect(feed.visibleItems.every((i) => i.saved)).toBe(true);
     });
 
     it("applies unreadOnly across filter", () => {
       state.unreadOnly = true;
       state.filter = "all";
-      expect(feed.visibleItems.value).toHaveLength(3);
-      expect(feed.visibleItems.value.every((i) => i.unread)).toBe(true);
+      expect(feed.visibleItems).toHaveLength(3);
+      expect(feed.visibleItems.every((i) => i.unread)).toBe(true);
     });
   });
 

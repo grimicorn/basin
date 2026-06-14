@@ -1,5 +1,5 @@
 <script setup>
-const { state } = useFeed();
+const feedStore = useFeedStore();
 const { user } = useUser();
 const clerk = useClerk();
 
@@ -20,7 +20,7 @@ function handleSignOut() {
           {{ user?.primaryEmailAddress?.emailAddress }}
         </div>
         <div class="conn-since">
-          Free plan · {{ state.items.length }} items today
+          Free plan · {{ feedStore.state.items.length }} items today
         </div>
       </div>
       <button class="btn" @click="handleSignOut">

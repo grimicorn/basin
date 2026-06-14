@@ -1,8 +1,5 @@
-/* useUserSettings — reads and writes user reading settings from/to the
-   database via the API. Provides a single source of truth for all
-   appearance and feed preferences, replacing the localStorage-based approach.
-   The composable is not a singleton — callers can import it individually,
-   but useAppearance and useFeed share state through their own singletons. */
+/* useUserSettings — API layer for reading/writing user settings from the
+   database. Called by useAppearanceStore and useFeedStore during init. */
 
 export interface UserSettings {
   theme: string;

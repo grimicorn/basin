@@ -3,7 +3,7 @@ import { shallowMount } from "@vue/test-utils";
 import SettingsReading from "~/components/SettingsReading.vue";
 
 function stubFeed(stateOverrides = {}) {
-  vi.stubGlobal("useFeed", () => ({
+  vi.stubGlobal("useFeedStore", () => ({
     state: { unreadOnly: false, layout: "timeline", ...stateOverrides },
   }));
 }

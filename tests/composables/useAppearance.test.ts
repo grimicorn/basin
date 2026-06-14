@@ -1,63 +1,65 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useAppearance, ACCENTS } from "~/composables/useAppearance";
+import { setActivePinia, createPinia } from "pinia";
+import { useAppearanceStore, ACCENTS } from "~/stores/appearance";
 
-describe("useAppearance", () => {
-  let result: ReturnType<typeof useAppearance>;
+describe("useAppearanceStore", () => {
+  let store: ReturnType<typeof useAppearanceStore>;
 
   beforeEach(() => {
-    result = useAppearance();
+    setActivePinia(createPinia());
+    store = useAppearanceStore();
     // Reset to predictable defaults before each test
-    result.state.theme = "system";
-    result.state.accent = "violet";
-    result.state.reading = "mono";
-    result.state.density = "cozy";
-    result.state.radius = "sharp";
+    store.state.theme = "system";
+    store.state.accent = "violet";
+    store.state.reading = "mono";
+    store.state.density = "cozy";
+    store.state.radius = "sharp";
   });
 
   describe("themeIcon", () => {
     it("returns monitor for system theme", () => {
-      result.state.theme = "system";
-      expect(result.themeIcon()).toBe("monitor");
+      store.state.theme = "system";
+      expect(store.themeIcon).toBe("monitor");
     });
 
     it("returns moon for dark theme", () => {
-      result.state.theme = "dark";
-      expect(result.themeIcon()).toBe("moon");
+      store.state.theme = "dark";
+      expect(store.themeIcon).toBe("moon");
     });
 
     it("returns sun for light theme", () => {
-      result.state.theme = "light";
-      expect(result.themeIcon()).toBe("sun");
+      store.state.theme = "light";
+      expect(store.themeIcon).toBe("sun");
     });
   });
 
   describe("cycleTheme", () => {
     it("cycles system → light", () => {
-      result.state.theme = "system";
-      result.cycleTheme();
-      expect(result.state.theme).toBe("light");
+      store.state.theme = "system";
+      store.cycleTheme();
+      expect(store.state.theme).toBe("light");
     });
 
     it("cycles light → dark", () => {
-      result.state.theme = "light";
-      result.cycleTheme();
-      expect(result.state.theme).toBe("dark");
+      store.state.theme = "light";
+      store.cycleTheme();
+      expect(store.state.theme).toBe("dark");
     });
 
     it("cycles dark → system", () => {
-      result.state.theme = "dark";
-      result.cycleTheme();
-      expect(result.state.theme).toBe("system");
+      store.state.theme = "dark";
+      store.cycleTheme();
+      expect(store.state.theme).toBe("system");
     });
   });
 
   describe("accentList", () => {
     it("includes all ACCENTS keys", () => {
-      expect(result.accentList.map((a) => a.key)).toEqual(Object.keys(ACCENTS));
+      expect(store.accentList.map((a) => a.key)).toEqual(Object.keys(ACCENTS));
     });
 
     it("includes the oklch color value for each accent", () => {
-      result.accentList.forEach((a) => {
+      store.accentList.forEach((a) => {
         expect(a.color).toBe(ACCENTS[a.key as keyof typeof ACCENTS].a);
       });
     });
@@ -65,7 +67,7 @@ describe("useAppearance", () => {
 
   describe("applyToDom", () => {
     it("does not throw when called", () => {
-      expect(() => result.applyToDom()).not.toThrow();
+      expect(() => store.applyToDom()).not.toThrow();
     });
   });
 });

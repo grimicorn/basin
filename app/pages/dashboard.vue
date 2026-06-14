@@ -1,21 +1,10 @@
 <script setup>
-import { useAppearance, useFeed } from "#imports";
 import { computed } from "vue";
 
-const f = useFeed();
-const {
-  state,
-  filterDefs,
-  unreadCount,
-  visibleItems,
-  decks,
-  skeletonKinds,
-  countFor,
-  markAllRead,
-  toggleSave,
-  openItem,
-} = f;
-const { state: appearance } = useAppearance();
+const feedStore = useFeedStore();
+const state = feedStore.state;
+
+const appearanceStore = useAppearanceStore();
 
 const connectedCount = computed(
   () => state.connections.filter((c) => c.connected).length,
@@ -23,12 +12,13 @@ const connectedCount = computed(
 const showSkeleton = computed(
   () =>
     state.loading &&
-    (appearance.loadingStyle === "skeleton" ||
-      appearance.loadingStyle === "both"),
+    (appearanceStore.state.loadingStyle === "skeleton" ||
+      appearanceStore.state.loadingStyle === "both"),
 );
 const staggerOn = computed(
   () =>
-    appearance.loadingStyle === "fade" || appearance.loadingStyle === "both",
+    appearanceStore.state.loadingStyle === "fade" ||
+    appearanceStore.state.loadingStyle === "both",
 );
 </script>
 
@@ -39,8 +29,9 @@ const staggerOn = computed(
         <div>
           <h1 class="page-title">Your Feed</h1>
           <p class="page-sub">
-            <b style="color: var(--ink-2)">{{ unreadCount }}</b> unread across
-            {{ state.feeds.length + connectedCount }} sources · updated just now
+            <b style="color: var(--ink-2)">{{ feedStore.unreadCount }}</b>
+            unread across {{ state.feeds.length + connectedCount }} sources ·
+            updated just now
           </p>
         </div>
         <div class="subbar-tools">
@@ -60,7 +51,7 @@ const staggerOn = computed(
             ></span
             >Unread only
           </button>
-          <button class="btn btn-ghost" @click="markAllRead">
+          <button class="btn btn-ghost" @click="feedStore.markAllRead">
             <RIcon name="checkAll" :size="16" /> Mark all read
           </button>
           <div class="seg">
@@ -90,14 +81,14 @@ const staggerOn = computed(
       </div>
       <div class="filters">
         <button
-          v-for="fl in filterDefs"
+          v-for="fl in feedStore.filterDefs"
           :key="fl.id"
           class="fchip"
           :class="{ active: state.filter === fl.id }"
           @click="state.filter = fl.id"
         >
           <span class="dot" :style="{ '--c': fl.c }"></span>{{ fl.label
-          }}<span class="count">{{ countFor(fl.id) }}</span>
+          }}<span class="count">{{ feedStore.countFor(fl.id) }}</span>
         </button>
       </div>
     </div>
@@ -106,7 +97,7 @@ const staggerOn = computed(
       <!-- skeleton -->
       <div v-if="showSkeleton" class="feed-grid">
         <SkeletonCard
-          v-for="(k, i) in skeletonKinds"
+          v-for="(k, i) in feedStore.skeletonKinds"
           :key="'sk' + i"
           :kind="k"
         />
@@ -114,7 +105,7 @@ const staggerOn = computed(
 
       <!-- loaded -->
       <template v-else>
-        <div v-if="!visibleItems.length" class="empty">
+        <div v-if="!feedStore.visibleItems.length" class="empty">
           <RIcon name="inbox" :size="40" />
           <h3>You're all caught up</h3>
           <p>
@@ -129,19 +120,19 @@ const staggerOn = computed(
           :class="{ 'reveal-done': state.revealDone }"
         >
           <FeedItem
-            v-for="(item, i) in visibleItems"
+            v-for="(item, i) in feedStore.visibleItems"
             :key="item.id"
             :item="item"
             :class="staggerOn ? 'stagger' : ''"
             :style="{ '--i': i }"
-            @save="toggleSave(item)"
-            @open="openItem(item)"
+            @save="feedStore.toggleSave(item)"
+            @open="feedStore.openItem(item)"
           />
         </div>
 
         <!-- columns -->
         <div v-else class="feed-cols">
-          <section v-for="d in decks" :key="d.type" class="deck">
+          <section v-for="d in feedStore.decks" :key="d.type" class="deck">
             <div class="deck-head">
               <span
                 class="src-ic"
@@ -159,8 +150,8 @@ const staggerOn = computed(
                 :item="item"
                 :class="staggerOn ? 'stagger' : ''"
                 :style="{ '--i': i }"
-                @save="toggleSave(item)"
-                @open="openItem(item)"
+                @save="feedStore.toggleSave(item)"
+                @open="feedStore.openItem(item)"
               />
             </div>
           </section>

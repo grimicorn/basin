@@ -1,36 +1,34 @@
 <script setup>
 import { computed } from "vue";
 
-const {
-  state,
-  closeDetail,
-  detailNav,
-  toggleSave,
-  articleBody,
-  podcastNotes,
-  videoDesc,
-  tweetReplies,
-  photoComments,
-} = useFeed();
+const feedStore = useFeedStore();
 const { showToast } = useToast();
 
-const item = computed(() => state.activeItem);
+const item = computed(() => feedStore.state.activeItem);
 </script>
 
 <template>
-  <div v-if="item" class="detail-scrim" @click.self="closeDetail">
+  <div v-if="item" class="detail-scrim" @click.self="feedStore.closeDetail">
     <div class="detail-sheet">
       <div class="detail-head">
         <SourceTag :item="item" />
         <div class="ml-auto flex items-center gap-0.5">
-          <button class="icon-btn" title="Previous (←)" @click="detailNav(-1)">
+          <button
+            class="icon-btn"
+            title="Previous (←)"
+            @click="feedStore.detailNav(-1)"
+          >
             <RIcon
               name="chevRight"
               :size="16"
               style="transform: rotate(180deg)"
             />
           </button>
-          <button class="icon-btn" title="Next (→)" @click="detailNav(1)">
+          <button
+            class="icon-btn"
+            title="Next (→)"
+            @click="feedStore.detailNav(1)"
+          >
             <RIcon name="chevRight" :size="16" />
           </button>
           <span class="bg-border mx-1 h-5 w-px"></span>
@@ -38,7 +36,7 @@ const item = computed(() => state.activeItem);
             class="icon-btn"
             :class="{ on: item.saved }"
             :title="item.saved ? 'Saved' : 'Save for later'"
-            @click="toggleSave(item)"
+            @click="feedStore.toggleSave(item)"
           >
             <RIcon
               :name="item.saved ? 'bookmarkFill' : 'bookmark'"
@@ -52,7 +50,11 @@ const item = computed(() => state.activeItem);
           >
             <RIcon name="external" :size="16" />
           </button>
-          <button class="icon-btn" title="Close (esc)" @click="closeDetail">
+          <button
+            class="icon-btn"
+            title="Close (esc)"
+            @click="feedStore.closeDetail"
+          >
             <RIcon name="x" :size="18" />
           </button>
         </div>
@@ -60,7 +62,7 @@ const item = computed(() => state.activeItem);
 
       <div class="detail-body">
         <!-- loading shimmer -->
-        <div v-if="state.detailLoading" class="p-7 sm:p-9">
+        <div v-if="feedStore.state.detailLoading" class="p-7 sm:p-9">
           <div class="sk mb-6 h-3.5 w-1/3"></div>
           <div class="sk mb-3 h-7 w-5/6"></div>
           <div class="sk mb-8 h-7 w-2/3"></div>
@@ -86,7 +88,9 @@ const item = computed(() => state.activeItem);
               {{ item.source }} · {{ item.meta }} · {{ item.time }} ago
             </div>
             <div class="detail-prose">
-              <p v-for="(p, i) in articleBody(item)" :key="i">{{ p }}</p>
+              <p v-for="(p, i) in feedStore.articleBody(item)" :key="i">
+                {{ p }}
+              </p>
             </div>
             <button
               class="btn mt-8"
@@ -124,7 +128,7 @@ const item = computed(() => state.activeItem);
                 ><span>·</span><span>{{ item.meta }}</span>
               </div>
               <div class="detail-prose">
-                <p>{{ videoDesc(item) }}</p>
+                <p>{{ feedStore.videoDesc(item) }}</p>
               </div>
               <button
                 class="btn btn-primary mt-7"
@@ -199,7 +203,9 @@ const item = computed(() => state.activeItem);
               Show notes
             </div>
             <div class="detail-prose">
-              <p v-for="(p, i) in podcastNotes(item)" :key="i">{{ p }}</p>
+              <p v-for="(p, i) in feedStore.podcastNotes(item)" :key="i">
+                {{ p }}
+              </p>
             </div>
           </div>
 
@@ -240,7 +246,7 @@ const item = computed(() => state.activeItem);
             </div>
             <div class="flex flex-col gap-4">
               <div
-                v-for="(r, i) in tweetReplies(item)"
+                v-for="(r, i) in feedStore.tweetReplies(item)"
                 :key="i"
                 class="flex gap-3"
               >
@@ -302,7 +308,7 @@ const item = computed(() => state.activeItem);
               </div>
               <div class="flex flex-col gap-3">
                 <div
-                  v-for="(c, i) in photoComments(item)"
+                  v-for="(c, i) in feedStore.photoComments(item)"
                   :key="i"
                   class="text-[13px]"
                 >

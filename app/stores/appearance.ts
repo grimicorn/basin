@@ -1,0 +1,128 @@
+import { defineStore } from "pinia";
+import { reactive, ref, computed, watch } from "vue";
+
+export const ACCENTS = {
+  violet: { a: "oklch(0.6 0.17 285)", s: "oklch(0.54 0.18 285)" },
+  blue: { a: "oklch(0.62 0.15 245)", s: "oklch(0.56 0.16 245)" },
+  teal: { a: "oklch(0.64 0.11 195)", s: "oklch(0.58 0.12 195)" },
+  amber: { a: "oklch(0.71 0.13 72)", s: "oklch(0.65 0.14 72)" },
+  rose: { a: "oklch(0.63 0.18 14)", s: "oklch(0.57 0.19 14)" },
+};
+
+const DEFAULTS = {
+  theme: "system" as string, // system | light | dark
+  accent: "violet" as string, // key of ACCENTS
+  reading: "mono" as string, // mono | serif
+  density: "cozy" as string, // compact | cozy | roomy
+  radius: "sharp" as string, // sharp | default | round
+  loadingStyle: "both" as string, // skeleton | fade | both
+  autoplay: false,
+  compactNotif: false,
+};
+
+export const useAppearanceStore = defineStore("appearance", () => {
+  const state = reactive({ ...DEFAULTS });
+  const ready = ref(false);
+  let initialized = false;
+
+  function applyToDom() {
+    if (!import.meta.client) return;
+    const root = document.documentElement;
+
+    if (state.theme === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", state.theme);
+
+    root.setAttribute("data-reading", state.reading);
+    root.setAttribute("data-density", state.density);
+    root.setAttribute("data-radius", state.radius);
+
+    const accentColors =
+      ACCENTS[state.accent as keyof typeof ACCENTS] || ACCENTS.violet;
+    root.style.setProperty("--accent", accentColors.a);
+    root.style.setProperty("--accent-strong", accentColors.s);
+    root.style.setProperty(
+      "--accent-soft",
+      `color-mix(in oklab, ${accentColors.a} 16%, var(--surface))`,
+    );
+    root.style.setProperty("--accent-soft-ink", accentColors.a);
+  }
+
+  function applyDbSettings(dbSettings: Record<string, unknown>) {
+    state.theme = (dbSettings.theme as string) ?? DEFAULTS.theme;
+    state.accent = (dbSettings.accentColor as string) ?? DEFAULTS.accent;
+    state.reading = (dbSettings.readingFont as string) ?? DEFAULTS.reading;
+    state.density = (dbSettings.spacing as string) ?? DEFAULTS.density;
+    state.radius = (dbSettings.radius as string) ?? DEFAULTS.radius;
+    state.autoplay =
+      (dbSettings.autoplayMediaPreviews as boolean) ?? DEFAULTS.autoplay;
+    state.compactNotif =
+      (dbSettings.compactNotifications as boolean) ?? DEFAULTS.compactNotif;
+  }
+
+  function buildPatch() {
+    return {
+      theme: state.theme,
+      accentColor: state.accent,
+      readingFont: state.reading,
+      spacing: state.density,
+      radius: state.radius,
+      autoplayMediaPreviews: state.autoplay,
+      compactNotifications: state.compactNotif,
+    };
+  }
+
+  async function init() {
+    if (initialized || !import.meta.client) return;
+    initialized = true;
+
+    const { load, save } = useUserSettings();
+    const dbSettings = await load();
+    applyDbSettings(dbSettings);
+    applyToDom();
+    ready.value = true;
+
+    watch(
+      state,
+      () => {
+        applyToDom();
+        save(buildPatch());
+      },
+      { deep: true },
+    );
+  }
+
+  // Auto-initialize when the store is first used — the guard inside prevents
+  // double-runs within the same Pinia instance.
+  init();
+
+  const accentList = computed(() =>
+    Object.keys(ACCENTS).map((k) => ({
+      key: k,
+      color: ACCENTS[k as keyof typeof ACCENTS].a,
+    })),
+  );
+
+  // Computed so the template uses `themeIcon` without calling it as a function.
+  const themeIcon = computed(() =>
+    state.theme === "dark"
+      ? "moon"
+      : state.theme === "light"
+        ? "sun"
+        : "monitor",
+  );
+
+  function cycleTheme() {
+    const order = ["system", "light", "dark"];
+    state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
+  }
+
+  return {
+    state,
+    ready,
+    ACCENTS,
+    accentList,
+    themeIcon,
+    cycleTheme,
+    applyToDom,
+  };
+});

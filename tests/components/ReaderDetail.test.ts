@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import ReaderDetail from "~/components/ReaderDetail.vue";
-import { useFeed } from "~/composables/useFeed";
+import { useFeedStore } from "~/stores/feed";
 import { makeArticle } from "../fixtures";
 
-const { state } = useFeed();
-
 describe("ReaderDetail", () => {
+  let state: ReturnType<typeof useFeedStore>["state"];
+
   beforeEach(() => {
+    // setup.ts creates a fresh Pinia before each test; get the store here
+    // so it shares the same instance that the component will use.
+    state = useFeedStore().state;
     state.activeItem = null;
   });
 

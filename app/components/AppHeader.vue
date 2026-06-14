@@ -1,8 +1,8 @@
 <script setup>
 import AvatarButton from "~/components/AvatarButton.vue";
 const route = useRoute();
-const { unreadCount, refresh } = useFeed();
-const { state: appearance, themeIcon, cycleTheme } = useAppearance();
+const feedStore = useFeedStore();
+const appearanceStore = useAppearanceStore();
 const { openSearch } = useSearch();
 </script>
 
@@ -26,22 +26,26 @@ const { openSearch } = useSearch();
           <span class="st-label">Search everything…</span>
           <span class="kbd">⌘K</span>
         </button>
-        <button class="icon-btn" title="Refresh feeds" @click="refresh">
+        <button
+          class="icon-btn"
+          title="Refresh feeds"
+          @click="feedStore.refresh"
+        >
           <RIcon name="refresh" :size="18" />
         </button>
         <button
           class="icon-btn"
-          :class="{ 'has-dot': unreadCount > 0 }"
+          :class="{ 'has-dot': feedStore.unreadCount > 0 }"
           title="Notifications"
         >
           <RIcon name="bell" :size="18" />
         </button>
         <button
           class="icon-btn"
-          :title="'Theme: ' + appearance.theme"
-          @click="cycleTheme"
+          :title="'Theme: ' + appearanceStore.state.theme"
+          @click="appearanceStore.cycleTheme"
         >
-          <RIcon :name="themeIcon()" :size="18" />
+          <RIcon :name="appearanceStore.themeIcon" :size="18" />
         </button>
         <NuxtLink to="/settings" title="Account">
           <AvatarButton />

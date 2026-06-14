@@ -4,7 +4,7 @@ import { ref } from "vue";
 import SettingsAccount from "~/components/SettingsAccount.vue";
 
 function stubFeed(itemCount = 12) {
-  vi.stubGlobal("useFeed", () => ({
+  vi.stubGlobal("useFeedStore", () => ({
     state: { items: Array.from({ length: itemCount }) },
   }));
 }

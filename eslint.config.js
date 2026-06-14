@@ -26,9 +26,10 @@ const nuxtGlobals = {
   useAuth: "readonly",
   useUser: "readonly",
   useClerk: "readonly",
+  // project stores (Pinia — @pinia/nuxt auto-imports from app/stores/)
+  useAppearanceStore: "readonly",
+  useFeedStore: "readonly",
   // project composables (Nuxt auto-imports)
-  useAppearance: "readonly",
-  useFeed: "readonly",
   useSearch: "readonly",
   useToast: "readonly",
   useClientDb: "readonly",

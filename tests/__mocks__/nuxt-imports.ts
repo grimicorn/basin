@@ -1,8 +1,8 @@
 // Provides the #imports alias so components using `import { X } from "#imports"` work in tests.
-export { useFeed } from "../../app/composables/useFeed.js";
+export { useFeedStore } from "../../app/stores/feed.ts";
 export { useSearch } from "../../app/composables/useSearch.js";
 export { useToast } from "../../app/composables/useToast.js";
-export { useAppearance } from "../../app/composables/useAppearance.js";
+export { useAppearanceStore } from "../../app/stores/appearance.ts";
 export { useUserSettings } from "../../app/composables/useUserSettings.ts";
 export {
   ref,

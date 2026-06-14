@@ -3,7 +3,7 @@ import { computed, watch, ref, onMounted, onUnmounted } from "vue";
 import { SOURCES } from "~/lib/icons";
 
 const { state, closeSearch, moveCursor } = useSearch();
-const { state: feed, openItem } = useFeed();
+const feedStore = useFeedStore();
 
 const PAGES = [
   { kind: "page", id: "/", title: "Dashboard", sub: "Your unified feed" },
@@ -41,7 +41,7 @@ const searchGroups = computed(() => {
   if (pages.length) groups.push({ label: "Pages", rows: pages });
 
   if (!query) {
-    const recent = recentItems(feed.items);
+    const recent = recentItems(feedStore.state.items);
     if (recent.length) groups.push({ label: "Recent", rows: recent });
     return groups;
   }
@@ -110,7 +110,7 @@ async function fetchSearchResults(query) {
 
 function chooseRow(row) {
   if (row.kind === "page") navigateTo(row.id);
-  else openItem(row.ref);
+  else feedStore.openItem(row.ref);
   closeSearch();
 }
 

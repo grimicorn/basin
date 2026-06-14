@@ -1,10 +1,12 @@
 <script setup>
 import { onMounted, onUnmounted } from "vue";
 
-// initialize theming on the client (reads DB settings, applies to <html>)
-const { ready: appearanceReady } = useAppearance();
+const appearanceStore = useAppearanceStore();
 
-const { state: feed, setupWatchers, closeDetail, detailNav } = useFeed();
+const feedStore = useFeedStore();
+const state = feedStore.state;
+const { setupWatchers, closeDetail, detailNav } = feedStore;
+
 const { state: search, openSearch, closeSearch } = useSearch();
 
 const isCmdK = (e) => (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
@@ -30,7 +32,7 @@ function handleCmdK(e) {
 }
 
 function handleDetailNav(e) {
-  if (!feed.activeItem || search.open) return false;
+  if (!state.activeItem || search.open) return false;
   const action = DETAIL_ACTIONS[e.key];
   if (action) {
     action(e);
@@ -60,7 +62,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'app-ready': appearanceReady }">
+  <div class="app-shell" :class="{ 'app-ready': appearanceStore.ready }">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>

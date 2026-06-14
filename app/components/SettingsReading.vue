@@ -1,6 +1,8 @@
 <script setup>
-const { state } = useFeed();
-const { state: appearance, accentList } = useAppearance();
+const feedStore = useFeedStore();
+const state = feedStore.state;
+const appearanceStore = useAppearanceStore();
+const appearance = appearanceStore.state;
 </script>
 
 <template>
@@ -44,7 +46,7 @@ const { state: appearance, accentList } = useAppearance();
       </div>
       <div class="flex gap-2">
         <span
-          v-for="a in accentList"
+          v-for="a in appearanceStore.accentList"
           :key="a.key"
           class="twk-sw"
           :class="{ on: appearance.accent === a.key }"

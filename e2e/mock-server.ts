@@ -91,12 +91,30 @@ function handleFeedProxy(req: IncomingMessage, res: ServerResponse): void {
   res.end(MINIMAL_RSS_FEED);
 }
 
+// ── RSS feed stub for feed-discovery e2e tests ───────────────────────────
+function handleFeedXml(_req: IncomingMessage, res: ServerResponse): void {
+  res.writeHead(200, {
+    "Content-Type": "application/rss+xml; charset=utf-8",
+  });
+  res.end(
+    `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>E2E Mock Feed</title>
+    <link>${MOCK_BASE_URL}/feed.xml</link>
+    <description>Mock RSS feed for e2e tests</description>
+  </channel>
+</rss>`,
+  );
+}
+
 const routes: Record<RouteKey, RouteHandler> = {
   "POST /token": handleTokenExchange,
   "GET /youtube/v3/channels": handleYouTubeChannels,
   "POST /v19.0/oauth/access_token": handleInstagramTokenExchange,
   "GET /v19.0/me": handleInstagramUserInfo,
   "GET /feed-proxy": handleFeedProxy,
+  "GET /feed.xml": handleFeedXml,
 };
 
 function handleNotFound(
@@ -104,6 +122,7 @@ function handleNotFound(
   path: string,
   res: ServerResponse,
 ): void {
+  // Loud 404 so missing mocks are immediately obvious in the test output
   console.error(`[mock-server] No handler for ${method} ${path}`);
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: `No mock handler for ${method} ${path}` }));

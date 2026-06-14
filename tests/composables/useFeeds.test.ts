@@ -50,6 +50,9 @@ describe("useFeeds", () => {
   });
 
   describe("add()", () => {
+    // add() now calls discover first, then POST /api/feeds.
+    // Mock order: 1) load → GET /api/feeds, 2) discover → POST /api/feeds/discover, 3) add → POST /api/feeds
+
     it("does nothing when newUrl is empty", async () => {
       mockFetch.mockResolvedValue([]);
       const { load, add } = useFeeds();
@@ -58,62 +61,95 @@ describe("useFeeds", () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    it("posts to /api/feeds and prepends the new feed", async () => {
-      mockFetch.mockResolvedValueOnce([feedB]);
-      mockFetch.mockResolvedValueOnce(feedA);
+    it("calls the discover endpoint before posting to /api/feeds", async () => {
+      mockFetch.mockResolvedValueOnce([feedB]); // load
+      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // add
+      const { newUrl, load, add } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds/discover",
+        expect.objectContaining({
+          method: "POST",
+          body: { url: "https://a.com" },
+        }),
+      );
+    });
+
+    it("posts to /api/feeds with the discovered URL and prepends the new feed", async () => {
+      mockFetch.mockResolvedValueOnce([feedB]); // load
+      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // add
       const { items, newUrl, load, add } = useFeeds();
       await load();
-      newUrl.value = "https://a.com/feed.xml";
+      newUrl.value = "https://a.com";
       await add();
       expect(items.value[0]).toEqual(feedA);
       expect(items.value).toHaveLength(2);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds",
+        expect.objectContaining({
+          method: "POST",
+          body: { url: "https://a.com/feed.xml" },
+        }),
+      );
     });
 
     it("clears newUrl after a successful add", async () => {
-      mockFetch.mockResolvedValueOnce([]);
-      mockFetch.mockResolvedValueOnce(feedA);
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // add
       const { newUrl, load, add } = useFeeds();
       await load();
-      newUrl.value = "https://a.com/feed.xml";
+      newUrl.value = "https://a.com";
       await add();
       expect(newUrl.value).toBe("");
     });
 
-    it("sets error and keeps newUrl on failure", async () => {
-      mockFetch.mockResolvedValueOnce([]);
-      mockFetch.mockRejectedValueOnce(new Error("bad url"));
-      const { error, newUrl, load, add } = useFeeds();
-      await load();
-      newUrl.value = "not-a-real-url";
-      await add();
-      expect(error.value).toBeTruthy();
-      expect(newUrl.value).toBe("not-a-real-url");
-    });
-
-    it("shows a specific error message when the server returns 422", async () => {
-      mockFetch.mockResolvedValueOnce([]);
-      const invalidFeedError = Object.assign(new Error("Unprocessable"), {
+    it("sets 'no feed found' error and keeps newUrl when discover returns 422", async () => {
+      const notFoundError = Object.assign(new Error("No feed found"), {
         statusCode: 422,
       });
-      mockFetch.mockRejectedValueOnce(invalidFeedError);
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockRejectedValueOnce(notFoundError); // discover returns 422
       const { error, newUrl, load, add } = useFeeds();
       await load();
-      newUrl.value = "https://example.com/not-a-feed";
+      newUrl.value = "https://not-a-feed-site.com";
       await add();
-      expect(error.value).toContain("valid RSS or Atom feed");
+      expect(error.value).toBe(
+        "No feed found at that URL — check the address and try again",
+      );
+      expect(newUrl.value).toBe("https://not-a-feed-site.com");
     });
 
-    it("shows a generic error message for non-422 failures", async () => {
-      mockFetch.mockResolvedValueOnce([]);
-      const serverError = Object.assign(new Error("Server Error"), {
+    it("sets a generic error and keeps newUrl when discover throws a non-422 error", async () => {
+      const networkError = Object.assign(new Error("Network failure"), {
         statusCode: 500,
       });
-      mockFetch.mockRejectedValueOnce(serverError);
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockRejectedValueOnce(networkError); // discover throws non-422
       const { error, newUrl, load, add } = useFeeds();
       await load();
-      newUrl.value = "https://example.com/feed.xml";
+      newUrl.value = "https://example.com";
       await add();
-      expect(error.value).toContain("Failed to add feed");
+      expect(error.value).toBe(
+        "Something went wrong while finding the feed — try again",
+      );
+      expect(newUrl.value).toBe("https://example.com");
+    });
+
+    it("sets error and keeps newUrl when the POST to /api/feeds fails", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
+      mockFetch.mockRejectedValueOnce(new Error("server error")); // add fails
+      const { error, newUrl, load, add } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      expect(error.value).toBeTruthy();
+      expect(newUrl.value).toBe("https://a.com");
     });
   });
 

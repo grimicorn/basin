@@ -18,6 +18,19 @@ const PRIVATE_IP_PATTERN =
 
 const ALLOWED_PROTOCOLS = new Set(["https:"]);
 
+// Hosts explicitly allowed for local development and e2e testing only.
+// Set NUXT_FEED_DISCOVERY_ALLOWED_HOSTS to a comma-separated list of
+// host:port strings (e.g. "127.0.0.1:3099") to bypass the protocol and
+// private-IP checks so mock servers can be used during e2e tests.
+function allowedTestHosts(): Set<string> {
+  const raw = process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS ?? "";
+  const hosts = raw
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+  return new Set(hosts);
+}
+
 export function looksLikeValidFeed(body: string): boolean {
   return RSS_ATOM_PATTERN.test(body);
 }
@@ -36,6 +49,12 @@ function isAllowedUrl(url: string): boolean {
   } catch {
     return false;
   }
+
+  const hostWithPort = parsed.port
+    ? `${parsed.hostname}:${parsed.port}`
+    : parsed.hostname;
+
+  if (allowedTestHosts().has(hostWithPort)) return true;
 
   if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) return false;
   if (PRIVATE_IP_PATTERN.test(parsed.hostname)) return false;
@@ -150,7 +169,7 @@ export async function fetchFeedBody(
   }
 }
 
-export async function validateFeedUrl(
+export async function validateFeedContent(
   url: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<boolean> {

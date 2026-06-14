@@ -80,6 +80,9 @@ jobs:
           NUXT_GOOGLE_CLIENT_SECRET: ${{ secrets.NUXT_GOOGLE_CLIENT_SECRET }}
           NUXT_INSTAGRAM_CLIENT_ID: ${{ secrets.NUXT_INSTAGRAM_CLIENT_ID }}
           NUXT_INSTAGRAM_CLIENT_SECRET: ${{ secrets.NUXT_INSTAGRAM_CLIENT_SECRET }}
+          # Allow the mock server's loopback address through SSRF validation.
+          # The port must match E2E_MOCK_SERVER_PORT (default 3099).
+          NUXT_FEED_DISCOVERY_ALLOWED_HOSTS: "127.0.0.1:3099"
 
       - name: Upload test report
         uses: actions/upload-artifact@v4

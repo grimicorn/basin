@@ -10,11 +10,13 @@ test.describe("Settings > Feeds", () => {
     await expect(page.locator("h2").getByText("RSS & Podcasts")).toBeVisible({
       timeout: 10_000,
     });
-    // The add button is :disabled="loading || busy" while onMounted(load) is in
-    // flight. The heading appears from SSR before load() completes, so waiting
-    // for the button to be enabled is a reliable signal that the /api/feeds call
-    // has finished and the feed list has been populated.
-    await expect(page.locator(".btn-primary")).toBeEnabled({ timeout: 15_000 });
+    // Wait for the seeded feed to appear, which confirms that the initial
+    // /api/feeds load() call has completed and the list has been populated.
+    // The add button is no longer tied to the list-loading state, so we use
+    // feed list content as the sync point instead.
+    await expect(page.getByText("E2E Test Feed")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("shows seeded feed in the list", async ({ page }) => {

@@ -40,11 +40,11 @@ function sourceColor(source) {
         <input
           v-model="newUrl"
           placeholder="https://example.com or https://example.com/feed.xml"
-          :disabled="loading || busy"
+          :disabled="busy"
           @keyup.enter="add"
         />
       </div>
-      <button class="btn btn-primary" :disabled="loading || busy" @click="add">
+      <button class="btn btn-primary" :disabled="busy" @click="add">
         <RIcon name="plus" :size="16" /> {{ buttonLabel }}
       </button>
     </div>

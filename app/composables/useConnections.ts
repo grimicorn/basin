@@ -107,6 +107,10 @@ export function useConnections() {
   }
 
   async function connectBluesky(handle: string, appPassword: string) {
+    if (!handle.trim()) {
+      error.value = "Handle is required";
+      return;
+    }
     handle = normalizeBlueskyHandle(handle);
     loading.value = true;
     error.value = null;

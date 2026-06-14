@@ -20,11 +20,11 @@ export default async function globalSetup() {
 
   await startMockServer();
 
-  console.log("[e2e setup] Applying pending migrations...");
-  await applyMigrations(dbUrl);
-
   console.log("\n[e2e setup] Truncating existing data...");
   await truncateE2eData(dbUrl);
+
+  console.log("[e2e setup] Applying pending migrations...");
+  await applyMigrations(dbUrl);
 
   console.log("[e2e setup] Ensuring Clerk test user exists...");
   const user = await getOrCreateTestClerkUser();

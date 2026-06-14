@@ -15,6 +15,27 @@ async function reloadAndWait(page: Page) {
   await page.waitForLoadState("networkidle", { timeout: 15_000 });
 }
 
+async function testTogglePersists(page: Page, rowLabel: string) {
+  const toggle = page
+    .locator(".set-pref-row")
+    .filter({ hasText: rowLabel })
+    .locator(".toggle");
+
+  const wasBefore = await toggle.evaluate((el) =>
+    el.classList.contains("on"),
+  );
+  const save = waitForSettingSave(page);
+  await toggle.click();
+  await save;
+
+  await reloadAndWait(page);
+  if (wasBefore) {
+    await expect(toggle).not.toHaveClass(/on/);
+  } else {
+    await expect(toggle).toHaveClass(/on/);
+  }
+}
+
 test.describe("Settings > Reading", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/settings/reading");
@@ -84,71 +105,22 @@ test.describe("Settings > Reading", () => {
     ).toHaveClass(/active/);
   });
 
-  test("show unread only: toggling persists across reload", async ({ page }) => {
-    const unreadRow = page
-      .locator(".set-pref-row")
-      .filter({ hasText: "Show unread only" });
-    const toggle = unreadRow.locator(".toggle");
-
-    const wasBefore = await toggle.evaluate((el) =>
-      el.classList.contains("on"),
-    );
-    const save = waitForSettingSave(page);
-    await toggle.click();
-    await save;
-
-    await reloadAndWait(page);
-    if (wasBefore) {
-      await expect(toggle).not.toHaveClass(/on/);
-    } else {
-      await expect(toggle).toHaveClass(/on/);
-    }
+  test("show unread only: toggling persists across reload", async ({
+    page,
+  }) => {
+    await testTogglePersists(page, "Show unread only");
   });
 
   test("autoplay media previews: toggling persists across reload", async ({
     page,
   }) => {
-    const autoplayRow = page
-      .locator(".set-pref-row")
-      .filter({ hasText: "Autoplay media previews" });
-    const toggle = autoplayRow.locator(".toggle");
-
-    const wasBefore = await toggle.evaluate((el) =>
-      el.classList.contains("on"),
-    );
-    const save = waitForSettingSave(page);
-    await toggle.click();
-    await save;
-
-    await reloadAndWait(page);
-    if (wasBefore) {
-      await expect(toggle).not.toHaveClass(/on/);
-    } else {
-      await expect(toggle).toHaveClass(/on/);
-    }
+    await testTogglePersists(page, "Autoplay media previews");
   });
 
   test("compact notifications: toggling persists across reload", async ({
     page,
   }) => {
-    const notifRow = page
-      .locator(".set-pref-row")
-      .filter({ hasText: "Compact notifications" });
-    const toggle = notifRow.locator(".toggle");
-
-    const wasBefore = await toggle.evaluate((el) =>
-      el.classList.contains("on"),
-    );
-    const save = waitForSettingSave(page);
-    await toggle.click();
-    await save;
-
-    await reloadAndWait(page);
-    if (wasBefore) {
-      await expect(toggle).not.toHaveClass(/on/);
-    } else {
-      await expect(toggle).toHaveClass(/on/);
-    }
+    await testTogglePersists(page, "Compact notifications");
   });
 
   test("default layout: switching to grid persists across reload", async ({

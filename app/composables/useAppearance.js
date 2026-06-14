@@ -107,5 +107,13 @@ export function useAppearance() {
     state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
   };
 
-  return { state, ready, ACCENTS, accentList, themeIcon, cycleTheme, applyToDom };
+  return {
+    state,
+    ready,
+    ACCENTS,
+    accentList,
+    themeIcon,
+    cycleTheme,
+    applyToDom,
+  };
 }

@@ -6,11 +6,14 @@ test.describe("Settings > Feeds", () => {
     await expect(page.locator("h2").getByText("RSS & Podcasts")).toBeVisible({
       timeout: 10_000,
     });
-    // The add button is :disabled="loading" while onMounted(load) is in flight.
-    // Waiting for it to become enabled is a deterministic signal that load()
-    // has completed and the feed list has rendered — more reliable than
-    // networkidle, which can fire before the client-side fetch finishes.
-    await expect(page.locator(".btn-primary")).toBeEnabled({ timeout: 15_000 });
+    // Wait for the seeded feed to be visible — this is an unambiguous signal that
+    // load() has completed and Vue has rendered the list. Both networkidle and
+    // toBeEnabled() on the add button can pass before onMounted(load) fires due
+    // to the SSR rendering gap, causing the test to click a disabled button or
+    // interact with a stale UI.
+    await expect(page.getByText("E2E Test Feed")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("shows seeded feed in the list", async ({ page }) => {

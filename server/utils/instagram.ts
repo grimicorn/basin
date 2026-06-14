@@ -72,8 +72,11 @@ export async function getInstagramUserInfo(
   if (data.error) {
     throw new Error(`Instagram API error: ${data.error.message}`);
   }
+  if (!data.id) {
+    throw new Error("Instagram API error: missing required user id");
+  }
   return {
-    id: data.id ?? "",
-    username: data.username ?? data.id ?? "",
+    id: data.id,
+    username: data.username ?? data.id,
   };
 }

@@ -103,15 +103,16 @@ export function useConnections() {
   function normalizeBlueskyHandle(handle: string): string {
     handle = handle.trim();
     const stripped = handle.startsWith("@") ? handle.slice(1) : handle;
+    if (!stripped.trim()) return "";
     return stripped.includes(".") ? stripped : `${stripped}.bsky.social`;
   }
 
   async function connectBluesky(handle: string, appPassword: string) {
-    if (!handle.trim()) {
-      error.value = "Handle is required";
+    handle = normalizeBlueskyHandle(handle);
+    if (!handle) {
+      error.value = "Bluesky handle is required";
       return;
     }
-    handle = normalizeBlueskyHandle(handle);
     loading.value = true;
     error.value = null;
     try {
@@ -125,9 +126,9 @@ export function useConnections() {
       );
       await load();
       return result;
-    } catch {
+    } catch (err) {
       error.value = "Failed to connect Bluesky";
-      throw error.value;
+      throw err instanceof Error ? err : new Error(error.value);
     } finally {
       loading.value = false;
     }

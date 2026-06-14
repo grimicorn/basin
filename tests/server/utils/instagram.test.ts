@@ -150,6 +150,17 @@ describe("getInstagramUserInfo", () => {
     ).rejects.toThrow("Instagram API error: Invalid OAuth access token");
   });
 
+  it("throws when the API returns ok but omits the id field", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ username: "testuser" }),
+    });
+
+    await expect(
+      getInstagramUserInfo("access-token", mockFetch),
+    ).rejects.toThrow("Instagram API error: missing required user id");
+  });
+
   it("calls the Meta Graph API with the access token in the URL", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,

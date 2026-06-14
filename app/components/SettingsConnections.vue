@@ -41,14 +41,19 @@ function cancelBlueskyForm() {
   blueskyHandle.value = "";
   blueskyAppPassword.value = "";
 }
+
+const formatter = new Intl.ListFormat("en", {
+  style: "long",
+  type: "conjunction",
+});
 </script>
 
 <template>
   <section class="set-section">
     <h2>Connected accounts</h2>
     <p class="desc">
-      Link YouTube, Bluesky, and Instagram to fold their timelines into your
-      feed.
+      Link {{ formatter.format(items.map(({ name }) => name)) }} to fold their
+      timelines into your feed.
     </p>
     <p v-if="error" class="desc conn-error">{{ error }}</p>
     <div class="conn-grid">

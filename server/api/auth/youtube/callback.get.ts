@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { code, state } = getQuery(event);
-  const cookieState = getCookie(event, "oauth_state");
+  const cookieState = getCookie(event, "oauth_state_youtube");
 
   if (!code || !state || state !== cookieState) {
     throw createError({
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  deleteCookie(event, "oauth_state");
+  deleteCookie(event, "oauth_state_youtube");
 
   const { origin } = getRequestURL(event);
   const redirectUri = `${origin}/api/auth/youtube/callback`;

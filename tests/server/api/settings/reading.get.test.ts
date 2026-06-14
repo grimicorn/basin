@@ -72,7 +72,11 @@ describe("GET /api/settings/reading", () => {
     expect(mockFindFirst).toHaveBeenCalledTimes(1);
     expect(mockFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: 42 },
+        where: expect.objectContaining({
+          queryChunks: expect.arrayContaining([
+            expect.objectContaining({ value: 42 }),
+          ]),
+        }),
       }),
     );
   });

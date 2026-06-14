@@ -77,7 +77,7 @@ test.describe("Settings > Feeds", () => {
     // deleting the seeded "E2E Test Feed" would break retries and other tests.
     const removeUrl = `https://test-remove-${crypto.randomUUID()}.example.com/feed.xml`;
     await page
-      .locator('input[placeholder="https://example.com/feed.xml"]')
+      .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
       .fill(removeUrl);
     await page.locator(".btn-primary").click();
 

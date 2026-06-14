@@ -13,10 +13,30 @@ vi.stubGlobal("useDb", () => ({
 
 import {
   searchFeedItems,
+  formatRelativeTime,
   SEARCH_RESULT_LIMIT,
 } from "../../../server/utils/search";
 
-const mockFeedItem = {
+const mockRow = {
+  id: 1,
+  feedId: 10,
+  feedSource: "rss",
+  feedTitle: "Test Feed",
+  guid: "guid-1",
+  title: "Test Article",
+  url: "https://example.com/article",
+  content: "Article content about testing",
+  tags: ["test"],
+  publishedAt: null,
+  readAt: null,
+  starred: false,
+  savedAt: null,
+  createdAt: null,
+  updatedAt: null,
+};
+
+// Expected result after the mapping step strips feedSource/feedTitle and adds type/source/time.
+const expectedResult = {
   id: 1,
   feedId: 10,
   guid: "guid-1",
@@ -30,6 +50,9 @@ const mockFeedItem = {
   savedAt: null,
   createdAt: null,
   updatedAt: null,
+  type: "article",
+  source: "Test Feed",
+  time: "",
 };
 
 describe("searchFeedItems", () => {
@@ -44,11 +67,64 @@ describe("searchFeedItems", () => {
   });
 
   it("returns matching feed items for a given user and query", async () => {
-    mockLimit.mockResolvedValue([mockFeedItem]);
+    mockLimit.mockResolvedValue([mockRow]);
 
     const results = await searchFeedItems(1, "testing");
 
-    expect(results).toEqual([mockFeedItem]);
+    expect(results).toEqual([expectedResult]);
+  });
+
+  it("maps feedSource to the correct item type", async () => {
+    const podcastRow = { ...mockRow, feedSource: "podcast" };
+    mockLimit.mockResolvedValue([podcastRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].type).toBe("podcast");
+  });
+
+  it("falls back to feedSource when no type mapping exists", async () => {
+    const unknownRow = { ...mockRow, feedSource: "newsletter" };
+    mockLimit.mockResolvedValue([unknownRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].type).toBe("newsletter");
+  });
+
+  it("uses feedTitle as source when present", async () => {
+    mockLimit.mockResolvedValue([mockRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].source).toBe("Test Feed");
+  });
+
+  it("falls back to feedSource when feedTitle is null", async () => {
+    const noTitleRow = { ...mockRow, feedTitle: null };
+    mockLimit.mockResolvedValue([noTitleRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].source).toBe("rss");
+  });
+
+  it("falls back to feedSource when feedTitle is an empty string", async () => {
+    const emptyTitleRow = { ...mockRow, feedTitle: "" };
+    mockLimit.mockResolvedValue([emptyTitleRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].source).toBe("rss");
+  });
+
+  it("falls back to feedSource when feedTitle is only whitespace", async () => {
+    const whitespaceTitleRow = { ...mockRow, feedTitle: "   " };
+    mockLimit.mockResolvedValue([whitespaceTitleRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].source).toBe("rss");
   });
 
   it("returns an empty array when there are no matches", async () => {
@@ -76,5 +152,33 @@ describe("searchFeedItems", () => {
     expect(mockWhere).toHaveBeenCalledTimes(1);
     expect(mockOrderBy).toHaveBeenCalledTimes(1);
     expect(mockLimit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("formatRelativeTime", () => {
+  it("returns empty string for null", () => {
+    expect(formatRelativeTime(null)).toBe("");
+  });
+
+  it("formats minutes for dates less than 1 hour ago", () => {
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60_000);
+    expect(formatRelativeTime(thirtyMinutesAgo)).toBe("30m");
+  });
+
+  it("formats hours for dates less than 24 hours ago", () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000);
+    expect(formatRelativeTime(twoHoursAgo)).toBe("2h");
+  });
+
+  it("formats days for dates less than 7 days ago", () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000);
+    expect(formatRelativeTime(threeDaysAgo)).toBe("3d");
+  });
+
+  it("formats as month and day for dates older than 7 days", () => {
+    // Use a local noon timestamp to avoid timezone-induced date shifts.
+    const oldDate = new Date(2024, 0, 5, 12, 0, 0);
+    const result = formatRelativeTime(oldDate);
+    expect(result).toMatch(/Jan 5/);
   });
 });

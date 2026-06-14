@@ -13,6 +13,24 @@ const FEED_SOURCE_TO_ITEM_TYPE: Record<string, string> = {
   photo: "photo",
 };
 
+// Formats a Date into a short relative time string (e.g. "2h", "3d", "Jan 5")
+// to match the `time` field shape used by mock feed items in the UI.
+export function formatRelativeTime(date: Date | null): string {
+  if (!date) return "";
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
+
+  if (diffMinutes < 60) return `${diffMinutes}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays < 7) return `${diffDays}d`;
+
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 export interface SearchResult {
   id: number;
   feedId: number;
@@ -21,6 +39,8 @@ export interface SearchResult {
   type: string;
   // Human-readable feed title for display in the search results
   source: string;
+  // Short relative time string (e.g. "2h", "3d") matching the mock item `time` field
+  time: string;
   title: string;
   url: string | null;
   content: string | null;
@@ -71,5 +91,6 @@ export async function searchFeedItems(
     ...item,
     type: FEED_SOURCE_TO_ITEM_TYPE[feedSource] ?? feedSource,
     source: feedTitle?.trim() || feedSource,
+    time: formatRelativeTime(item.publishedAt),
   }));
 }

@@ -21,9 +21,7 @@ async function testTogglePersists(page: Page, rowLabel: string) {
     .filter({ hasText: rowLabel })
     .locator(".toggle");
 
-  const wasBefore = await toggle.evaluate((el) =>
-    el.classList.contains("on"),
-  );
+  const wasBefore = await toggle.evaluate((el) => el.classList.contains("on"));
   const save = waitForSettingSave(page);
   await toggle.click();
   await save;

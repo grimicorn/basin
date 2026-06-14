@@ -84,12 +84,12 @@ export function useFeed() {
     if (initialized || !import.meta.client) return;
     initialized = true;
 
+    const { save } = useUserSettings();
     await loadSettingsFromDb();
 
     watch(
       () => state.layout,
       (layout) => {
-        const { save } = useUserSettings();
         save({ layout });
         runFeedLoad(380);
       },
@@ -97,7 +97,6 @@ export function useFeed() {
     watch(
       () => state.unreadOnly,
       (showUnreadOnly) => {
-        const { save } = useUserSettings();
         save({ showUnreadOnly });
       },
     );

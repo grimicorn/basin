@@ -1,0 +1,73 @@
+/* useUserSettings — reads and writes user reading settings from/to the
+   database via the API. Provides a single source of truth for all
+   appearance and feed preferences, replacing the localStorage-based approach.
+   The composable is not a singleton — callers can import it individually,
+   but useAppearance and useFeed share state through their own singletons. */
+
+export interface UserSettings {
+  theme: string;
+  accentColor: string;
+  readingFont: string;
+  spacing: string;
+  radius: string;
+  layout: string;
+  showUnreadOnly: boolean;
+  autoplayMediaPreviews: boolean;
+  compactNotifications: boolean;
+}
+
+export type UserSettingsPatch = Partial<UserSettings>;
+
+export const USER_SETTINGS_DEFAULTS: UserSettings = {
+  theme: "system",
+  accentColor: "violet",
+  readingFont: "serif",
+  spacing: "cozy",
+  radius: "sharp",
+  layout: "timeline",
+  showUnreadOnly: false,
+  autoplayMediaPreviews: false,
+  compactNotifications: false,
+};
+
+export function useUserSettings() {
+  const { getToken } = useAuth();
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+
+  async function buildAuthHeaders(): Promise<Record<string, string>> {
+    const token = await getToken.value();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  async function load(): Promise<UserSettings> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const headers = await buildAuthHeaders();
+      return await $fetch<UserSettings>("/api/settings/reading", { headers });
+    } catch {
+      error.value = "Failed to load settings";
+      return { ...USER_SETTINGS_DEFAULTS };
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function save(patch: UserSettingsPatch): Promise<UserSettings | null> {
+    error.value = null;
+    try {
+      const headers = await buildAuthHeaders();
+      return await $fetch<UserSettings>("/api/settings/reading", {
+        method: "PATCH",
+        body: patch,
+        headers,
+      });
+    } catch {
+      error.value = "Failed to save settings";
+      return null;
+    }
+  }
+
+  return { loading, error, load, save };
+}

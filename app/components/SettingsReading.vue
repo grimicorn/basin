@@ -1,16 +1,13 @@
 <script setup>
-import { reactive } from "vue";
-
 const { state } = useFeed();
 const { state: appearance, accentList } = useAppearance();
-const prefs = reactive({ autoplay: false, compactNotif: true });
 </script>
 
 <template>
   <section class="set-section">
     <h2>Reading preferences</h2>
     <p class="desc">
-      Appearance and behavior for your feed. Saved to this browser.
+      Appearance and behavior for your feed. Saved to your account.
     </p>
 
     <div class="set-pref-row">
@@ -98,8 +95,8 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
           Cozy
         </button>
         <button
-          :class="{ active: appearance.density === 'comfortable' }"
-          @click="appearance.density = 'comfortable'"
+          :class="{ active: appearance.density === 'roomy' }"
+          @click="appearance.density = 'roomy'"
         >
           Roomy
         </button>
@@ -125,8 +122,8 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
       </div>
       <button
         class="toggle"
-        :class="{ on: prefs.autoplay }"
-        @click="prefs.autoplay = !prefs.autoplay"
+        :class="{ on: appearance.autoplay }"
+        @click="appearance.autoplay = !appearance.autoplay"
       ></button>
     </div>
 
@@ -137,8 +134,8 @@ const prefs = reactive({ autoplay: false, compactNotif: true });
       </div>
       <button
         class="toggle"
-        :class="{ on: prefs.compactNotif }"
-        @click="prefs.compactNotif = !prefs.compactNotif"
+        :class="{ on: appearance.compactNotif }"
+        @click="appearance.compactNotif = !appearance.compactNotif"
       ></button>
     </div>
 

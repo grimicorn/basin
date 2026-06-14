@@ -1,8 +1,8 @@
 <script setup>
 import { onMounted, onUnmounted } from "vue";
 
-// initialize theming on the client (reads localStorage, applies to <html>)
-useAppearance();
+// initialize theming on the client (reads DB settings, applies to <html>)
+const { ready: appearanceReady } = useAppearance();
 
 const { state: feed, setupWatchers, closeDetail, detailNav } = useFeed();
 const { state: search, openSearch, closeSearch } = useSearch();
@@ -60,7 +60,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <div>
+  <div class="app-shell" :class="{ 'app-ready': appearanceReady }">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>

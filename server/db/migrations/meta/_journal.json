@@ -5,15 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1700000000000,
+      "when": 1748000000000,
       "tag": "0000_drop_sync_queue",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1700000001000,
-      "tag": "0001_add_feed_items_search_vector",
+      "when": 1748000001000,
+      "tag": "0001_add_radius_to_user_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748000002000,
+      "tag": "0002_add_feed_items_search_vector",
       "breakpoints": true
     }
   ]

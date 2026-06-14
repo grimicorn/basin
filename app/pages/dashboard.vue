@@ -199,39 +199,6 @@ const staggerOn = computed(
   gap: 8px;
 }
 
-.seg {
-  display: inline-flex;
-  padding: 3px;
-  background: var(--surface-2);
-  border-radius: 11px;
-  border: 1px solid var(--border);
-}
-.seg button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 36px;
-  height: 30px;
-  padding: 0 10px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 8px;
-  transition: all 0.15s var(--ease);
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-.seg button:hover {
-  color: var(--ink);
-}
-.seg button.active {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-}
-
 /* filter chips row */
 .filters {
   display: flex;

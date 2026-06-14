@@ -35,6 +35,7 @@ const nuxtGlobals = {
   useSyncQueue: "readonly",
   useFeeds: "readonly",
   useConnections: "readonly",
+  useUserSettings: "readonly",
   useUserProfile: "readonly",
 };
 

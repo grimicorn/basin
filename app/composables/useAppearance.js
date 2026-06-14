@@ -1,7 +1,7 @@
-/* useAppearance — theme + visual tweaks, persisted to localStorage and
+/* useAppearance — theme + visual tweaks, persisted to the database and
    applied to <html> via data-* attributes and CSS custom properties.
    Singleton: every component shares one reactive instance. */
-import { reactive, watch } from "vue";
+import { reactive, ref, watch } from "vue";
 
 export const ACCENTS = {
   violet: { a: "oklch(0.6 0.17 285)", s: "oklch(0.54 0.18 285)" },
@@ -11,60 +11,79 @@ export const ACCENTS = {
   rose: { a: "oklch(0.63 0.18 14)", s: "oklch(0.57 0.19 14)" },
 };
 
-const STORAGE_KEY = "reader.appearance";
-
 const DEFAULTS = {
   theme: "system", // system | light | dark
   accent: "violet", // key of ACCENTS
   reading: "mono", // mono | serif
-  density: "cozy", // compact | cozy | comfortable
+  density: "cozy", // compact | cozy | roomy
   radius: "sharp", // sharp | default | round
   loadingStyle: "both", // skeleton | fade | both
+  autoplay: false,
+  compactNotif: false,
 };
 
 const state = reactive({ ...DEFAULTS });
+const ready = ref(false);
 let initialized = false;
 
 function applyToDom() {
   if (!import.meta.client) return;
-  const r = document.documentElement;
+  const root = document.documentElement;
 
-  if (state.theme === "system") r.removeAttribute("data-theme");
-  else r.setAttribute("data-theme", state.theme);
+  if (state.theme === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", state.theme);
 
-  r.setAttribute("data-reading", state.reading);
-  r.setAttribute("data-density", state.density);
-  r.setAttribute("data-radius", state.radius);
+  root.setAttribute("data-reading", state.reading);
+  root.setAttribute("data-density", state.density);
+  root.setAttribute("data-radius", state.radius);
 
-  const ac = ACCENTS[state.accent] || ACCENTS.violet;
-  r.style.setProperty("--accent", ac.a);
-  r.style.setProperty("--accent-strong", ac.s);
-  r.style.setProperty(
+  const accentColors = ACCENTS[state.accent] || ACCENTS.violet;
+  root.style.setProperty("--accent", accentColors.a);
+  root.style.setProperty("--accent-strong", accentColors.s);
+  root.style.setProperty(
     "--accent-soft",
-    `color-mix(in oklab, ${ac.a} 16%, var(--surface))`,
+    `color-mix(in oklab, ${accentColors.a} 16%, var(--surface))`,
   );
-  r.style.setProperty("--accent-soft-ink", ac.a);
+  root.style.setProperty("--accent-soft-ink", accentColors.a);
 }
 
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    Object.assign(state, DEFAULTS, saved);
-  } catch {
-    /* ignore malformed storage */
-  }
+function applyDbSettings(dbSettings) {
+  state.theme = dbSettings.theme ?? DEFAULTS.theme;
+  state.accent = dbSettings.accentColor ?? DEFAULTS.accent;
+  state.reading = dbSettings.readingFont ?? DEFAULTS.reading;
+  state.density = dbSettings.spacing ?? DEFAULTS.density;
+  state.radius = dbSettings.radius ?? DEFAULTS.radius;
+  state.autoplay = dbSettings.autoplayMediaPreviews ?? DEFAULTS.autoplay;
+  state.compactNotif = dbSettings.compactNotifications ?? DEFAULTS.compactNotif;
 }
 
-function initAppearance() {
+function buildPatch(changedState) {
+  return {
+    theme: changedState.theme,
+    accentColor: changedState.accent,
+    readingFont: changedState.reading,
+    spacing: changedState.density,
+    radius: changedState.radius,
+    autoplayMediaPreviews: changedState.autoplay,
+    compactNotifications: changedState.compactNotif,
+  };
+}
+
+async function initAppearance() {
   if (initialized || !import.meta.client) return;
   initialized = true;
-  loadState();
+
+  const { load, save } = useUserSettings();
+  const dbSettings = await load();
+  applyDbSettings(dbSettings);
   applyToDom();
+  ready.value = true;
+
   watch(
     state,
-    () => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    (changedState) => {
       applyToDom();
+      save(buildPatch(changedState));
     },
     { deep: true },
   );
@@ -88,5 +107,13 @@ export function useAppearance() {
     state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
   };
 
-  return { state, ACCENTS, accentList, themeIcon, cycleTheme, applyToDom };
+  return {
+    state,
+    ready,
+    ACCENTS,
+    accentList,
+    themeIcon,
+    cycleTheme,
+    applyToDom,
+  };
 }

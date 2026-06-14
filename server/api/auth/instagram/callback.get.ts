@@ -77,6 +77,11 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // userInfo.id is the stable Instagram user ID returned by the Basic Display
+  // API's /me endpoint. We use this directly as providerAccountId.
+  // The Graph API's /me/accounts route (which traverses page → instagram_business_account)
+  // is only relevant for Business/Creator accounts using the Graph API — it does
+  // not exist on the Basic Display API, which is what this integration uses.
   const userInfo = await getInstagramUserInfo(tokenResponse.access_token);
   await upsertInstagramIntegration(
     event.context.user.id,

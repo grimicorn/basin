@@ -7,9 +7,10 @@ test.describe("Settings > Feeds", () => {
       timeout: 10_000,
     });
     // The add button is :disabled="loading" while onMounted(load) is in flight.
-    // The heading appears from SSR before load() completes, so networkidle
-    // waits for the API call to finish (loading → false, button enabled).
-    await page.waitForLoadState("networkidle", { timeout: 15_000 });
+    // Waiting for it to become enabled is a deterministic signal that load()
+    // has completed and the feed list has rendered — more reliable than
+    // networkidle, which can fire before the client-side fetch finishes.
+    await expect(page.locator(".btn-primary")).toBeEnabled({ timeout: 15_000 });
   });
 
   test("shows seeded feed in the list", async ({ page }) => {
@@ -62,7 +63,15 @@ test.describe("Settings > Feeds", () => {
   });
 
   test("removes a feed via the trash button", async ({ page }) => {
-    const feedRow = page.locator(".feed-row", { hasText: "E2E Test Feed" });
+    // Add a fresh feed so this test is self-contained and retry-safe —
+    // deleting the seeded "E2E Test Feed" would break retries and other tests.
+    const removeUrl = `https://test-remove-${crypto.randomUUID()}.example.com/feed.xml`;
+    await page
+      .locator('input[placeholder="https://example.com/feed.xml"]')
+      .fill(removeUrl);
+    await page.locator(".btn-primary").click();
+
+    const feedRow = page.locator(".feed-row", { hasText: removeUrl });
     await expect(feedRow).toBeVisible({ timeout: 8_000 });
     await feedRow.locator('button[title="Remove"]').click();
     await expect(feedRow).not.toBeVisible({ timeout: 5_000 });

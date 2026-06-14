@@ -12,7 +12,7 @@ describe("default layout", () => {
 
   it("renders the app shell", () => {
     const wrapper = shallowMount(DefaultLayout);
-    expect(wrapper.find(".app-shell").exists()).toBe(true);
+    expect(wrapper.find("app-header-stub").exists()).toBe(true);
   });
 
   it("shows the progress bar when loading", async () => {

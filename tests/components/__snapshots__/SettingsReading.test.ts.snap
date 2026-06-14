@@ -3,7 +3,7 @@
 exports[`SettingsReading > matches snapshot (default state) 1`] = `
 "<section class="set-section">
   <h2>Reading preferences</h2>
-  <p class="desc"> Appearance and behavior for your feed. Saved to this browser. </p>
+  <p class="desc"> Appearance and behavior for your feed. Saved to your account. </p>
   <div class="set-pref-row">
     <div>
       <div class="lbl">Theme</div>
@@ -54,7 +54,7 @@ exports[`SettingsReading > matches snapshot (default state) 1`] = `
     <div>
       <div class="lbl">Compact notifications</div>
       <div class="sub">Batch new items into a daily digest</div>
-    </div><button class="toggle on"></button>
+    </div><button class="toggle"></button>
   </div>
   <div class="set-pref-row">
     <div>

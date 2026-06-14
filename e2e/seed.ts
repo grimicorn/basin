@@ -18,6 +18,10 @@ export async function seedE2eData(
   const [user] = await db
     .insert(schema.users)
     .values({ providerId: clerkProviderId })
+    .onConflictDoUpdate({
+      target: schema.users.providerId,
+      set: { updatedAt: new Date() },
+    })
     .returning();
 
   await db
@@ -32,6 +36,10 @@ export async function seedE2eData(
       url: "https://e2e.example.com/feed.xml",
       title: "E2E Test Feed",
       source: "rss",
+    })
+    .onConflictDoUpdate({
+      target: [schema.feeds.userId, schema.feeds.url],
+      set: { updatedAt: new Date() },
     })
     .returning();
 
@@ -53,6 +61,10 @@ export async function seedE2eData(
         publishedAt: new Date(Date.now() - 3_600_000),
       },
     ])
+    .onConflictDoUpdate({
+      target: schema.feedItems.guid,
+      set: { updatedAt: new Date() },
+    })
     .returning();
 
   return {

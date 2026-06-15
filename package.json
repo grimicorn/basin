@@ -31,6 +31,7 @@
     "@electric-sql/pglite": "^0.5.1",
     "@neondatabase/serverless": "^1.1.0",
     "@netlify/async-workloads": "^0.0.106",
+    "@netlify/functions": "^2.8.2",
     "@pinia/nuxt": "^0.11.3",
     "@sentry/nuxt": "^10.57.0",
     "drizzle-orm": "^0.45.2",

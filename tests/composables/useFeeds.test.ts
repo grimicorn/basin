@@ -19,6 +19,16 @@ const feedB = {
   createdAt: null,
 };
 
+const discoverRssResult = {
+  feedUrl: "https://a.com/feed.xml",
+  detectedSource: "rss",
+};
+
+const discoverPodcastResult = {
+  feedUrl: "https://a.com/podcast.xml",
+  detectedSource: "podcast",
+};
+
 describe("useFeeds", () => {
   beforeEach(() => vi.resetAllMocks());
 
@@ -50,9 +60,6 @@ describe("useFeeds", () => {
   });
 
   describe("add()", () => {
-    // add() now calls discover first, then POST /api/feeds.
-    // Mock order: 1) load → GET /api/feeds, 2) discover → POST /api/feeds/discover, 3) add → POST /api/feeds
-
     it("does nothing when newUrl is empty", async () => {
       mockFetch.mockResolvedValue([]);
       const { load, add } = useFeeds();
@@ -61,11 +68,10 @@ describe("useFeeds", () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    it("calls the discover endpoint before posting to /api/feeds", async () => {
+    it("calls the discover endpoint and sets pendingFeed on success", async () => {
       mockFetch.mockResolvedValueOnce([feedB]); // load
-      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
-      mockFetch.mockResolvedValueOnce(feedA); // add
-      const { newUrl, load, add } = useFeeds();
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      const { newUrl, pendingFeed, load, add } = useFeeds();
       await load();
       newUrl.value = "https://a.com";
       await add();
@@ -76,36 +82,25 @@ describe("useFeeds", () => {
           body: { url: "https://a.com" },
         }),
       );
+      expect(pendingFeed.value).toEqual({
+        url: "https://a.com/feed.xml",
+        detectedSource: "rss",
+        sourceOverride: null,
+      });
     });
 
-    it("posts to /api/feeds with the discovered URL and prepends the new feed", async () => {
+    it("sets pendingFeed with podcast detectedSource for podcast feeds", async () => {
       mockFetch.mockResolvedValueOnce([feedB]); // load
-      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
-      mockFetch.mockResolvedValueOnce(feedA); // add
-      const { items, newUrl, load, add } = useFeeds();
+      mockFetch.mockResolvedValueOnce(discoverPodcastResult); // discover
+      const { newUrl, pendingFeed, load, add } = useFeeds();
       await load();
-      newUrl.value = "https://a.com";
+      newUrl.value = "https://a.com/podcast";
       await add();
-      expect(items.value[0]).toEqual(feedA);
-      expect(items.value).toHaveLength(2);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/feeds",
-        expect.objectContaining({
-          method: "POST",
-          body: { url: "https://a.com/feed.xml" },
-        }),
-      );
-    });
-
-    it("clears newUrl after a successful add", async () => {
-      mockFetch.mockResolvedValueOnce([]); // load
-      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
-      mockFetch.mockResolvedValueOnce(feedA); // add
-      const { newUrl, load, add } = useFeeds();
-      await load();
-      newUrl.value = "https://a.com";
-      await add();
-      expect(newUrl.value).toBe("");
+      expect(pendingFeed.value).toEqual({
+        url: "https://a.com/podcast.xml",
+        detectedSource: "podcast",
+        sourceOverride: null,
+      });
     });
 
     it("sets 'no feed found' error and keeps newUrl when discover returns 422", async () => {
@@ -139,17 +134,132 @@ describe("useFeeds", () => {
       );
       expect(newUrl.value).toBe("https://example.com");
     });
+  });
 
-    it("sets error and keeps newUrl when the POST to /api/feeds fails", async () => {
-      mockFetch.mockResolvedValueOnce([]); // load
-      mockFetch.mockResolvedValueOnce({ feedUrl: "https://a.com/feed.xml" }); // discover
-      mockFetch.mockRejectedValueOnce(new Error("server error")); // add fails
-      const { error, newUrl, load, add } = useFeeds();
+  describe("confirmAdd()", () => {
+    it("does nothing when there is no pendingFeed", async () => {
+      const { confirmAdd } = useFeeds();
+      await confirmAdd();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("posts to /api/feeds with the pending URL and prepends the new feed", async () => {
+      mockFetch.mockResolvedValueOnce([feedB]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // confirmAdd
+      const { items, newUrl, pendingFeed, load, add, confirmAdd } = useFeeds();
       await load();
       newUrl.value = "https://a.com";
       await add();
+      await confirmAdd();
+      expect(items.value[0]).toEqual(feedA);
+      expect(items.value).toHaveLength(2);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds",
+        expect.objectContaining({
+          method: "POST",
+          body: { url: "https://a.com/feed.xml" },
+        }),
+      );
+      expect(pendingFeed.value).toBeNull();
+    });
+
+    it("sends sourceOverride when it differs from detectedSource", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // confirmAdd
+      const { newUrl, load, add, confirmAdd, setSourceOverride } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      setSourceOverride("podcast");
+      await confirmAdd();
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds",
+        expect.objectContaining({
+          method: "POST",
+          body: { url: "https://a.com/feed.xml", sourceOverride: "podcast" },
+        }),
+      );
+    });
+
+    it("does not send sourceOverride when it matches detectedSource", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // confirmAdd
+      const { newUrl, load, add, confirmAdd, setSourceOverride } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      setSourceOverride(null); // no override
+      await confirmAdd();
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds",
+        expect.objectContaining({
+          method: "POST",
+          body: { url: "https://a.com/feed.xml" },
+        }),
+      );
+    });
+
+    it("clears newUrl and pendingFeed after a successful add", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      mockFetch.mockResolvedValueOnce(feedA); // confirmAdd
+      const { newUrl, pendingFeed, load, add, confirmAdd } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      await confirmAdd();
+      expect(newUrl.value).toBe("");
+      expect(pendingFeed.value).toBeNull();
+    });
+
+    it("sets error and keeps pendingFeed when the POST to /api/feeds fails", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      mockFetch.mockRejectedValueOnce(new Error("server error")); // confirmAdd fails
+      const { error, newUrl, pendingFeed, load, add, confirmAdd } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      await confirmAdd();
       expect(error.value).toBeTruthy();
-      expect(newUrl.value).toBe("https://a.com");
+      expect(pendingFeed.value).not.toBeNull();
+    });
+  });
+
+  describe("cancelAdd()", () => {
+    it("clears pendingFeed and error", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      const { error, newUrl, pendingFeed, load, add, cancelAdd } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      expect(pendingFeed.value).not.toBeNull();
+      cancelAdd();
+      expect(pendingFeed.value).toBeNull();
+      expect(error.value).toBeNull();
+    });
+  });
+
+  describe("setSourceOverride()", () => {
+    it("updates sourceOverride on pendingFeed", async () => {
+      mockFetch.mockResolvedValueOnce([]); // load
+      mockFetch.mockResolvedValueOnce(discoverRssResult); // discover
+      const { newUrl, pendingFeed, load, add, setSourceOverride } = useFeeds();
+      await load();
+      newUrl.value = "https://a.com";
+      await add();
+      setSourceOverride("podcast");
+      expect(pendingFeed.value?.sourceOverride).toBe("podcast");
+    });
+
+    it("does nothing when there is no pendingFeed", () => {
+      const { setSourceOverride } = useFeeds();
+      // Should not throw
+      setSourceOverride("podcast");
     });
   });
 

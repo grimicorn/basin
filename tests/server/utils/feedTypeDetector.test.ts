@@ -1,0 +1,155 @@
+import { describe, it, expect } from "vitest";
+import { detectFeedSourceType } from "../../../server/utils/feedTypeDetector";
+
+const rssHeader = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>`;
+const rssFooter = `</channel></rss>`;
+
+const atomHeader = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">`;
+const atomFooter = `</feed>`;
+
+const itunesHeader = `<?xml version="1.0"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>`;
+
+function makeRssFeed(items: string[]): string {
+  return `${rssHeader}${items.join("")}${rssFooter}`;
+}
+
+function makeAtomFeed(entries: string[]): string {
+  return `${atomHeader}${entries.join("")}${atomFooter}`;
+}
+
+function makeItunesFeed(items: string[]): string {
+  return `${itunesHeader}${items.join("")}${rssFooter}`;
+}
+
+describe("detectFeedSourceType", () => {
+  describe("plain RSS feeds are classified as rss", () => {
+    it("returns rss for a feed with no enclosures", () => {
+      const feed = makeRssFeed([
+        `<item><title>Post</title><link>https://example.com/1</link></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+
+    it("returns rss for a feed with a non-audio image enclosure", () => {
+      const feed = makeRssFeed([
+        `<item><title>Post</title><enclosure url="https://example.com/img.jpg" type="image/jpeg" length="12345"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+
+    it("returns rss for a feed with a PDF enclosure", () => {
+      const feed = makeRssFeed([
+        `<item><title>Article</title><enclosure url="https://example.com/doc.pdf" type="application/pdf" length="99999"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+
+    it("returns rss for an empty feed body", () => {
+      const feed = makeRssFeed([]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+
+    it("returns rss for a plain Atom feed with no enclosures", () => {
+      const feed = makeAtomFeed([
+        `<entry><title>Post</title><link href="https://example.com/1"/></entry>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+  });
+
+  describe("audio enclosures classify the feed as podcast", () => {
+    it("returns podcast when an item has an audio/mpeg enclosure", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode 1</title><enclosure url="https://example.com/ep1.mp3" type="audio/mpeg" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast when an item has an audio/mp4 enclosure", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode 2</title><enclosure url="https://example.com/ep2.m4a" type="audio/mp4" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast when an item has a video/mp4 enclosure", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode 3</title><enclosure url="https://example.com/ep3.mp4" type="video/mp4" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast when the enclosure has a generic MIME type but an .mp3 extension", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode 4</title><enclosure url="https://example.com/ep4.mp3" type="application/octet-stream" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast when the enclosure has a generic MIME type but a .m4a extension", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode 5</title><enclosure url="https://example.com/ep5.m4a" type="application/octet-stream" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast when the enclosure has a generic MIME type but an .aac extension", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode 6</title><enclosure url="https://example.com/ep6.aac" type="application/octet-stream" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast for an Atom feed with an audio enclosure link", () => {
+      const feed = makeAtomFeed([
+        `<entry><title>Episode 7</title><link rel="enclosure" href="https://example.com/ep7.mp3" type="audio/mpeg"/></entry>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast for an Atom feed with a generic enclosure MIME type but .mp3 extension", () => {
+      const feed = makeAtomFeed([
+        `<entry><title>Episode 8</title><link rel="enclosure" href="https://example.com/ep8.mp3" type="application/octet-stream"/></entry>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+  });
+
+  describe("iTunes namespace signals a podcast", () => {
+    it("returns podcast when feed has iTunes namespace and itunes:duration tags", () => {
+      const feed = makeItunesFeed([
+        `<item><title>Episode 9</title><itunes:duration>45:00</itunes:duration></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast when feed has iTunes namespace and itunes:episode tags", () => {
+      const feed = makeItunesFeed([
+        `<item><title>Episode 10</title><itunes:episode>10</itunes:episode></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns rss when iTunes namespace is declared but no episode-level tags are present", () => {
+      const feed = makeItunesFeed([
+        `<item><title>Post</title><link>https://example.com/post</link></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+  });
+
+  describe("only samples the first few items", () => {
+    it("still detects podcast when the audio enclosure appears in the first item of many", () => {
+      const items = [
+        `<item><title>Episode 1</title><enclosure url="https://example.com/ep1.mp3" type="audio/mpeg" length="1"/></item>`,
+        ...Array.from(
+          { length: 10 },
+          (_, index) =>
+            `<item><title>Post ${index + 2}</title><link>https://example.com/${index + 2}</link></item>`,
+        ),
+      ];
+      const feed = makeRssFeed(items);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+  });
+});

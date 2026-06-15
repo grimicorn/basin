@@ -1,6 +1,11 @@
 import { discoverFeedUrl, type FetchFn } from "../../utils/feedDiscovery";
 import { validateFeedUrl } from "../../utils/urlValidator";
-import { FEED_FETCH_PROXY_URL } from "../../utils/feedValidator";
+import {
+  FEED_FETCH_PROXY_URL,
+  fetchFeedBody,
+  looksLikeValidFeed,
+} from "../../utils/feedValidator";
+import { detectFeedSourceType } from "../../utils/feedTypeDetector";
 
 function parseUrlFromBody(body: unknown): string {
   if (
@@ -29,6 +34,16 @@ function buildDiscoveryFetch(): FetchFn {
   };
 }
 
+async function fetchFeedBodyForDetection(url: string): Promise<string | null> {
+  try {
+    const body = await fetchFeedBody(url);
+    if (!looksLikeValidFeed(body)) return null;
+    return body;
+  } catch {
+    return null;
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const user = event.context.user;
   if (!user)
@@ -44,5 +59,8 @@ export default defineEventHandler(async (event) => {
       statusMessage: "No feed found at the given URL",
     });
 
-  return { feedUrl };
+  const feedBody = await fetchFeedBodyForDetection(feedUrl);
+  const detectedSource = feedBody ? detectFeedSourceType(feedBody) : "rss";
+
+  return { feedUrl, detectedSource };
 });

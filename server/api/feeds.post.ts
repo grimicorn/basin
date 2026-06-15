@@ -1,30 +1,53 @@
 import { feeds } from "../db/schema";
-import { validateFeedContent } from "../utils/feedValidator";
+import {
+  fetchFeedBody,
+  looksLikeValidFeed,
+  FEED_FETCH_PROXY_URL,
+} from "../utils/feedValidator";
+import { detectFeedSourceType } from "../utils/feedTypeDetector";
 
 const FEED_VALIDATION_TIMEOUT_MS = 10_000;
 
-function detectSource(url: string): string {
-  return /podcast|simplecast|megaphone|\.mp3|audio/i.test(url)
-    ? "podcast"
-    : "rss";
-}
-
-async function validateWithTimeout(url: string): Promise<boolean> {
+function buildFetchWithTimeout(): {
+  fetchImpl: typeof fetch;
+  clearTimer: () => void;
+} {
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
     FEED_VALIDATION_TIMEOUT_MS,
   );
 
-  try {
-    const boundFetch = (
-      input: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1],
-    ) => fetch(input, { ...init, signal: controller.signal });
+  const fetchImpl = (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, { ...init, signal: controller.signal });
 
-    return await validateFeedContent(url, boundFetch as typeof fetch);
+  return {
+    fetchImpl: fetchImpl as typeof fetch,
+    clearTimer: () => clearTimeout(timeoutId),
+  };
+}
+
+// When FEED_FETCH_PROXY_URL is set, route validation fetches through the proxy
+// so e2e tests never make direct outbound HTTP requests.
+function buildProxyAwareFetch(baseFetch: typeof fetch): typeof fetch {
+  if (!FEED_FETCH_PROXY_URL) return baseFetch;
+  return ((input: string, init?: Parameters<typeof fetch>[1]) => {
+    const proxyUrl = new URL(FEED_FETCH_PROXY_URL);
+    proxyUrl.searchParams.set("url", input);
+    return baseFetch(proxyUrl.toString(), init);
+  }) as typeof fetch;
+}
+
+async function fetchAndValidateFeed(url: string): Promise<string> {
+  const { fetchImpl, clearTimer } = buildFetchWithTimeout();
+  const proxyFetch = buildProxyAwareFetch(fetchImpl);
+
+  try {
+    return await fetchFeedBody(url, proxyFetch);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimer();
   }
 }
 
@@ -33,15 +56,16 @@ export default defineEventHandler(async (event) => {
   if (!user)
     throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
 
-  const { url } = await readBody<{ url: string }>(event);
-  if (!url?.trim())
+  const body = await readBody<{ url: string; sourceOverride?: string }>(event);
+  const rawUrl = body?.url;
+  if (!rawUrl?.trim())
     throw createError({ statusCode: 400, statusMessage: "URL is required" });
 
-  const trimmedUrl = url.trim();
+  const trimmedUrl = rawUrl.trim();
 
-  let isValid: boolean;
+  let feedBody: string;
   try {
-    isValid = await validateWithTimeout(trimmedUrl);
+    feedBody = await fetchAndValidateFeed(trimmedUrl);
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
     throw createError({
@@ -52,20 +76,23 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  if (!isValid)
+  if (!looksLikeValidFeed(feedBody))
     throw createError({
       statusCode: 422,
       statusMessage: "URL does not point to a valid RSS or Atom feed",
     });
+
+  const detectedSource = detectFeedSourceType(feedBody);
+  const source = body.sourceOverride ?? detectedSource;
 
   const [feed] = await useDb()
     .insert(feeds)
     .values({
       userId: user.id,
       url: trimmedUrl,
-      source: detectSource(trimmedUrl),
+      source,
     })
     .returning();
 
-  return feed;
+  return { ...feed, detectedSource };
 });

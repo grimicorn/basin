@@ -6,7 +6,11 @@ const {
   isAdding,
   discovering,
   error,
+  pendingFeed,
   add,
+  confirmAdd,
+  cancelAdd,
+  setSourceOverride,
   remove,
   load,
 } = useFeeds();
@@ -19,8 +23,24 @@ const buttonLabel = computed(() => {
   return "Add feed";
 });
 
+const effectiveSource = computed(() => {
+  if (!pendingFeed.value) return null;
+  return pendingFeed.value.sourceOverride ?? pendingFeed.value.detectedSource;
+});
+
+const detectedLabel = computed(() => {
+  if (!pendingFeed.value) return "";
+  const source = pendingFeed.value.detectedSource;
+  return source === "podcast" ? "Podcast" : "RSS Feed";
+});
+
 function sourceColor(source) {
   return source === "podcast" ? "var(--src-podcast)" : "var(--src-rss)";
+}
+
+function onSourceOverrideChange(event) {
+  const value = event.target.value;
+  setSourceOverride(value === pendingFeed.value?.detectedSource ? null : value);
 }
 </script>
 
@@ -34,7 +54,37 @@ function sourceColor(source) {
 
     <p v-if="error" class="desc feed-error">{{ error }}</p>
 
-    <div class="add-feed">
+    <div v-if="pendingFeed" class="pending-feed">
+      <p class="desc pending-feed-url">{{ pendingFeed.url }}</p>
+      <p class="desc pending-feed-detected">
+        Detected: <strong>{{ detectedLabel }}</strong>
+      </p>
+      <div class="pending-feed-override">
+        <label class="pending-feed-override-label">Type:</label>
+        <select
+          :value="effectiveSource"
+          class="pending-feed-select"
+          @change="onSourceOverrideChange"
+        >
+          <option value="rss">RSS Feed</option>
+          <option value="podcast">Podcast</option>
+        </select>
+      </div>
+      <div class="pending-feed-actions">
+        <button
+          class="btn btn-primary"
+          :disabled="isAdding"
+          @click="confirmAdd"
+        >
+          {{ isAdding ? "Adding…" : "Confirm" }}
+        </button>
+        <button class="btn" :disabled="isAdding" @click="cancelAdd">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+    <div v-else class="add-feed">
       <div class="field">
         <RIcon name="rss" :size="16" />
         <input

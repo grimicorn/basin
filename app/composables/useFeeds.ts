@@ -6,6 +6,12 @@ export interface Feed {
   createdAt: string | null;
 }
 
+export interface PendingFeed {
+  url: string;
+  detectedSource: string;
+  sourceOverride: string | null;
+}
+
 export class DiscoveryError extends Error {
   constructor(message: string) {
     super(message);
@@ -24,6 +30,7 @@ export function useFeeds() {
   const isAdding = ref(false);
   const discovering = ref(false);
   const error = ref<string | null>(null);
+  const pendingFeed = ref<PendingFeed | null>(null);
 
   async function authHeaders(): Promise<Record<string, string>> {
     const token = await getToken.value();
@@ -44,15 +51,19 @@ export function useFeeds() {
     }
   }
 
-  async function discoverFeedUrl(rawUrl: string): Promise<string | null> {
+  async function discoverFeedUrl(
+    rawUrl: string,
+  ): Promise<{ feedUrl: string; detectedSource: string } | null> {
     const headers = await authHeaders();
     try {
-      const result = await $fetch<{ feedUrl: string }>("/api/feeds/discover", {
-        method: "POST",
-        body: { url: rawUrl },
-        headers,
-      });
-      return result.feedUrl;
+      return await $fetch<{ feedUrl: string; detectedSource: string }>(
+        "/api/feeds/discover",
+        {
+          method: "POST",
+          body: { url: rawUrl },
+          headers,
+        },
+      );
     } catch (err: unknown) {
       const statusCode =
         err instanceof Error &&
@@ -69,21 +80,40 @@ export function useFeeds() {
     }
   }
 
-  async function addResolvedFeed(resolvedUrl: string) {
+  async function confirmAdd() {
+    if (!pendingFeed.value) return;
+
+    const { url, sourceOverride } = pendingFeed.value;
     isAdding.value = true;
+    error.value = null;
+
     try {
       const feed = await $fetch<Feed>("/api/feeds", {
         method: "POST",
-        body: { url: resolvedUrl },
+        body: {
+          url,
+          ...(sourceOverride !== null ? { sourceOverride } : {}),
+        },
         headers: await authHeaders(),
       });
       items.value.unshift(feed);
       newUrl.value = "";
+      pendingFeed.value = null;
     } catch {
       error.value = "Failed to add feed — check the URL and try again";
     } finally {
       isAdding.value = false;
     }
+  }
+
+  function cancelAdd() {
+    pendingFeed.value = null;
+    error.value = null;
+  }
+
+  function setSourceOverride(source: string | null) {
+    if (!pendingFeed.value) return;
+    pendingFeed.value = { ...pendingFeed.value, sourceOverride: source };
   }
 
   async function add() {
@@ -94,16 +124,20 @@ export function useFeeds() {
     discovering.value = true;
 
     try {
-      const resolvedUrl = await discoverFeedUrl(rawUrl);
+      const discovered = await discoverFeedUrl(rawUrl);
       discovering.value = false;
 
-      if (!resolvedUrl) {
+      if (!discovered) {
         error.value =
           "No feed found at that URL — check the address and try again";
         return;
       }
 
-      await addResolvedFeed(resolvedUrl);
+      pendingFeed.value = {
+        url: discovered.feedUrl,
+        detectedSource: discovered.detectedSource,
+        sourceOverride: null,
+      };
     } catch {
       discovering.value = false;
       error.value = "Something went wrong while finding the feed — try again";
@@ -133,8 +167,12 @@ export function useFeeds() {
     isAdding,
     discovering,
     error,
+    pendingFeed,
     load,
     add,
+    confirmAdd,
+    cancelAdd,
+    setSourceOverride,
     remove,
   };
 }

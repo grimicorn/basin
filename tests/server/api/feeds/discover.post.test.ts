@@ -8,12 +8,32 @@ vi.mock("../../../../server/utils/urlValidator", () => ({
   validateFeedUrl: vi.fn(),
 }));
 
+vi.mock("../../../../server/utils/feedValidator", () => ({
+  fetchFeedBody: vi.fn(),
+  looksLikeValidFeed: vi.fn(),
+  FEED_FETCH_PROXY_URL: "",
+}));
+
+vi.mock("../../../../server/utils/feedTypeDetector", () => ({
+  detectFeedSourceType: vi.fn(),
+}));
+
 import handler from "../../../../server/api/feeds/discover.post";
 import { discoverFeedUrl } from "../../../../server/utils/feedDiscovery";
 import { validateFeedUrl } from "../../../../server/utils/urlValidator";
+import {
+  fetchFeedBody,
+  looksLikeValidFeed,
+} from "../../../../server/utils/feedValidator";
+import { detectFeedSourceType } from "../../../../server/utils/feedTypeDetector";
 
 const mockDiscoverFeedUrl = vi.mocked(discoverFeedUrl);
 const mockValidateFeedUrl = vi.mocked(validateFeedUrl);
+const mockFetchFeedBody = vi.mocked(fetchFeedBody);
+const mockLooksLikeValidFeed = vi.mocked(looksLikeValidFeed);
+const mockDetectFeedSourceType = vi.mocked(detectFeedSourceType);
+
+const RSS_BODY = `<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>`;
 
 // The default readBody stub in tests/setup.ts resolves event.body.
 // Override it per test when we need non-standard body shapes.
@@ -30,6 +50,9 @@ describe("POST /api/feeds/discover", () => {
     mockValidateFeedUrl.mockImplementation((url: string) =>
       Promise.resolve(url),
     );
+    mockFetchFeedBody.mockResolvedValue(RSS_BODY);
+    mockLooksLikeValidFeed.mockReturnValue(true);
+    mockDetectFeedSourceType.mockReturnValue("rss");
   });
 
   afterEach(() => {
@@ -81,12 +104,40 @@ describe("POST /api/feeds/discover", () => {
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  it("returns the discovered feed URL", async () => {
+  it("returns the discovered feed URL and detectedSource", async () => {
     mockDiscoverFeedUrl.mockResolvedValue("https://example.com/feed.xml");
+    mockDetectFeedSourceType.mockReturnValue("rss");
     const result = await handler(
       makeEvent({ id: 1 }, { url: "https://example.com" }),
     );
-    expect(result).toEqual({ feedUrl: "https://example.com/feed.xml" });
+    expect(result).toEqual({
+      feedUrl: "https://example.com/feed.xml",
+      detectedSource: "rss",
+    });
+  });
+
+  it("returns detectedSource as podcast when feed content signals a podcast", async () => {
+    mockDiscoverFeedUrl.mockResolvedValue("https://example.com/podcast.xml");
+    mockDetectFeedSourceType.mockReturnValue("podcast");
+    const result = await handler(
+      makeEvent({ id: 1 }, { url: "https://example.com/podcast" }),
+    );
+    expect(result).toEqual({
+      feedUrl: "https://example.com/podcast.xml",
+      detectedSource: "podcast",
+    });
+  });
+
+  it("returns detectedSource as rss when feed body fetch fails", async () => {
+    mockDiscoverFeedUrl.mockResolvedValue("https://example.com/feed.xml");
+    mockFetchFeedBody.mockRejectedValue(new Error("Network error"));
+    const result = await handler(
+      makeEvent({ id: 1 }, { url: "https://example.com" }),
+    );
+    expect(result).toEqual({
+      feedUrl: "https://example.com/feed.xml",
+      detectedSource: "rss",
+    });
   });
 
   it("trims whitespace from the URL before validating", async () => {

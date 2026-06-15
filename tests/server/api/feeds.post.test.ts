@@ -9,6 +9,7 @@ vi.stubGlobal("useDb", () => ({ insert: mockInsert }));
 vi.mock("../../../server/utils/feedValidator", () => ({
   fetchFeedBody: vi.fn(),
   looksLikeValidFeed: vi.fn(),
+  buildProxyFetch: vi.fn().mockReturnValue(fetch),
   FEED_FETCH_PROXY_URL: "",
 }));
 

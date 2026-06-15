@@ -2,7 +2,7 @@ import { feeds } from "../db/schema";
 import {
   fetchFeedBody,
   looksLikeValidFeed,
-  FEED_FETCH_PROXY_URL,
+  buildProxyFetch,
 } from "../utils/feedValidator";
 import { detectFeedSourceType } from "../utils/feedTypeDetector";
 
@@ -29,20 +29,9 @@ function buildFetchWithTimeout(): {
   };
 }
 
-// When FEED_FETCH_PROXY_URL is set, route validation fetches through the proxy
-// so e2e tests never make direct outbound HTTP requests.
-function buildProxyAwareFetch(baseFetch: typeof fetch): typeof fetch {
-  if (!FEED_FETCH_PROXY_URL) return baseFetch;
-  return ((input: string, init?: Parameters<typeof fetch>[1]) => {
-    const proxyUrl = new URL(FEED_FETCH_PROXY_URL);
-    proxyUrl.searchParams.set("url", input);
-    return baseFetch(proxyUrl.toString(), init);
-  }) as typeof fetch;
-}
-
 async function fetchAndValidateFeed(url: string): Promise<string> {
   const { fetchImpl, clearTimer } = buildFetchWithTimeout();
-  const proxyFetch = buildProxyAwareFetch(fetchImpl);
+  const proxyFetch = buildProxyFetch(fetchImpl);
 
   try {
     return await fetchFeedBody(url, proxyFetch);

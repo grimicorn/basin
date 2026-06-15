@@ -11,6 +11,7 @@ vi.mock("../../../../server/utils/urlValidator", () => ({
 vi.mock("../../../../server/utils/feedValidator", () => ({
   fetchFeedBody: vi.fn(),
   looksLikeValidFeed: vi.fn(),
+  buildProxyFetch: vi.fn().mockReturnValue(fetch),
   FEED_FETCH_PROXY_URL: "",
 }));
 
@@ -24,6 +25,7 @@ import { validateFeedUrl } from "../../../../server/utils/urlValidator";
 import {
   fetchFeedBody,
   looksLikeValidFeed,
+  buildProxyFetch,
 } from "../../../../server/utils/feedValidator";
 import { detectFeedSourceType } from "../../../../server/utils/feedTypeDetector";
 
@@ -32,6 +34,7 @@ const mockValidateFeedUrl = vi.mocked(validateFeedUrl);
 const mockFetchFeedBody = vi.mocked(fetchFeedBody);
 const mockLooksLikeValidFeed = vi.mocked(looksLikeValidFeed);
 const mockDetectFeedSourceType = vi.mocked(detectFeedSourceType);
+const mockBuildProxyFetch = vi.mocked(buildProxyFetch);
 
 const RSS_BODY = `<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>`;
 
@@ -53,6 +56,7 @@ describe("POST /api/feeds/discover", () => {
     mockFetchFeedBody.mockResolvedValue(RSS_BODY);
     mockLooksLikeValidFeed.mockReturnValue(true);
     mockDetectFeedSourceType.mockReturnValue("rss");
+    mockBuildProxyFetch.mockReturnValue(fetch);
   });
 
   afterEach(() => {

@@ -2,6 +2,7 @@ import { discoverFeedUrl, type FetchFn } from "../../utils/feedDiscovery";
 import { validateFeedUrl } from "../../utils/urlValidator";
 import {
   FEED_FETCH_PROXY_URL,
+  buildProxyFetch,
   fetchFeedBody,
   looksLikeValidFeed,
 } from "../../utils/feedValidator";
@@ -34,12 +35,12 @@ function buildDiscoveryFetch(): FetchFn {
   };
 }
 
-// fetchFeedBody internally routes through the proxy configured by
-// FEED_FETCH_PROXY_URL (via resolveTargetUrl), so detection fetches are
-// proxy-aware in the same way as discovery fetches.
-async function fetchFeedBodyForDetection(url: string): Promise<string | null> {
+async function fetchFeedBodyForDetection(
+  url: string,
+  fetchImpl: typeof fetch,
+): Promise<string | null> {
   try {
-    const body = await fetchFeedBody(url);
+    const body = await fetchFeedBody(url, fetchImpl);
     if (!looksLikeValidFeed(body)) return null;
     return body;
   } catch {
@@ -62,7 +63,7 @@ export default defineEventHandler(async (event) => {
       statusMessage: "No feed found at the given URL",
     });
 
-  const feedBody = await fetchFeedBodyForDetection(feedUrl);
+  const feedBody = await fetchFeedBodyForDetection(feedUrl, buildProxyFetch());
   const detectedSource = feedBody ? detectFeedSourceType(feedBody) : "rss";
 
   return { feedUrl, detectedSource };

@@ -4,6 +4,18 @@
 // making real network requests.
 export const FEED_FETCH_PROXY_URL = process.env.FEED_FETCH_PROXY_URL ?? "";
 
+// Returns a fetch wrapper that routes requests through FEED_FETCH_PROXY_URL
+// when set, forwarding the original URL as a query parameter. Returns the
+// native fetch unchanged when no proxy is configured.
+export function buildProxyFetch(baseFetch: typeof fetch = fetch): typeof fetch {
+  if (!FEED_FETCH_PROXY_URL) return baseFetch;
+  return ((input: string, init?: Parameters<typeof fetch>[1]) => {
+    const proxyUrl = new URL(FEED_FETCH_PROXY_URL);
+    proxyUrl.searchParams.set("url", input);
+    return baseFetch(proxyUrl.toString(), init);
+  }) as typeof fetch;
+}
+
 const FEED_FETCH_TIMEOUT_MS = 8_000;
 const MAX_FEED_BODY_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_REDIRECTS = 5;
@@ -33,13 +45,6 @@ function allowedTestHosts(): Set<string> {
 
 export function looksLikeValidFeed(body: string): boolean {
   return RSS_ATOM_PATTERN.test(body);
-}
-
-function resolveTargetUrl(url: string): string {
-  if (!FEED_FETCH_PROXY_URL) return url;
-  const proxyUrl = new URL(FEED_FETCH_PROXY_URL);
-  proxyUrl.searchParams.set("url", url);
-  return proxyUrl.toString();
 }
 
 function isAllowedUrl(url: string): boolean {
@@ -128,19 +133,18 @@ async function readResponseBody(response: Response): Promise<string> {
 
 export async function fetchFeedBody(
   url: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = buildProxyFetch(),
   redirectsRemaining: number = MAX_REDIRECTS,
 ): Promise<string> {
   if (!isAllowedUrl(url)) {
     throw new Error("Feed URL is not allowed");
   }
 
-  const targetUrl = resolveTargetUrl(url);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FEED_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetchImpl(targetUrl, {
+    const response = await fetchImpl(url, {
       signal: controller.signal,
       redirect: "manual",
     });
@@ -148,7 +152,7 @@ export async function fetchFeedBody(
     if (response.status >= 300 && response.status < 400) {
       const redirectUrl = resolveRedirectUrl(
         response.headers.get("location"),
-        targetUrl,
+        url,
       );
       assertRedirectAllowed(redirectUrl, redirectsRemaining);
       clearTimeout(timeoutId);
@@ -171,7 +175,7 @@ export async function fetchFeedBody(
 
 export async function validateFeedContent(
   url: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = buildProxyFetch(),
 ): Promise<boolean> {
   if (!isAllowedUrl(url)) return false;
 

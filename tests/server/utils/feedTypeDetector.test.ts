@@ -182,6 +182,29 @@ describe("detectFeedSourceType", () => {
     });
   });
 
+  describe("multiple enclosures per item", () => {
+    it("returns podcast when the first enclosure is non-audio but a later one is audio", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode</title><enclosure url="https://example.com/cover.jpg" type="image/jpeg" length="1"/><enclosure url="https://example.com/ep.mp3" type="audio/mpeg" length="1234567"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast for Atom when the first enclosure link is non-audio but a later one is audio", () => {
+      const feed = makeAtomFeed([
+        `<entry><title>Episode</title><link rel="enclosure" href="https://example.com/cover.jpg" type="image/jpeg"/><link rel="enclosure" href="https://example.com/ep.mp3" type="audio/mpeg"/></entry>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns rss when all enclosures in an item are non-audio", () => {
+      const feed = makeRssFeed([
+        `<item><title>Post</title><enclosure url="https://example.com/cover.jpg" type="image/jpeg" length="1"/><enclosure url="https://example.com/doc.pdf" type="application/pdf" length="99999"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+  });
+
   describe("extension fallback matches URLs with query strings or fragments", () => {
     it("returns podcast for an .mp3 url with a query string", () => {
       const feed = makeRssFeed([

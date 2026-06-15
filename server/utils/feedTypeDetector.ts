@@ -26,10 +26,10 @@ const RSS_ITEM_PATTERN = /<item\b[^>]*>[\s\S]*?<\/item>/gi;
 const ATOM_ENTRY_PATTERN = /<entry\b[^>]*>[\s\S]*?<\/entry>/gi;
 
 // RSS <enclosure> tag — captures type and url attributes in any order.
-const RSS_ENCLOSURE_PATTERN = /<enclosure\b[^>]*>/i;
+const RSS_ENCLOSURE_PATTERN = /<enclosure\b[^>]*>/gi;
 
 // Atom <link rel="enclosure"> — captures type and href attributes.
-const ATOM_ENCLOSURE_LINK_PATTERN = /<link\b[^>]*rel=["']enclosure["'][^>]*>/i;
+const ATOM_ENCLOSURE_LINK_PATTERN = /<link\b[^>]*rel=["']enclosure["'][^>]*>/gi;
 
 // Extract an attribute value from a tag string.
 function extractAttribute(tag: string, attribute: string): string {
@@ -66,16 +66,16 @@ function sampleItems(body: string, pattern: RegExp): string[] {
 function hasRssAudioEnclosure(body: string): boolean {
   const sampledItems = sampleItems(body, RSS_ITEM_PATTERN);
   return sampledItems.some((item) => {
-    const enclosureTag = RSS_ENCLOSURE_PATTERN.exec(item)?.[0];
-    return enclosureTag ? enclosureIsAudioOrVideo(enclosureTag, "url") : false;
+    const enclosureTags = item.match(RSS_ENCLOSURE_PATTERN) ?? [];
+    return enclosureTags.some((tag) => enclosureIsAudioOrVideo(tag, "url"));
   });
 }
 
 function hasAtomAudioEnclosure(body: string): boolean {
   const sampledEntries = sampleItems(body, ATOM_ENTRY_PATTERN);
   return sampledEntries.some((entry) => {
-    const enclosureTag = ATOM_ENCLOSURE_LINK_PATTERN.exec(entry)?.[0];
-    return enclosureTag ? enclosureIsAudioOrVideo(enclosureTag, "href") : false;
+    const enclosureTags = entry.match(ATOM_ENCLOSURE_LINK_PATTERN) ?? [];
+    return enclosureTags.some((tag) => enclosureIsAudioOrVideo(tag, "href"));
   });
 }
 

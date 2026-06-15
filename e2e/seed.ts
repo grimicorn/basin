@@ -8,6 +8,16 @@ export interface SeedResult {
   feedItemIds: number[];
 }
 
+/**
+ * Populates the database with seed data for end-to-end testing.
+ *
+ * Creates or updates a user identified by the provided Clerk provider ID,
+ * along with a test feed and two feed items.
+ *
+ * @param dbUrl - The database connection URL
+ * @param clerkProviderId - The Clerk provider ID for the test user
+ * @returns An object containing the IDs of the seed user, feed, and feed items
+ */
 export async function seedE2eData(
   dbUrl: string,
   clerkProviderId: string,

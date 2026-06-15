@@ -3,12 +3,23 @@ import { eq } from "drizzle-orm";
 import { feeds } from "../db/schema";
 import type { SyncFeedPayload } from "../utils/syncFeedWorkload";
 
+/**
+ * Fetches all feeds owned by a user.
+ *
+ * @returns An array of feed records for the user.
+ */
 async function loadUserFeeds(userId: number) {
   return useDb().query.feeds.findMany({
     where: eq(feeds.userId, userId),
   });
 }
 
+/**
+ * Enqueues feed synchronization workload events for each provided payload.
+ *
+ * @param payloads - Feed sync payloads to enqueue
+ * @returns The count of successfully enqueued events
+ */
 async function emitSyncEvents(
   client: AsyncWorkloadsClient,
   payloads: SyncFeedPayload[],

@@ -21,11 +21,22 @@ type SyncResult = {
   upsertedCount?: number;
 };
 
+/**
+ * Checks if a sync operation is within the debounce window.
+ *
+ * @param lastSyncedAt - The timestamp of the last sync. If `null`, the feed has never been synced.
+ * @returns `true` if the last sync occurred within the debounce window, `false` otherwise.
+ */
 function isWithinDebounceWindow(lastSyncedAt: Date | null): boolean {
   if (!lastSyncedAt) return false;
   return Date.now() - lastSyncedAt.getTime() < DEBOUNCE_WINDOW_MS;
 }
 
+/**
+ * Retrieves a feed by ID, verifying it belongs to the user.
+ *
+ * @returns The feed record if it exists and belongs to the user, otherwise `undefined`.
+ */
 async function loadFeed(
   db: SyncFeedDb,
   feedId: number,
@@ -36,6 +47,11 @@ async function loadFeed(
   });
 }
 
+/**
+ * Inserts feed items into the database, ignoring duplicates based on feed ID and GUID.
+ *
+ * @returns The number of items that were successfully inserted.
+ */
 async function upsertFeedItems(
   db: SyncFeedDb,
   items: {
@@ -61,6 +77,11 @@ async function upsertFeedItems(
   return result.length;
 }
 
+/**
+ * Marks a feed as synced by recording the current timestamp.
+ *
+ * @param feedId - The ID of the feed to mark as synced
+ */
 async function markFeedSynced(db: SyncFeedDb, feedId: number): Promise<void> {
   await db
     .update(feeds)
@@ -68,6 +89,11 @@ async function markFeedSynced(db: SyncFeedDb, feedId: number): Promise<void> {
     .where(eq(feeds.id, feedId));
 }
 
+/**
+ * Fetches RSS items for a feed and upserts them into the database.
+ *
+ * @returns The number of items that were upserted.
+ */
 async function syncRssFeed(
   db: SyncFeedDb,
   feed: typeof feeds.$inferSelect,
@@ -84,6 +110,13 @@ const sourceHandlers: Record<
   podcast: syncRssFeed,
 };
 
+/**
+ * Fetches and syncs items for a user's feed from its configured source.
+ *
+ * @param payload - The sync request containing user ID, feed ID, source type, and mode
+ * @returns A result object. If skipped (missing feed, debounced, or unknown source type),
+ *          `skipped: true` with a `reason`. If successful, `skipped: false` with `upsertedCount`.
+ */
 export async function syncFeed(
   db: SyncFeedDb,
   payload: SyncFeedPayload,

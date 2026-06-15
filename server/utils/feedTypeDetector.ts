@@ -6,8 +6,11 @@ const ITEM_SAMPLE_SIZE = 5;
 // Audio/video MIME types that signal a podcast feed.
 const AUDIO_VIDEO_MIME_PATTERN = /^(audio|video)\//i;
 
-// File extensions used by common audio formats when the MIME type is generic.
-const AUDIO_EXTENSION_PATTERN = /\.(mp3|m4a|aac|ogg|opus|flac|wav|mp4|m4v)$/i;
+// File extensions used by common audio formats when the MIME type is generic
+// or absent. The lookahead (?:$|[?#]) ensures URLs with query strings or hash
+// fragments (e.g. episode.mp3?download=1) are matched correctly.
+const AUDIO_EXTENSION_PATTERN =
+  /\.(mp3|m4a|aac|ogg|opus|flac|wav|mp4|m4v)(?:$|[?#])/i;
 
 // iTunes namespace prefix present in podcast feeds.
 const ITUNES_NAMESPACE_PATTERN = /xmlns:itunes/i;
@@ -16,11 +19,17 @@ const ITUNES_NAMESPACE_PATTERN = /xmlns:itunes/i;
 const ITUNES_EPISODE_PATTERN =
   /<itunes:(?:duration|episode|season|episodeType)[^>]*>/i;
 
+// RSS <item> element — used to split the feed body into individual items.
+const RSS_ITEM_PATTERN = /<item\b[^>]*>[\s\S]*?<\/item>/gi;
+
+// Atom <entry> element — used to split the feed body into individual entries.
+const ATOM_ENTRY_PATTERN = /<entry\b[^>]*>[\s\S]*?<\/entry>/gi;
+
 // RSS <enclosure> tag — captures type and url attributes in any order.
-const RSS_ENCLOSURE_PATTERN = /<enclosure\b[^>]*>/gi;
+const RSS_ENCLOSURE_PATTERN = /<enclosure\b[^>]*>/i;
 
 // Atom <link rel="enclosure"> — captures type and href attributes.
-const ATOM_ENCLOSURE_LINK_PATTERN = /<link\b[^>]*rel=["']enclosure["'][^>]*>/gi;
+const ATOM_ENCLOSURE_LINK_PATTERN = /<link\b[^>]*rel=["']enclosure["'][^>]*>/i;
 
 // Extract an attribute value from a tag string.
 function extractAttribute(tag: string, attribute: string): string {
@@ -36,30 +45,38 @@ function hasAudioExtension(url: string): boolean {
   return AUDIO_EXTENSION_PATTERN.test(url);
 }
 
+// Returns true when the enclosure tag represents an audio or video resource.
+// Checks the MIME type first; falls back to the file extension when the MIME
+// type is absent, empty, or a non-audio/video type (e.g. application/octet-stream).
 function enclosureIsAudioOrVideo(tag: string, urlAttr: string): boolean {
   const mimeType = extractAttribute(tag, "type");
+
   if (isAudioVideoMimeType(mimeType)) return true;
 
-  // Some feeds use generic MIME types (e.g. application/octet-stream) —
-  // fall back to the file extension when the MIME type is unhelpful.
-  if (mimeType && !isAudioVideoMimeType(mimeType)) {
-    const enclosureUrl = extractAttribute(tag, urlAttr);
-    return hasAudioExtension(enclosureUrl);
-  }
+  // Fall back to extension when MIME is absent or unhelpful.
+  const enclosureUrl = extractAttribute(tag, urlAttr);
+  return hasAudioExtension(enclosureUrl);
+}
 
-  return false;
+function sampleItems(body: string, pattern: RegExp): string[] {
+  const matches = body.match(pattern) ?? [];
+  return matches.slice(0, ITEM_SAMPLE_SIZE);
 }
 
 function hasRssAudioEnclosure(body: string): boolean {
-  const matches = body.match(RSS_ENCLOSURE_PATTERN) ?? [];
-  const sampleMatches = matches.slice(0, ITEM_SAMPLE_SIZE);
-  return sampleMatches.some((tag) => enclosureIsAudioOrVideo(tag, "url"));
+  const sampledItems = sampleItems(body, RSS_ITEM_PATTERN);
+  return sampledItems.some((item) => {
+    const enclosureTag = RSS_ENCLOSURE_PATTERN.exec(item)?.[0];
+    return enclosureTag ? enclosureIsAudioOrVideo(enclosureTag, "url") : false;
+  });
 }
 
 function hasAtomAudioEnclosure(body: string): boolean {
-  const matches = body.match(ATOM_ENCLOSURE_LINK_PATTERN) ?? [];
-  const sampleMatches = matches.slice(0, ITEM_SAMPLE_SIZE);
-  return sampleMatches.some((tag) => enclosureIsAudioOrVideo(tag, "href"));
+  const sampledEntries = sampleItems(body, ATOM_ENTRY_PATTERN);
+  return sampledEntries.some((entry) => {
+    const enclosureTag = ATOM_ENCLOSURE_LINK_PATTERN.exec(entry)?.[0];
+    return enclosureTag ? enclosureIsAudioOrVideo(enclosureTag, "href") : false;
+  });
 }
 
 function hasItunesEpisodeTags(body: string): boolean {
@@ -83,7 +100,7 @@ export type FeedSourceType = "podcast" | "rss";
  *
  * Detection rules (in priority order):
  *  1. Any <enclosure> with audio/* or video/* MIME type → podcast
- *  2. Any <enclosure> with a generic MIME type but an audio file extension → podcast
+ *  2. Any <enclosure> with a missing or generic MIME type but an audio file extension → podcast
  *  3. iTunes namespace + episode-level tags (<itunes:duration>, etc.) → podcast
  *  4. Anything else → rss
  */

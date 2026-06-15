@@ -1,8 +1,27 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { MOCK_BASE_URL } from "../mock-server";
 
 const FEED_INPUT_PLACEHOLDER =
   "https://example.com or https://example.com/feed.xml";
+
+// Fills the add-feed input, clicks "Add feed" to trigger discovery, then
+// clicks "Confirm" in the pending-feed confirmation step. Returns once the
+// confirmation UI has dismissed (i.e. once discovery + save both complete).
+async function submitFeedUrl(page: Page, url: string): Promise<void> {
+  await page
+    .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
+    .fill(url);
+  await page.locator(".btn-primary").click();
+
+  // After discovery the pending-feed confirmation UI appears. Wait for it then
+  // click Confirm to persist the feed.
+  const confirmButton = page.locator(".pending-feed-actions .btn-primary");
+  await expect(confirmButton).toBeVisible({ timeout: 10_000 });
+  await confirmButton.click();
+
+  // Wait for the pending-feed UI to disappear — signals the save completed.
+  await expect(confirmButton).not.toBeVisible({ timeout: 10_000 });
+}
 
 test.describe("Settings > Feeds", () => {
   test.beforeEach(async ({ page }) => {
@@ -55,10 +74,8 @@ test.describe("Settings > Feeds", () => {
     // without real outbound HTTP requests. The mock returns a valid RSS document
     // with content-type application/rss+xml so both discovery and validation pass.
     const newUrl = `${MOCK_BASE_URL}/feed.xml`;
-    await page
-      .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
-      .fill(newUrl);
-    await page.locator(".btn-primary").click();
+
+    await submitFeedUrl(page, newUrl);
 
     // The feed is stored without a title (feeds.post.ts does not parse feed
     // metadata), so .feed-name falls back to displaying the URL.
@@ -78,10 +95,8 @@ test.describe("Settings > Feeds", () => {
     // the bare /feed.xml URL in the same run. Each retry generates a new param,
     // keeping the test retry-safe.
     const removeUrl = `${MOCK_BASE_URL}/feed.xml?id=${crypto.randomUUID()}`;
-    await page
-      .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
-      .fill(removeUrl);
-    await page.locator(".btn-primary").click();
+
+    await submitFeedUrl(page, removeUrl);
 
     const feedRow = page.locator(".feed-row", { hasText: removeUrl });
     await expect(feedRow).toBeVisible({ timeout: 8_000 });

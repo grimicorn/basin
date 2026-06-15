@@ -34,6 +34,9 @@ function buildDiscoveryFetch(): FetchFn {
   };
 }
 
+// fetchFeedBody internally routes through the proxy configured by
+// FEED_FETCH_PROXY_URL (via resolveTargetUrl), so detection fetches are
+// proxy-aware in the same way as discovery fetches.
 async function fetchFeedBodyForDetection(url: string): Promise<string | null> {
   try {
     const body = await fetchFeedBody(url);

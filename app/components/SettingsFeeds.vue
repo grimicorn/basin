@@ -60,8 +60,11 @@ function onSourceOverrideChange(event) {
         Detected: <strong>{{ detectedLabel }}</strong>
       </p>
       <div class="pending-feed-override">
-        <label class="pending-feed-override-label">Type:</label>
+        <label for="pending-feed-type" class="pending-feed-override-label"
+          >Type:</label
+        >
         <select
+          id="pending-feed-type"
           :value="effectiveSource"
           class="pending-feed-select"
           @change="onSourceOverrideChange"

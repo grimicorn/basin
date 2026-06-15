@@ -151,5 +151,57 @@ describe("detectFeedSourceType", () => {
       const feed = makeRssFeed(items);
       expect(detectFeedSourceType(feed)).toBe("podcast");
     });
+
+    it("returns rss when an audio enclosure only appears beyond the sample window", () => {
+      const items = [
+        ...Array.from(
+          { length: 5 },
+          (_, index) =>
+            `<item><title>Post ${index + 1}</title><link>https://example.com/${index + 1}</link></item>`,
+        ),
+        `<item><title>Episode 6</title><enclosure url="https://example.com/ep6.mp3" type="audio/mpeg" length="1"/></item>`,
+      ];
+      const feed = makeRssFeed(items);
+      expect(detectFeedSourceType(feed)).toBe("rss");
+    });
+  });
+
+  describe("extension fallback when type attribute is missing", () => {
+    it("returns podcast for an enclosure with no type attribute but an .mp3 url", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode</title><enclosure url="https://example.com/ep.mp3" length="12345"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast for an Atom enclosure with no type attribute but an .mp3 href", () => {
+      const feed = makeAtomFeed([
+        `<entry><title>Episode</title><link rel="enclosure" href="https://example.com/ep.mp3"/></entry>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+  });
+
+  describe("extension fallback matches URLs with query strings or fragments", () => {
+    it("returns podcast for an .mp3 url with a query string", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode</title><enclosure url="https://example.com/ep.mp3?download=1" type="application/octet-stream" length="12345"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast for an .mp3 url with a hash fragment", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode</title><enclosure url="https://example.com/ep.mp3#part1" type="application/octet-stream" length="12345"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
+
+    it("returns podcast for a missing-type enclosure with an .mp3 url with a query string", () => {
+      const feed = makeRssFeed([
+        `<item><title>Episode</title><enclosure url="https://example.com/ep.mp3?token=abc" length="12345"/></item>`,
+      ]);
+      expect(detectFeedSourceType(feed)).toBe("podcast");
+    });
   });
 });

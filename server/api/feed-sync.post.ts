@@ -12,7 +12,9 @@ async function loadUserFeeds(userId: number) {
 async function emitSyncEvents(
   client: AsyncWorkloadsClient,
   payloads: SyncFeedPayload[],
-): Promise<void> {
+): Promise<number> {
+  let successCount = 0;
+
   for (const payload of payloads) {
     const result = await client.send("sync-feed", {
       data: payload,
@@ -28,8 +30,13 @@ async function emitSyncEvents(
           sendStatus: result.sendStatus,
         }),
       );
+      continue;
     }
+
+    successCount += 1;
   }
+
+  return successCount;
 }
 
 export default defineEventHandler(async (event) => {
@@ -52,15 +59,15 @@ export default defineEventHandler(async (event) => {
     mode: "on-demand",
   }));
 
-  await emitSyncEvents(client, payloads);
+  const successCount = await emitSyncEvents(client, payloads);
 
   console.log(
     JSON.stringify({
       event: "on_demand_sync_requested",
       userId: user.id,
-      queued: payloads.length,
+      queued: successCount,
     }),
   );
 
-  return { queued: payloads.length };
+  return { queued: successCount };
 });

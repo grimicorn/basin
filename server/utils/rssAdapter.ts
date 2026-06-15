@@ -53,7 +53,10 @@ function imageUrlFromItem(item: ParserItem): string | null {
 }
 
 function publishedAtFromItem(item: ParserItem): Date | null {
-  if (item.isoDate) return new Date(item.isoDate);
+  if (item.isoDate) {
+    const parsed = new Date(item.isoDate);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
   if (item.pubDate) {
     const parsed = new Date(item.pubDate);
     return isNaN(parsed.getTime()) ? null : parsed;

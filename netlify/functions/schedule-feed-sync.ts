@@ -30,7 +30,7 @@ async function loadDueFeeds() {
 async function emitSyncEvent(
   client: AsyncWorkloadsClient,
   payload: SyncFeedPayload,
-): Promise<void> {
+): Promise<boolean> {
   const result = await client.send("sync-feed", { data: payload });
 
   if (result.sendStatus !== "succeeded") {
@@ -42,7 +42,10 @@ async function emitSyncEvent(
         sendStatus: result.sendStatus,
       }),
     );
+    return false;
   }
+
+  return true;
 }
 
 export default async function handler(): Promise<void> {
@@ -65,15 +68,17 @@ export default async function handler(): Promise<void> {
       mode: "scheduled",
     };
 
-    await emitSyncEvent(client, payload);
+    const emitted = await emitSyncEvent(client, payload);
 
-    console.log(
-      JSON.stringify({
-        event: "schedule_event_emitted",
-        feedId: feed.id,
-        userId: feed.userId,
-        sourceType: feed.source,
-      }),
-    );
+    if (emitted) {
+      console.log(
+        JSON.stringify({
+          event: "schedule_event_emitted",
+          feedId: feed.id,
+          userId: feed.userId,
+          sourceType: feed.source,
+        }),
+      );
+    }
   }
 }

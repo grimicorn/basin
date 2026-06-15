@@ -12,7 +12,7 @@ import {
 
 // Drizzle does not ship a first-class tsvector type yet, so we define a
 // passthrough custom type. The column is populated and maintained by a
-// database trigger (see migration 0001_add_feed_items_search_vector.sql) —
+// database trigger (see migration 0002_add_feed_items_search_vector.sql) —
 // Drizzle never writes to it directly.
 const tsvector = customType<{ data: string }>({
   dataType() {
@@ -56,6 +56,8 @@ export const feedItems = pgTable(
     guid: text("guid").notNull().unique(),
     title: text("title").notNull(),
     url: text("url"),
+    author: text("author"),
+    imageUrl: text("image_url"),
     content: text("content"),
     tags: text("tags").array(),
     publishedAt: timestamp("published_at"),

@@ -88,8 +88,148 @@ describe("looksLikeValidFeed", () => {
   });
 });
 
+describe("buildProxyFetch", () => {
+  it("returns native fetch unchanged when FEED_FETCH_PROXY_URL is not set", async () => {
+    const originalProxyUrl = process.env.FEED_FETCH_PROXY_URL;
+    delete process.env.FEED_FETCH_PROXY_URL;
+
+    try {
+      const { buildProxyFetch: freshBuildProxyFetch } = await import(
+        "../../../server/utils/feedValidator?cachebust=" + Date.now()
+      );
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: { get: () => null },
+      });
+
+      const proxyFetch = freshBuildProxyFetch(
+        mockFetch as unknown as typeof fetch,
+      );
+      await proxyFetch("https://example.com/feed.xml");
+
+      expect(mockFetch).toHaveBeenCalledWith("https://example.com/feed.xml");
+    } finally {
+      if (originalProxyUrl === undefined) {
+        delete process.env.FEED_FETCH_PROXY_URL;
+      } else {
+        process.env.FEED_FETCH_PROXY_URL = originalProxyUrl;
+      }
+    }
+  });
+
+  it("routes requests through FEED_FETCH_PROXY_URL when set", async () => {
+    const originalProxyUrl = process.env.FEED_FETCH_PROXY_URL;
+    process.env.FEED_FETCH_PROXY_URL = "http://localhost:3099/feed-proxy";
+
+    try {
+      const { buildProxyFetch: freshBuildProxyFetch } = await import(
+        "../../../server/utils/feedValidator?cachebust=" + Date.now()
+      );
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: { get: () => null },
+      });
+
+      const proxyFetch = freshBuildProxyFetch(
+        mockFetch as unknown as typeof fetch,
+      );
+      await proxyFetch("https://example.com/feed.xml");
+
+      const calledUrl: string = mockFetch.mock.calls[0][0];
+      const parsed = new URL(calledUrl);
+      expect(parsed.pathname).toBe("/feed-proxy");
+      expect(parsed.searchParams.get("url")).toBe(
+        "https://example.com/feed.xml",
+      );
+    } finally {
+      if (originalProxyUrl === undefined) {
+        delete process.env.FEED_FETCH_PROXY_URL;
+      } else {
+        process.env.FEED_FETCH_PROXY_URL = originalProxyUrl;
+      }
+    }
+  });
+
+  it("passes init options (e.g. signal) through to the base fetch when proxying", async () => {
+    const originalProxyUrl = process.env.FEED_FETCH_PROXY_URL;
+    process.env.FEED_FETCH_PROXY_URL = "http://localhost:3099/feed-proxy";
+
+    try {
+      const { buildProxyFetch: freshBuildProxyFetch } = await import(
+        "../../../server/utils/feedValidator?cachebust=" + Date.now()
+      );
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: { get: () => null },
+      });
+
+      const proxyFetch = freshBuildProxyFetch(
+        mockFetch as unknown as typeof fetch,
+      );
+      const controller = new AbortController();
+      await proxyFetch("https://example.com/feed.xml", {
+        signal: controller.signal,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ signal: controller.signal }),
+      );
+    } finally {
+      if (originalProxyUrl === undefined) {
+        delete process.env.FEED_FETCH_PROXY_URL;
+      } else {
+        process.env.FEED_FETCH_PROXY_URL = originalProxyUrl;
+      }
+    }
+  });
+
+  it("encodes the target URL correctly as a query parameter when it contains special characters", async () => {
+    const originalProxyUrl = process.env.FEED_FETCH_PROXY_URL;
+    process.env.FEED_FETCH_PROXY_URL = "http://localhost:3099/feed-proxy";
+
+    try {
+      const { buildProxyFetch: freshBuildProxyFetch } = await import(
+        "../../../server/utils/feedValidator?cachebust=" + Date.now()
+      );
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: { get: () => null },
+      });
+
+      const proxyFetch = freshBuildProxyFetch(
+        mockFetch as unknown as typeof fetch,
+      );
+      const targetUrl = "https://example.com/feed.xml?page=1&limit=10";
+      await proxyFetch(targetUrl);
+
+      const calledUrl: string = mockFetch.mock.calls[0][0];
+      const parsed = new URL(calledUrl);
+      expect(parsed.searchParams.get("url")).toBe(targetUrl);
+    } finally {
+      if (originalProxyUrl === undefined) {
+        delete process.env.FEED_FETCH_PROXY_URL;
+      } else {
+        process.env.FEED_FETCH_PROXY_URL = originalProxyUrl;
+      }
+    }
+  });
+});
+
 describe("fetchFeedBody", () => {
-  afterEach(() => {
+
     vi.restoreAllMocks();
   });
 
@@ -205,36 +345,16 @@ describe("fetchFeedBody", () => {
     ).rejects.toThrow("Feed redirect target is not allowed");
   });
 
-  it("uses FEED_FETCH_PROXY_URL to override the target URL when set", async () => {
-    const originalProxyUrl = process.env.FEED_FETCH_PROXY_URL;
-    process.env.FEED_FETCH_PROXY_URL = "http://localhost:3099/feed-proxy";
+  it("forwards the original URL to the fetch impl without proxy transformation", async () => {
+    const mockFetch = makeMockFetch("<rss version='2.0'/>");
 
-    try {
-      // Re-import to pick up the updated env var
-      const { fetchFeedBody: freshFetchFeedBody } = await import(
-        "../../../server/utils/feedValidator?cachebust=" + Date.now()
-      );
+    await fetchFeedBody(
+      "https://example.com/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
 
-      const mockFetch = makeMockFetch("<rss version='2.0'/>");
-
-      await freshFetchFeedBody(
-        "https://example.com/feed.xml",
-        mockFetch as unknown as typeof fetch,
-      );
-
-      const calledUrl: string = mockFetch.mock.calls[0][0];
-      const parsed = new URL(calledUrl);
-      expect(parsed.pathname).toBe("/feed-proxy");
-      expect(parsed.searchParams.get("url")).toBe(
-        "https://example.com/feed.xml",
-      );
-    } finally {
-      if (originalProxyUrl === undefined) {
-        delete process.env.FEED_FETCH_PROXY_URL;
-      } else {
-        process.env.FEED_FETCH_PROXY_URL = originalProxyUrl;
-      }
-    }
+    const calledUrl: string = mockFetch.mock.calls[0][0];
+    expect(calledUrl).toBe("https://example.com/feed.xml");
   });
 });
 

@@ -13,10 +13,20 @@ export const config: Config = {
   schedule: "*/15 * * * *",
 };
 
+/**
+ * Calculates the time threshold for identifying feeds due for synchronization.
+ *
+ * @returns A Date representing one sync cadence interval before the current time.
+ */
 function dueCutoff(): Date {
   return new Date(Date.now() - SYNC_CADENCE_MS);
 }
 
+/**
+ * Retrieves feeds that are due for synchronization.
+ *
+ * @returns An array of feed records, each with its associated user
+ */
 async function loadDueFeeds() {
   const db = useDb();
   const cutoff = dueCutoff();
@@ -27,6 +37,11 @@ async function loadDueFeeds() {
   });
 }
 
+/**
+ * Emits a sync-feed async workload event.
+ *
+ * @returns `true` if the event was successfully sent, `false` otherwise.
+ */
 async function emitSyncEvent(
   client: AsyncWorkloadsClient,
   payload: SyncFeedPayload,
@@ -48,6 +63,9 @@ async function emitSyncEvent(
   return true;
 }
 
+/**
+ * Processes feeds due for synchronization by emitting sync events to the async workload queue.
+ */
 export default async function handler(): Promise<void> {
   const dueFeeds = await loadDueFeeds();
 

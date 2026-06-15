@@ -30,6 +30,11 @@ const parser = new Parser<Record<string, unknown>, ParserItem>({
   },
 });
 
+/**
+ * Derives a stable GUID for an RSS item.
+ *
+ * @returns The item's stable GUID.
+ */
 function guidFromItem(item: ParserItem): string {
   if (item.guid) return item.guid;
   if (item.link) return createHash("sha256").update(item.link).digest("hex");
@@ -38,6 +43,11 @@ function guidFromItem(item: ParserItem): string {
     .digest("hex");
 }
 
+/**
+ * Extracts an image URL from an RSS item.
+ *
+ * @returns The image URL if found, `null` otherwise.
+ */
 function imageUrlFromItem(item: ParserItem): string | null {
   const thumbnail = item["media:thumbnail"]?.["$"]?.url;
   if (thumbnail) return thumbnail;
@@ -52,6 +62,11 @@ function imageUrlFromItem(item: ParserItem): string | null {
   return null;
 }
 
+/**
+ * Extracts the publication date from an RSS item.
+ *
+ * @returns A Date object if a valid publication date is found, `null` otherwise.
+ */
 function publishedAtFromItem(item: ParserItem): Date | null {
   if (item.isoDate) {
     const parsed = new Date(item.isoDate);
@@ -64,6 +79,11 @@ function publishedAtFromItem(item: ParserItem): Date | null {
   return null;
 }
 
+/**
+ * Converts a parsed RSS item into a normalized feed item record.
+ *
+ * @returns A normalized `RssFeedItem`.
+ */
 function mapItemToFeedItem(
   item: ParserItem,
   feedId: number,
@@ -90,6 +110,12 @@ export type RssParserFn = (
   _url: string,
 ) => Promise<Parser.Output<ParserItem> & { items: ParserItem[] }>;
 
+/**
+ * Creates a function that fetches and normalizes RSS feed items.
+ *
+ * @param parseFn - Optional custom RSS parser function. Defaults to the module's shared parser.
+ * @returns A function that takes a feed URL and returns an object containing normalized items and optional feed title.
+ */
 export function createRssAdapter(
   parseFn: RssParserFn = (url) =>
     parser.parseURL(url) as Promise<
@@ -107,6 +133,12 @@ export function createRssAdapter(
 
 export const defaultRssAdapter = createRssAdapter();
 
+/**
+ * Fetches RSS items from a feed URL and assigns them to the specified feed.
+ *
+ * @param feedId - The feed ID to assign to each item.
+ * @returns An object containing the feed's items with the assigned feed ID and the feed's title.
+ */
 export async function fetchRssItemsForFeed(
   feedUrl: string,
   feedId: number,

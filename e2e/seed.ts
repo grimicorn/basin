@@ -43,6 +43,11 @@ export async function seedE2eData(
     })
     .returning();
 
+  // truncateE2eData deletes all users (cascading to all feed_items) before this
+  // runs, so conflicts should never occur. onConflictDoNothing (no target) emits
+  // ON CONFLICT DO NOTHING, which does not require a named constraint — avoiding
+  // failures when the CI database is bootstrapped solely via migrations and the
+  // guid unique index hasn't been applied yet.
   const items = await db
     .insert(schema.feedItems)
     .values([
@@ -61,10 +66,7 @@ export async function seedE2eData(
         publishedAt: new Date(Date.now() - 3_600_000),
       },
     ])
-    .onConflictDoUpdate({
-      target: schema.feedItems.guid,
-      set: { updatedAt: new Date() },
-    })
+    .onConflictDoNothing()
     .returning();
 
   return {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockSend = vi.fn();
 
@@ -10,9 +10,6 @@ vi.mock("@netlify/async-workloads", () => {
 });
 
 const mockFindMany = vi.fn();
-vi.stubGlobal("useDb", () => ({
-  query: { feeds: { findMany: mockFindMany } },
-}));
 
 import handler from "../../../server/api/feed-sync.post";
 
@@ -24,9 +21,17 @@ const mockFeeds = [
 
 describe("POST /api/feed-sync", () => {
   beforeEach(() => {
+    vi.stubGlobal("useDb", () => ({
+      query: { feeds: { findMany: mockFindMany } },
+    }));
     vi.clearAllMocks();
     mockSend.mockResolvedValue({ sendStatus: "succeeded" });
     mockFindMany.mockResolvedValue(mockFeeds);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("throws 401 when unauthenticated", async () => {

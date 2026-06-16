@@ -15,16 +15,16 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
   <div class="feed-list">
     <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
       <div class="feed-info">
-        <div class="feed-name">Test Feed</div>
-        <div class="feed-url">https://example.com/feed.xml</div>
+        <div class="feed-name truncate">Test Feed</div>
+        <div class="feed-url truncate">https://example.com/feed.xml</div>
       </div><button class="icon-btn" title="Remove">
         <r-icon-stub name="trash" size="16"></r-icon-stub>
       </button>
     </div>
     <div class="feed-row"><span class="feed-ic" style="--c: var(--src-podcast);"><r-icon-stub name="mic" size="16"></r-icon-stub></span>
       <div class="feed-info">
-        <div class="feed-name">https://podcast.example.com/feed</div>
-        <div class="feed-url">https://podcast.example.com/feed</div>
+        <div class="feed-name truncate">podcast.example.com</div>
+        <div class="feed-url truncate">https://podcast.example.com/feed</div>
       </div><button class="icon-btn" title="Remove">
         <r-icon-stub name="trash" size="16"></r-icon-stub>
       </button>

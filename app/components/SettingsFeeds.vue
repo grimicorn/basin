@@ -28,12 +28,6 @@ const effectiveSource = computed(() => {
   return pendingFeed.value.sourceOverride ?? pendingFeed.value.detectedSource;
 });
 
-const detectedLabel = computed(() => {
-  if (!pendingFeed.value) return "";
-  const source = pendingFeed.value.detectedSource;
-  return source === "podcast" ? "Podcast" : "RSS Feed";
-});
-
 function sourceColor(source) {
   return source === "podcast" ? "var(--src-podcast)" : "var(--src-rss)";
 }
@@ -41,6 +35,14 @@ function sourceColor(source) {
 function onSourceOverrideChange(event) {
   const value = event.target.value;
   setSourceOverride(value === pendingFeed.value?.detectedSource ? null : value);
+}
+
+function trimUrl(url) {
+  try {
+    return new URL(url).hostname;
+  } catch (_error) {
+    return url;
+  }
 }
 </script>
 
@@ -54,36 +56,37 @@ function onSourceOverrideChange(event) {
 
     <p v-if="error" class="desc feed-error">{{ error }}</p>
 
-    <div v-if="pendingFeed" class="pending-feed">
-      <p class="desc pending-feed-url">{{ pendingFeed.url }}</p>
-      <p class="desc pending-feed-detected">
-        Detected: <strong>{{ detectedLabel }}</strong>
+    <div v-if="pendingFeed" class="pending-feed my-6">
+      <p class="desc pending-feed-url text-muted mb-2 truncate">
+        {{ pendingFeed.url }}
       </p>
-      <div class="pending-feed-override">
-        <label for="pending-feed-type" class="pending-feed-override-label"
-          >Type:</label
-        >
-        <select
-          id="pending-feed-type"
-          :value="effectiveSource"
-          class="pending-feed-select"
-          @change="onSourceOverrideChange"
-        >
-          <option value="rss">RSS Feed</option>
-          <option value="podcast">Podcast</option>
-        </select>
-      </div>
-      <div class="pending-feed-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="isAdding"
-          @click="confirmAdd"
-        >
-          {{ isAdding ? "Adding…" : "Confirm" }}
-        </button>
-        <button class="btn" :disabled="isAdding" @click="cancelAdd">
-          Cancel
-        </button>
+      <div class="flex items-center">
+        <div class="pending-feed-override mr-6">
+          <label for="pending-feed-type" class="pending-feed-override-label">
+            Detected:
+          </label>
+          <select
+            id="pending-feed-type"
+            :value="effectiveSource"
+            class="pending-feed-select"
+            @change="onSourceOverrideChange"
+          >
+            <option value="rss">RSS Feed</option>
+            <option value="podcast">Podcast</option>
+          </select>
+        </div>
+        <div class="pending-feed-actions -mx-2">
+          <button
+            class="btn btn-primary mx-2"
+            :disabled="isAdding"
+            @click="confirmAdd"
+          >
+            {{ isAdding ? "Adding…" : "Confirm" }}
+          </button>
+          <button class="btn mx-2" :disabled="isAdding" @click="cancelAdd">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
 
@@ -108,8 +111,10 @@ function onSourceOverrideChange(event) {
           <RIcon :name="fd.source === 'podcast' ? 'mic' : 'rss'" :size="16" />
         </span>
         <div class="feed-info">
-          <div class="feed-name">{{ fd.title ?? fd.url }}</div>
-          <div class="feed-url">{{ fd.url }}</div>
+          <div class="feed-name truncate">
+            {{ fd.title ?? trimUrl(fd.url) }}
+          </div>
+          <div class="feed-url truncate">{{ fd.url }}</div>
         </div>
         <button class="icon-btn" title="Remove" @click="remove(fd.id)">
           <RIcon name="trash" :size="16" />

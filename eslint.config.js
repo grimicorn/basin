@@ -94,7 +94,11 @@ export default [
     rules: {
       "no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
       ],
       "vue/html-self-closing": "off",
     },
@@ -120,6 +124,7 @@ export default [
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_|^[A-Z][a-zA-Z0-9]+Context$",
+          caughtErrorsIgnorePattern: "^_",
         },
       ],
     },

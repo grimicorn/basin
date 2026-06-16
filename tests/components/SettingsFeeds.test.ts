@@ -53,10 +53,10 @@ describe("SettingsFeeds", () => {
     expect(wrapper.find(".feed-name").text()).toBe("Test Feed");
   });
 
-  it("falls back to the URL when title is null", () => {
+  it("falls back to the hostname when title is null", () => {
     const wrapper = shallowMount(SettingsFeeds);
     const names = wrapper.findAll(".feed-name").map((n) => n.text());
-    expect(names).toContain("https://podcast.example.com/feed");
+    expect(names).toContain("podcast.example.com");
   });
 
   it("calls remove with the feed id when the remove button is clicked", async () => {

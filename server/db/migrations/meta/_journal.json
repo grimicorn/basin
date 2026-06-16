@@ -27,7 +27,14 @@
       "idx": 3,
       "version": "7",
       "when": 1748000003000,
-      "tag": "0003_add_feed_items_guid_unique",
+      "tag": "0003_add_author_to_feed_items_search_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1748000004000,
+      "tag": "0004_add_feed_items_guid_unique",
       "breakpoints": true
     }
   ]

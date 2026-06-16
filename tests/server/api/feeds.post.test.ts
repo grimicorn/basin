@@ -166,6 +166,27 @@ describe("POST /api/feeds", () => {
     );
   });
 
+  it("throws 400 when sourceOverride is not a valid source type", async () => {
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/feed.xml", sourceOverride: "invalid" },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("does not throw when sourceOverride is a valid rss value", async () => {
+    mockReturning.mockResolvedValue([mockFeed]);
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/feed.xml", sourceOverride: "rss" },
+    };
+    await handler(event);
+    expect(mockValues).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "rss" }),
+    );
+  });
+
   it("trims whitespace from the URL before inserting", async () => {
     mockReturning.mockResolvedValue([mockFeed]);
     const event = {

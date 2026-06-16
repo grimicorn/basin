@@ -4,40 +4,27 @@ import {
   looksLikeValidFeed,
   buildProxyFetch,
 } from "../utils/feedValidator";
-import { detectFeedSourceType } from "../utils/feedTypeDetector";
+import {
+  detectFeedSourceType,
+  type FeedSourceType,
+} from "../utils/feedTypeDetector";
 
-const FEED_VALIDATION_TIMEOUT_MS = 10_000;
+const VALID_SOURCE_TYPES: ReadonlySet<FeedSourceType> = new Set([
+  "rss",
+  "podcast",
+]);
 
-function buildFetchWithTimeout(): {
-  fetchImpl: typeof fetch;
-  clearTimer: () => void;
-} {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    FEED_VALIDATION_TIMEOUT_MS,
+function isValidSourceType(value: unknown): value is FeedSourceType {
+  return (
+    typeof value === "string" && VALID_SOURCE_TYPES.has(value as FeedSourceType)
   );
-
-  const fetchImpl = (
-    input: Parameters<typeof fetch>[0],
-    init?: Parameters<typeof fetch>[1],
-  ) => fetch(input, { ...init, signal: controller.signal });
-
-  return {
-    fetchImpl: fetchImpl as typeof fetch,
-    clearTimer: () => clearTimeout(timeoutId),
-  };
 }
 
+// fetchFeedBody manages its own internal AbortController and timeout.
+// Passing buildProxyFetch() as fetchImpl allows that internal signal to reach
+// the real fetch() call so both the proxy path and the timeout work correctly.
 async function fetchAndValidateFeed(url: string): Promise<string> {
-  const { fetchImpl, clearTimer } = buildFetchWithTimeout();
-  const proxyFetch = buildProxyFetch(fetchImpl);
-
-  try {
-    return await fetchFeedBody(url, proxyFetch);
-  } finally {
-    clearTimer();
-  }
+  return fetchFeedBody(url, buildProxyFetch());
 }
 
 export default defineEventHandler(async (event) => {
@@ -51,6 +38,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "URL is required" });
 
   const trimmedUrl = rawUrl.trim();
+
+  if (
+    body.sourceOverride !== undefined &&
+    !isValidSourceType(body.sourceOverride)
+  ) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `Invalid sourceOverride — must be one of: ${[...VALID_SOURCE_TYPES].join(", ")}`,
+    });
+  }
 
   let feedBody: string;
   try {

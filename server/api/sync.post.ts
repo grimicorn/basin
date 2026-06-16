@@ -86,6 +86,14 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  const guid = payload.guid;
+  if (typeof guid !== "string" || guid.length === 0) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "payload.guid must be a non-empty string",
+    });
+  }
+
   const db = useDb();
   await assertUserOwnsFeed(db, feedId, user.id);
   await handler(db, payload);

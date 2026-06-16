@@ -63,6 +63,21 @@ describe("POST /api/sync", () => {
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it("throws 400 when guid is missing", async () => {
+    const event = makeEvent({ id: 1 }, "markRead", { feedId: 1 });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("throws 400 when guid is an empty string", async () => {
+    const event = makeEvent({ id: 1 }, "markRead", { feedId: 1, guid: "" });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("throws 400 when guid is not a string", async () => {
+    const event = makeEvent({ id: 1 }, "markRead", { feedId: 1, guid: 42 });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it("throws 403 when the user does not own the feed", async () => {
     mockFindFirst.mockResolvedValue(undefined);
     const event = makeEvent({ id: 1 }, "markRead", { feedId: 99, guid: "abc" });
@@ -115,5 +130,42 @@ describe("POST /api/sync", () => {
     });
     await handler(event);
     expect(mockWhere).toHaveBeenCalledTimes(1);
+    const whereArg = mockWhere.mock.calls[0][0];
+    // Drizzle SQL objects contain circular references, so we collect
+    // primitive leaf values by walking queryChunks recursively.
+    function collectLeaves(
+      node: unknown,
+      seen = new Set<unknown>(),
+    ): unknown[] {
+      if (node === null || node === undefined) {
+        return [];
+      }
+      if (typeof node !== "object") {
+        return [node];
+      }
+      if (seen.has(node)) {
+        return [];
+      }
+      seen.add(node);
+      if (Array.isArray(node)) {
+        return node.flatMap((item) => collectLeaves(item, seen));
+      }
+      const obj = node as Record<string, unknown>;
+      if (obj.queryChunks !== undefined) {
+        return collectLeaves(obj.queryChunks, seen);
+      }
+      if (obj.value !== undefined) {
+        return collectLeaves(obj.value, seen);
+      }
+      if (obj.name !== undefined) {
+        return [obj.name];
+      }
+      return [];
+    }
+    const leaves = collectLeaves(whereArg);
+    expect(leaves).toContain("feed_id");
+    expect(leaves).toContain("guid");
+    expect(leaves).toContain(2);
+    expect(leaves).toContain("item-42");
   });
 });

@@ -31,7 +31,6 @@
     "@electric-sql/pglite": "^0.5.1",
     "@neondatabase/serverless": "^1.1.0",
     "@netlify/async-workloads": "^0.0.106",
-    "@netlify/functions": "^2.8.2",
     "@pinia/nuxt": "^0.11.3",
     "@sentry/nuxt": "^10.57.0",
     "drizzle-orm": "^0.45.2",
@@ -41,6 +40,7 @@
   },
   "devDependencies": {
     "@clerk/backend": "^3.5.0",
+    "@netlify/functions": "^2.8.2",
     "@clerk/testing": "^2.0.35",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",

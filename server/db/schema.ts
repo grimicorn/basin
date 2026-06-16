@@ -44,7 +44,10 @@ export const feeds = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
-  (table) => [uniqueIndex("feeds_user_id_url_idx").on(table.userId, table.url)],
+  (table) => [
+    uniqueIndex("feeds_user_id_url_idx").on(table.userId, table.url),
+    index("feeds_last_synced_at_idx").on(table.lastSyncedAt),
+  ],
 );
 
 export const feedItems = pgTable(

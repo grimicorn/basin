@@ -22,3 +22,9 @@ ALTER TABLE "feed_items"
 ALTER TABLE "feed_items"
   ADD CONSTRAINT "feed_items_feed_id_guid_unique"
   UNIQUE ("feed_id", "guid");
+--> statement-breakpoint
+
+-- Index on last_synced_at so the scheduler can efficiently find feeds due for
+-- a refresh without a full table scan.
+CREATE INDEX IF NOT EXISTS "feeds_last_synced_at_idx"
+  ON "feeds" ("last_synced_at");

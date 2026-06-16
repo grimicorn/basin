@@ -70,18 +70,21 @@ test.describe("Settings > Feeds", () => {
   });
 
   test("can add a new feed URL", async ({ page }) => {
-    // Use the mock server's /feed.xml endpoint so the discover step resolves
-    // without real outbound HTTP requests. The mock returns a valid RSS document
-    // with content-type application/rss+xml so both discovery and validation pass.
-    const newUrl = `${MOCK_BASE_URL}/feed.xml`;
+    // Use a unique query param so each test run (and each CI retry) inserts a
+    // distinct URL, avoiding duplicate-key errors from prior runs or retries.
+    const newUrl = `${MOCK_BASE_URL}/feed.xml?id=${crypto.randomUUID()}`;
 
     await submitFeedUrl(page, newUrl);
 
     // The feed is stored without a title (feeds.post.ts does not parse feed
-    // metadata), so .feed-name falls back to displaying the URL.
+    // metadata), so .feed-name falls back to the hostname via trimUrl(). The
+    // full URL is shown separately in .feed-url.
     const feedRow = page.locator(".feed-row", { hasText: newUrl });
     await expect(feedRow).toBeVisible({ timeout: 8_000 });
-    await expect(feedRow.locator(".feed-name")).toHaveText(newUrl);
+    await expect(feedRow.locator(".feed-name")).toHaveText(
+      new URL(newUrl).hostname,
+    );
+    await expect(feedRow.locator(".feed-url")).toHaveText(newUrl);
 
     // Input should be cleared after a successful add
     await expect(

@@ -62,7 +62,7 @@ export async function seedE2eData(
       },
     ])
     .onConflictDoUpdate({
-      target: schema.feedItems.guid,
+      target: [schema.feedItems.feedId, schema.feedItems.guid],
       set: { updatedAt: new Date() },
     })
     .returning();

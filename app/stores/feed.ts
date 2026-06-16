@@ -22,6 +22,7 @@ export const useFeedStore = defineStore("feed", () => {
     activeItem: null as Record<string, unknown> | null,
     detailLoading: false,
     newFeedUrl: "",
+    syncing: false,
   });
 
   const timers: Record<string, ReturnType<typeof setTimeout> | null> = {
@@ -127,10 +128,23 @@ export const useFeedStore = defineStore("feed", () => {
     }, ms);
   }
 
-  function refresh() {
+  async function refresh() {
+    if (state.syncing) {
+      return;
+    }
+
     const { showToast } = useToast();
-    runFeedLoad(800);
-    showToast("Checking all feeds…");
+    state.syncing = true;
+
+    try {
+      await $fetch("/api/feed-sync", { method: "POST" });
+      runFeedLoad(800);
+      showToast("Feeds synced");
+    } catch {
+      showToast("Sync failed — try again");
+    } finally {
+      state.syncing = false;
+    }
   }
 
   function countFor(id: string) {

@@ -49,7 +49,7 @@ describe("POST /api/feed-sync", () => {
   it("returns the count of successfully enqueued feeds", async () => {
     const event = { context: { user: mockUser } };
     const result = await handler(event);
-    expect(result).toEqual({ queued: 2 });
+    expect(result).toEqual({ queued: 2, failed: 0 });
   });
 
   it("only counts successful sends in the queued response", async () => {
@@ -59,7 +59,7 @@ describe("POST /api/feed-sync", () => {
 
     const event = { context: { user: mockUser } };
     const result = await handler(event);
-    expect(result).toEqual({ queued: 1 });
+    expect(result).toEqual({ queued: 1, failed: 1 });
   });
 
   it("logs an error when a send fails", async () => {

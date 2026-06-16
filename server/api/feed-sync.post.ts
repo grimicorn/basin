@@ -18,13 +18,14 @@ async function loadUserFeeds(userId: number) {
  * Enqueues feed synchronization workload events for each provided payload.
  *
  * @param payloads - Feed sync payloads to enqueue
- * @returns The count of successfully enqueued events
+ * @returns Counts of successfully queued and failed sends
  */
 async function emitSyncEvents(
   client: AsyncWorkloadsClient,
   payloads: SyncFeedPayload[],
-): Promise<number> {
-  let successCount = 0;
+): Promise<{ queued: number; failed: number }> {
+  let queued = 0;
+  let failed = 0;
 
   for (const payload of payloads) {
     const result = await client.send("sync-feed", {
@@ -33,6 +34,7 @@ async function emitSyncEvents(
     });
 
     if (result.sendStatus !== "succeeded") {
+      failed += 1;
       console.error(
         JSON.stringify({
           event: "on_demand_emit_failed",
@@ -44,10 +46,10 @@ async function emitSyncEvents(
       continue;
     }
 
-    successCount += 1;
+    queued += 1;
   }
 
-  return successCount;
+  return { queued, failed };
 }
 
 export default defineEventHandler(async (event) => {
@@ -70,15 +72,16 @@ export default defineEventHandler(async (event) => {
     mode: "on-demand",
   }));
 
-  const successCount = await emitSyncEvents(client, payloads);
+  const { queued, failed } = await emitSyncEvents(client, payloads);
 
   console.log(
     JSON.stringify({
       event: "on_demand_sync_requested",
       userId: user.id,
-      queued: successCount,
+      queued,
+      failed,
     }),
   );
 
-  return { queued: successCount };
+  return { queued, failed };
 });

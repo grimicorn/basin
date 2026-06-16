@@ -28,6 +28,8 @@ const { openSearch } = useSearch();
         </button>
         <button
           class="icon-btn"
+          :class="{ spinning: feedStore.state.syncing }"
+          :disabled="feedStore.state.syncing"
           title="Refresh feeds"
           @click="feedStore.refresh"
         >
@@ -168,6 +170,18 @@ const { openSearch } = useSearch();
 }
 .icon-btn .ricon {
   display: block;
+}
+.icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.icon-btn.spinning .ricon {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .icon-btn.has-dot {
   position: relative;

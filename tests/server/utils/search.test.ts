@@ -25,6 +25,8 @@ const mockRow = {
   guid: "guid-1",
   title: "Test Article",
   url: "https://example.com/article",
+  author: "Jane Doe",
+  imageUrl: "https://example.com/image.jpg",
   content: "Article content about testing",
   tags: ["test"],
   publishedAt: null,
@@ -42,6 +44,8 @@ const expectedResult = {
   guid: "guid-1",
   title: "Test Article",
   url: "https://example.com/article",
+  author: "Jane Doe",
+  imageUrl: "https://example.com/image.jpg",
   content: "Article content about testing",
   tags: ["test"],
   publishedAt: null,
@@ -72,6 +76,25 @@ describe("searchFeedItems", () => {
     const results = await searchFeedItems(1, "testing");
 
     expect(results).toEqual([expectedResult]);
+  });
+
+  it("includes author and imageUrl in results", async () => {
+    mockLimit.mockResolvedValue([mockRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].author).toBe("Jane Doe");
+    expect(results[0].imageUrl).toBe("https://example.com/image.jpg");
+  });
+
+  it("returns null author and imageUrl when not set", async () => {
+    const noAuthorRow = { ...mockRow, author: null, imageUrl: null };
+    mockLimit.mockResolvedValue([noAuthorRow]);
+
+    const results = await searchFeedItems(1, "testing");
+
+    expect(results[0].author).toBeNull();
+    expect(results[0].imageUrl).toBeNull();
   });
 
   it("maps feedSource to the correct item type", async () => {

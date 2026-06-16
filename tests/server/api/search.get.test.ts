@@ -16,6 +16,8 @@ const mockFeedItem = {
   guid: "guid-1",
   title: "Test Article",
   url: "https://example.com/article",
+  author: "Jane Doe",
+  imageUrl: "https://example.com/image.jpg",
   content: "Content about testing",
   tags: ["test"],
   publishedAt: null,

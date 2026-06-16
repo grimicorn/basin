@@ -34,6 +34,8 @@ export interface SearchResult {
   time: string;
   title: string;
   url: string | null;
+  author: string | null;
+  imageUrl: string | null;
   content: string | null;
   tags: string[] | null;
   publishedAt: Date | null;
@@ -59,6 +61,8 @@ export async function searchFeedItems(
       guid: feedItems.guid,
       title: feedItems.title,
       url: feedItems.url,
+      author: feedItems.author,
+      imageUrl: feedItems.imageUrl,
       content: feedItems.content,
       tags: feedItems.tags,
       publishedAt: feedItems.publishedAt,

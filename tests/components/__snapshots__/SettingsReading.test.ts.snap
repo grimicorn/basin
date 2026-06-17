@@ -29,7 +29,7 @@ exports[`SettingsReading > matches snapshot (default state) 1`] = `
       <div class="lbl">Reading font</div>
       <div class="sub">Body type for articles, posts &amp; captions</div>
     </div>
-    <div class="seg"><button class="active"> Mono </button><button class=""> Serif </button></div>
+    <div class="seg"><button class=""> Mono </button><button class="active"> Serif </button></div>
   </div>
   <div class="set-pref-row">
     <div>

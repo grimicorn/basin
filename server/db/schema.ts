@@ -53,7 +53,7 @@ export const feedItems = pgTable(
     feedId: integer("feed_id")
       .notNull()
       .references(() => feeds.id, { onDelete: "cascade" }),
-    guid: text("guid").notNull().unique(),
+    guid: text("guid").notNull(),
     title: text("title").notNull(),
     url: text("url"),
     author: text("author"),
@@ -69,6 +69,7 @@ export const feedItems = pgTable(
     searchVector: tsvector("search_vector"),
   },
   (table) => [
+    uniqueIndex("feed_items_feed_id_guid_idx").on(table.feedId, table.guid),
     index("feed_items_tags_gin_idx").using("gin", table.tags),
     index("feed_items_search_vector_gin_idx").using("gin", table.searchVector),
   ],

@@ -12,7 +12,7 @@ export const ACCENTS = {
 const DEFAULTS = {
   theme: "system" as string, // system | light | dark
   accent: "violet" as string, // key of ACCENTS
-  reading: "mono" as string, // mono | serif
+  reading: "serif" as string, // mono | serif
   density: "cozy" as string, // compact | cozy | roomy
   radius: "sharp" as string, // sharp | default | round
   loadingStyle: "both" as string, // skeleton | fade | both

@@ -3,6 +3,9 @@ import { setActivePinia, createPinia } from "pinia";
 import { useFeedStore } from "~/stores/feed";
 import { makeFeed, makeConnection } from "../fixtures";
 
+const mockFetch = vi.fn();
+vi.stubGlobal("$fetch", mockFetch);
+
 const item = (overrides: Record<string, unknown> = {}) => ({
   id: Math.floor(Math.random() * 1e9),
   type: "article",
@@ -27,6 +30,7 @@ describe("useFeedStore", () => {
     feed = useFeedStore();
     state = feed.state;
     vi.useFakeTimers();
+    mockFetch.mockReset();
     state.items = [
       item({ id: 1, type: "article", unread: true, saved: false }),
       item({ id: 2, type: "video", unread: false, saved: true }),
@@ -225,6 +229,61 @@ describe("useFeedStore", () => {
       feed.toggleConn(conn);
       expect(conn.connected).toBe(false);
       expect(conn.since).toBe("");
+    });
+  });
+
+  describe("refresh", () => {
+    it("sets syncing to true while the request is in flight", async () => {
+      let resolveFetch!: () => void;
+      mockFetch.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          resolveFetch = resolve;
+        }),
+      );
+
+      const refreshPromise = feed.refresh();
+      expect(state.syncing).toBe(true);
+
+      resolveFetch();
+      await refreshPromise;
+      expect(state.syncing).toBe(false);
+    });
+
+    it("resets syncing to false after a successful sync", async () => {
+      mockFetch.mockResolvedValueOnce({ queued: 2, failed: 0 });
+      await feed.refresh();
+      expect(state.syncing).toBe(false);
+    });
+
+    it("resets syncing to false when the request fails", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      await feed.refresh();
+      expect(state.syncing).toBe(false);
+    });
+
+    it("calls POST /api/feed-sync", async () => {
+      mockFetch.mockResolvedValueOnce({ queued: 1, failed: 0 });
+      await feed.refresh();
+      expect(mockFetch).toHaveBeenCalledWith("/api/feed-sync", {
+        method: "POST",
+      });
+    });
+
+    it("does not make a second request when already syncing", async () => {
+      let resolveFetch!: () => void;
+      mockFetch.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          resolveFetch = resolve;
+        }),
+      );
+
+      const firstRefresh = feed.refresh();
+      await feed.refresh();
+
+      resolveFetch();
+      await firstRefresh;
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 

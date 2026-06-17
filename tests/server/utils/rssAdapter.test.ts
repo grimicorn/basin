@@ -125,6 +125,26 @@ describe("createRssAdapter", () => {
     expect(result.items[0].publishedAt).toBeNull();
   });
 
+  it("returns null publishedAt when isoDate is malformed even if pubDate is valid", async () => {
+    const parseFn = vi.fn().mockResolvedValue({
+      title: "Feed",
+      items: [
+        {
+          title: "Item",
+          guid: "g1",
+          link: "https://example.com/1",
+          isoDate: "not-a-date",
+          pubDate: "Mon, 14 Jan 2024 08:00:00 GMT",
+        },
+      ],
+    });
+    const adapter = createRssAdapter(parseFn);
+
+    const result = await adapter("https://example.com/feed.xml");
+
+    expect(result.items[0].publishedAt).toBeNull();
+  });
+
   it("returns null publishedAt when pubDate is malformed", async () => {
     const parseFn = vi.fn().mockResolvedValue({
       title: "Feed",

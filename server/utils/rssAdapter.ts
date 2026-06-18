@@ -103,9 +103,16 @@ const PRIVATE_IP_RANGES = [
   /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
   /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/,
   /^192\.168\.\d{1,3}\.\d{1,3}$/,
+  // Link-local — used by AWS/GCP cloud metadata services
+  /^169\.254\.\d{1,3}\.\d{1,3}$/,
 ];
 
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+// URL.hostname wraps IPv6 addresses in brackets, so include both forms.
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+// Matches IPv4-mapped IPv6 addresses (e.g. [::ffff:127.0.0.1] or [::ffff:7f00:1]).
+// URL.hostname preserves brackets for IPv6, so we match the bracketed form.
+const IPV4_MAPPED_IPV6 = /^\[::ffff:/i;
 
 function validateFeedUrl(url: string): void {
   let parsed: URL;
@@ -125,6 +132,14 @@ function validateFeedUrl(url: string): void {
   const hostname = parsed.hostname;
 
   if (LOOPBACK_HOSTNAMES.has(hostname)) {
+    throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
+  }
+
+  if (hostname === "0.0.0.0") {
+    throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
+  }
+
+  if (IPV4_MAPPED_IPV6.test(hostname)) {
     throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
   }
 

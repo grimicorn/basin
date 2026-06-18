@@ -289,6 +289,36 @@ describe("parseRssFeed", () => {
     ).rejects.toThrow("not allowed");
   });
 
+  it("rejects link-local 169.254.x.x range (cloud metadata)", async () => {
+    await expect(
+      parseRssFeed("http://169.254.169.254/latest/meta-data/", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects 0.0.0.0", async () => {
+    await expect(
+      parseRssFeed("http://0.0.0.0/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects IPv6 loopback ::1", async () => {
+    await expect(
+      parseRssFeed("http://[::1]/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects IPv4-mapped IPv6 ::ffff:127.0.0.1", async () => {
+    await expect(
+      parseRssFeed("http://[::ffff:127.0.0.1]/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects IPv4-mapped IPv6 hex form ::ffff:7f00:1", async () => {
+    await expect(
+      parseRssFeed("http://[::ffff:7f00:1]/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
   it("rejects invalid URLs", async () => {
     await expect(parseRssFeed("not-a-url", FEED_ID)).rejects.toThrow(
       "Invalid feed URL",

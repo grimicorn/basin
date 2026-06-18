@@ -3,6 +3,8 @@ export interface Feed {
   url: string;
   title: string | null;
   source: string;
+  sourceOverride: string | null;
+  detectedSource?: string;
   createdAt: string | null;
 }
 
@@ -23,7 +25,11 @@ export function useFeeds() {
   const loading = ref(false);
   const isAdding = ref(false);
   const discovering = ref(false);
+  const detecting = ref(false);
   const error = ref<string | null>(null);
+  const detectedSource = ref<"rss" | "podcast" | null>(null);
+  const sourceOverride = ref<"rss" | "podcast" | null>(null);
+  const pendingFeedUrl = ref<string | null>(null);
 
   async function authHeaders(): Promise<Record<string, string>> {
     const token = await getToken.value();
@@ -61,7 +67,9 @@ export function useFeeds() {
           ? (err as { statusCode: number }).statusCode
           : null;
 
-      if (statusCode === STATUS_NO_FEED_FOUND) return null;
+      if (statusCode === STATUS_NO_FEED_FOUND) {
+        return null;
+      }
 
       throw new DiscoveryError(
         err instanceof Error ? err.message : "Discovery request failed",
@@ -69,16 +77,50 @@ export function useFeeds() {
     }
   }
 
-  async function addResolvedFeed(resolvedUrl: string) {
+  async function detectSourceType(resolvedUrl: string): Promise<void> {
+    detecting.value = true;
+    detectedSource.value = null;
+    sourceOverride.value = null;
+    try {
+      const result = await $fetch<{ detectedSource: "rss" | "podcast" }>(
+        "/api/feeds/detect",
+        {
+          method: "POST",
+          body: { url: resolvedUrl },
+          headers: await authHeaders(),
+        },
+      );
+      detectedSource.value = result.detectedSource;
+      pendingFeedUrl.value = resolvedUrl;
+    } catch {
+      error.value =
+        "Could not determine feed type — check the URL and try again";
+    } finally {
+      detecting.value = false;
+    }
+  }
+
+  async function confirmAdd() {
+    const resolvedUrl = pendingFeedUrl.value;
+    if (!resolvedUrl) {
+      return;
+    }
+
     isAdding.value = true;
     try {
       const feed = await $fetch<Feed>("/api/feeds", {
         method: "POST",
-        body: { url: resolvedUrl },
+        body: {
+          url: resolvedUrl,
+          sourceOverride: sourceOverride.value ?? undefined,
+        },
         headers: await authHeaders(),
       });
       items.value.unshift(feed);
       newUrl.value = "";
+      pendingFeedUrl.value = null;
+      detectedSource.value = null;
+      sourceOverride.value = null;
     } catch {
       error.value = "Failed to add feed — check the URL and try again";
     } finally {
@@ -88,7 +130,9 @@ export function useFeeds() {
 
   async function add() {
     const rawUrl = newUrl.value.trim();
-    if (!rawUrl) return;
+    if (!rawUrl) {
+      return;
+    }
 
     error.value = null;
     discovering.value = true;
@@ -103,7 +147,7 @@ export function useFeeds() {
         return;
       }
 
-      await addResolvedFeed(resolvedUrl);
+      await detectSourceType(resolvedUrl);
     } catch {
       discovering.value = false;
       error.value = "Something went wrong while finding the feed — try again";
@@ -111,9 +155,11 @@ export function useFeeds() {
   }
 
   async function remove(id: number) {
-    const idx = items.value.findIndex((feed) => feed.id === id);
-    if (idx === -1) return;
-    const [removed] = items.value.splice(idx, 1);
+    const index = items.value.findIndex((feed) => feed.id === id);
+    if (index === -1) {
+      return;
+    }
+    const [removed] = items.value.splice(index, 1);
     error.value = null;
     try {
       await $fetch(`/api/feeds/${id}`, {
@@ -121,7 +167,7 @@ export function useFeeds() {
         headers: await authHeaders(),
       });
     } catch {
-      items.value.splice(idx, 0, removed);
+      items.value.splice(index, 0, removed);
       error.value = "Failed to remove feed";
     }
   }
@@ -132,9 +178,14 @@ export function useFeeds() {
     loading,
     isAdding,
     discovering,
+    detecting,
     error,
+    detectedSource,
+    sourceOverride,
+    pendingFeedUrl,
     load,
     add,
+    confirmAdd,
     remove,
   };
 }

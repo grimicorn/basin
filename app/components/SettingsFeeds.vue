@@ -5,22 +5,46 @@ const {
   loading,
   isAdding,
   discovering,
+  detecting,
   error,
+  detectedSource,
+  sourceOverride,
+  pendingFeedUrl,
   add,
+  confirmAdd,
   remove,
   load,
 } = useFeeds();
 onMounted(load);
 
-const busy = computed(() => isAdding.value || discovering.value);
+const busy = computed(
+  () => isAdding.value || discovering.value || detecting.value,
+);
+
 const buttonLabel = computed(() => {
   if (discovering.value) return "Finding feed…";
+  if (detecting.value) return "Detecting type…";
   if (isAdding.value) return "Adding…";
   return "Add feed";
 });
 
+const detectedLabel = computed(() => {
+  if (!detectedSource.value) return null;
+  return detectedSource.value === "podcast" ? "Podcast" : "RSS";
+});
+
+const effectiveSource = computed(
+  () => sourceOverride.value ?? detectedSource.value,
+);
+
 function sourceColor(source) {
   return source === "podcast" ? "var(--src-podcast)" : "var(--src-rss)";
+}
+
+function cancelDetection() {
+  sourceOverride.value = null;
+  detectedSource.value = null;
+  pendingFeedUrl.value = null;
 }
 </script>
 
@@ -40,13 +64,51 @@ function sourceColor(source) {
         <input
           v-model="newUrl"
           placeholder="https://example.com or https://example.com/feed.xml"
-          :disabled="busy"
+          :disabled="busy || !!pendingFeedUrl"
           @keyup.enter="add"
         />
       </div>
-      <button class="btn btn-primary" :disabled="busy" @click="add">
+      <button
+        class="btn btn-primary"
+        :disabled="busy || !!pendingFeedUrl"
+        @click="add"
+      >
         <RIcon name="plus" :size="16" /> {{ buttonLabel }}
       </button>
+    </div>
+
+    <div v-if="pendingFeedUrl && detectedSource" class="detect-confirm">
+      <p class="detect-label">
+        Detected:
+        <strong>{{ detectedLabel }}</strong>
+      </p>
+
+      <div class="detect-override">
+        <label for="source-override">Override type:</label>
+        <select id="source-override" v-model="sourceOverride">
+          <option :value="null">{{ detectedLabel }} (detected)</option>
+          <option value="rss">RSS</option>
+          <option value="podcast">Podcast</option>
+        </select>
+      </div>
+
+      <div class="detect-actions">
+        <button
+          class="btn btn-primary"
+          :disabled="isAdding"
+          @click="confirmAdd"
+        >
+          <RIcon name="plus" :size="16" />
+          {{
+            isAdding
+              ? "Adding…"
+              : `Add as ${effectiveSource === "podcast" ? "Podcast" : "RSS"}`
+          }}
+        </button>
+        <button class="btn" :disabled="isAdding" @click="cancelDetection">
+          Cancel
+        </button>
+      </div>
     </div>
 
     <div class="feed-list">

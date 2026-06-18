@@ -8,17 +8,32 @@ vi.stubGlobal("useDb", () => ({ insert: mockInsert }));
 
 vi.mock("../../../server/utils/feedValidator", () => ({
   validateFeedContent: vi.fn(),
+  fetchFeedBody: vi.fn(),
+  FEED_FETCH_PROXY_URL: "",
+}));
+
+vi.mock("../../../server/utils/feedSourceDetector", () => ({
+  detectFeedSource: vi.fn(),
 }));
 
 import handler from "../../../server/api/feeds.post";
-import { validateFeedContent } from "../../../server/utils/feedValidator";
+import {
+  validateFeedContent,
+  fetchFeedBody,
+} from "../../../server/utils/feedValidator";
+import { detectFeedSource } from "../../../server/utils/feedSourceDetector";
 
-const mockValidateFeedUrl = vi.mocked(validateFeedContent);
+const mockValidateFeedContent = vi.mocked(validateFeedContent);
+const mockFetchFeedBody = vi.mocked(fetchFeedBody);
+const mockDetectFeedSource = vi.mocked(detectFeedSource);
+
+const RSS_BODY = `<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title></channel></rss>`;
 
 const mockFeed = {
   id: 1,
   url: "https://example.com/feed.xml",
   source: "rss",
+  sourceOverride: null,
   userId: 1,
 };
 
@@ -27,8 +42,9 @@ describe("POST /api/feeds", () => {
     vi.resetAllMocks();
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockReturnValue({ returning: mockReturning });
-    // Default to a valid feed so existing tests don't need to care about validation
-    mockValidateFeedUrl.mockResolvedValue(true);
+    mockValidateFeedContent.mockResolvedValue(true);
+    mockFetchFeedBody.mockResolvedValue(RSS_BODY);
+    mockDetectFeedSource.mockReturnValue("rss");
   });
 
   it("throws 401 when unauthenticated", async () => {
@@ -50,7 +66,7 @@ describe("POST /api/feeds", () => {
   });
 
   it("throws 422 when the URL does not point to a valid feed", async () => {
-    mockValidateFeedUrl.mockResolvedValue(false);
+    mockValidateFeedContent.mockResolvedValue(false);
     const event = {
       context: { user: { id: 1 } },
       body: { url: "https://example.com/not-a-feed" },
@@ -59,7 +75,7 @@ describe("POST /api/feeds", () => {
   });
 
   it("does not insert the feed when validation fails", async () => {
-    mockValidateFeedUrl.mockResolvedValue(false);
+    mockValidateFeedContent.mockResolvedValue(false);
     const event = {
       context: { user: { id: 1 } },
       body: { url: "https://example.com/not-a-feed" },
@@ -68,17 +84,28 @@ describe("POST /api/feeds", () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it("inserts the feed and returns it", async () => {
+  it("inserts the feed and returns it with detectedSource", async () => {
     mockReturning.mockResolvedValue([mockFeed]);
     const event = {
       context: { user: { id: 1 } },
       body: { url: "https://example.com/feed.xml" },
     };
     const result = await handler(event);
-    expect(result).toEqual(mockFeed);
+    expect(result).toMatchObject({ ...mockFeed, detectedSource: "rss" });
   });
 
-  it("detects rss source for a plain feed URL", async () => {
+  it("calls detectFeedSource with the fetched feed body", async () => {
+    mockReturning.mockResolvedValue([mockFeed]);
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/feed.xml" },
+    };
+    await handler(event);
+    expect(mockDetectFeedSource).toHaveBeenCalledWith(RSS_BODY);
+  });
+
+  it("stores rss source when detectFeedSource returns rss", async () => {
+    mockDetectFeedSource.mockReturnValue("rss");
     mockReturning.mockResolvedValue([mockFeed]);
     const event = {
       context: { user: { id: 1 } },
@@ -90,7 +117,8 @@ describe("POST /api/feeds", () => {
     );
   });
 
-  it("detects podcast source from URL containing 'podcast'", async () => {
+  it("stores podcast source when detectFeedSource returns podcast", async () => {
+    mockDetectFeedSource.mockReturnValue("podcast");
     const podFeed = { ...mockFeed, source: "podcast" };
     mockReturning.mockResolvedValue([podFeed]);
     const event = {
@@ -100,6 +128,36 @@ describe("POST /api/feeds", () => {
     await handler(event);
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ source: "podcast" }),
+    );
+  });
+
+  it("uses sourceOverride when provided, ignoring detected source", async () => {
+    mockDetectFeedSource.mockReturnValue("rss");
+    const overriddenFeed = {
+      ...mockFeed,
+      source: "podcast",
+      sourceOverride: "podcast",
+    };
+    mockReturning.mockResolvedValue([overriddenFeed]);
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/feed.xml", sourceOverride: "podcast" },
+    };
+    await handler(event);
+    expect(mockValues).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "podcast", sourceOverride: "podcast" }),
+    );
+  });
+
+  it("stores null sourceOverride when no override is provided", async () => {
+    mockReturning.mockResolvedValue([mockFeed]);
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/feed.xml" },
+    };
+    await handler(event);
+    expect(mockValues).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceOverride: null }),
     );
   });
 

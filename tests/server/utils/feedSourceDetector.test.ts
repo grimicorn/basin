@@ -182,5 +182,17 @@ describe("detectFeedSource", () => {
       const body = rss(audioItem);
       expect(detectFeedSource(body)).toBe("podcast");
     });
+
+    it("only samples the first 5 enclosures — audio in item 6 is not detected", () => {
+      const imageItem = rssItem(
+        `<enclosure url="https://example.com/image.jpg" type="image/jpeg" length="12345"/>`,
+      );
+      const audioItem = rssItem(
+        `<enclosure url="https://example.com/ep6.mp3" type="audio/mpeg" length="123456"/>`,
+      );
+      // 5 image items followed by 1 audio item — the audio is beyond the sample window
+      const body = rss(imageItem.repeat(5) + audioItem);
+      expect(detectFeedSource(body)).toBe("rss");
+    });
   });
 });

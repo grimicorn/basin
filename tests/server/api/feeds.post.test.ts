@@ -149,6 +149,17 @@ describe("POST /api/feeds", () => {
     );
   });
 
+  it("throws 400 when sourceOverride is an invalid value", async () => {
+    const event = {
+      context: { user: { id: 1 } },
+      body: {
+        url: "https://example.com/feed.xml",
+        sourceOverride: "invalid-value",
+      },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it("stores null sourceOverride when no override is provided", async () => {
     mockReturning.mockResolvedValue([mockFeed]);
     const event = {

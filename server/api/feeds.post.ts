@@ -53,6 +53,17 @@ export default defineEventHandler(async (event) => {
   );
   const { sourceOverride } = body;
 
+  if (
+    sourceOverride !== undefined &&
+    sourceOverride !== "rss" &&
+    sourceOverride !== "podcast"
+  ) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Invalid sourceOverride value",
+    });
+  }
+
   if (!body.url?.trim()) {
     throw createError({ statusCode: 400, statusMessage: "URL is required" });
   }

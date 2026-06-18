@@ -3,8 +3,8 @@ export interface Feed {
   url: string;
   title: string | null;
   source: string;
-  sourceOverride: string | null;
-  detectedSource?: string;
+  sourceOverride: "rss" | "podcast" | null;
+  detectedSource?: "rss" | "podcast";
   createdAt: string | null;
 }
 

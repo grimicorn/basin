@@ -36,6 +36,13 @@
       "when": 1748000004000,
       "tag": "0004_add_source_override_to_feeds",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1748000005000,
+      "tag": "0005_fix_source_override_idempotent",
+      "breakpoints": true
     }
   ]
 }

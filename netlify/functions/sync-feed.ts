@@ -83,6 +83,12 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     );
   }
 
+  if (feed.source !== sourceType) {
+    throw new ErrorDoNotRetry(
+      `Source mismatch for feed ${feedId}: event=${sourceType}, db=${feed.source}.`,
+    );
+  }
+
   if (mode === "scheduled" && isWithinDebounceWindow(feed.lastFetched)) {
     console.log(
       JSON.stringify({

@@ -22,19 +22,24 @@ function hashString(input: string): string {
   return Math.abs(hash).toString(16);
 }
 
-function resolveGuid(
-  itemGuid: string | undefined,
-  itemLink: string | undefined,
-): string {
-  if (itemGuid) {
-    return itemGuid;
+function resolveGuid(item: RssParser.Item): string {
+  if (item.guid) {
+    return item.guid;
   }
 
-  if (itemLink) {
-    return hashString(itemLink);
+  if (item.link) {
+    return hashString(item.link);
   }
 
-  return hashString(String(Date.now()) + Math.random());
+  const stableSeed = [
+    item.title ?? "",
+    item.isoDate ?? "",
+    item.pubDate ?? "",
+    item.contentSnippet ?? "",
+    item.content ?? "",
+  ].join("|");
+
+  return stableSeed ? hashString(stableSeed) : "(missing-guid)";
 }
 
 function resolvePublishedAt(
@@ -71,7 +76,7 @@ function mapItemToFeedItem(
   feedTitle: string | undefined,
   feedImageUrl: string | undefined,
 ): NewFeedItem {
-  const guid = resolveGuid(item.guid, item.link);
+  const guid = resolveGuid(item);
   const publishedAt = resolvePublishedAt(item.isoDate, item.pubDate);
   const author = item.creator ?? feedTitle ?? null;
   const content = item.contentSnippet ?? item.content ?? null;
@@ -94,10 +99,47 @@ function mapItemToFeedItem(
   };
 }
 
+const PRIVATE_IP_RANGES = [
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/,
+  /^192\.168\.\d{1,3}\.\d{1,3}$/,
+];
+
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function validateFeedUrl(url: string): void {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid feed URL: ${url}`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      `Feed URL must use http or https protocol, got: ${parsed.protocol}`,
+    );
+  }
+
+  const hostname = parsed.hostname;
+
+  if (LOOPBACK_HOSTNAMES.has(hostname)) {
+    throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
+  }
+
+  for (const range of PRIVATE_IP_RANGES) {
+    if (range.test(hostname)) {
+      throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
+    }
+  }
+}
+
 export async function parseRssFeed(
   url: string,
   feedId: number,
 ): Promise<NewFeedItem[]> {
+  validateFeedUrl(url);
   const feed = await parser.parseURL(url);
   const feedImageUrl = feed.image?.url;
 

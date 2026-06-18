@@ -252,4 +252,89 @@ describe("parseRssFeed", () => {
     const items = await parseRssFeed("https://example.com/feed.xml", FEED_ID);
     expect(items.length).toBe(50);
   });
+
+  it("rejects non-http/https protocols", async () => {
+    await expect(
+      parseRssFeed("ftp://example.com/feed.xml", FEED_ID),
+    ).rejects.toThrow("http or https");
+  });
+
+  it("rejects localhost", async () => {
+    await expect(
+      parseRssFeed("http://localhost/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects 127.0.0.1", async () => {
+    await expect(
+      parseRssFeed("http://127.0.0.1/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects private 10.x.x.x range", async () => {
+    await expect(
+      parseRssFeed("http://10.0.0.1/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects private 192.168.x.x range", async () => {
+    await expect(
+      parseRssFeed("http://192.168.1.1/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects private 172.16.x.x range", async () => {
+    await expect(
+      parseRssFeed("http://172.16.0.1/feed.xml", FEED_ID),
+    ).rejects.toThrow("not allowed");
+  });
+
+  it("rejects invalid URLs", async () => {
+    await expect(parseRssFeed("not-a-url", FEED_ID)).rejects.toThrow(
+      "Invalid feed URL",
+    );
+  });
+});
+
+describe("resolveGuid fallback", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("uses a deterministic hash when guid and link are both absent", async () => {
+    const item = makeRssItem({
+      guid: undefined,
+      link: undefined,
+      title: "Stable Title",
+      isoDate: "2024-01-01T00:00:00Z",
+      pubDate: undefined,
+      contentSnippet: "snippet",
+      content: "full content",
+    });
+
+    mockParseString.mockResolvedValue(makeFeedOutput([item, item]));
+
+    const [first, second] = await parseRssFeedFromXml("<rss/>", FEED_ID);
+    expect(first.guid).toBe(second.guid);
+    expect(first.guid).not.toBe("");
+  });
+
+  it("returns a deterministic hash when all stable fields are absent", async () => {
+    const item = makeRssItem({
+      guid: undefined,
+      link: undefined,
+      title: undefined,
+      isoDate: undefined,
+      pubDate: undefined,
+      contentSnippet: undefined,
+      content: undefined,
+    });
+
+    mockParseString.mockResolvedValue(makeFeedOutput([item, item]));
+
+    const [first, second] = await parseRssFeedFromXml("<rss/>", FEED_ID);
+    expect(first.guid).toBe(second.guid);
+    expect(typeof first.guid).toBe("string");
+    expect(first.guid.length).toBeGreaterThan(0);
+  });
 });

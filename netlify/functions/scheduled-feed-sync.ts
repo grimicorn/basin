@@ -79,9 +79,17 @@ async function emitAllSyncEvents(
   client: AsyncWorkloadsClient,
   dueFeeds: DueFeed[],
 ): Promise<{ emitted: number; failed: number }> {
-  const results = await Promise.all(
-    dueFeeds.map((feed) => emitFeedSyncEvent(client, feed)),
-  );
+  const results: Array<{ success: boolean }> = [];
+  const BATCH_SIZE = 25;
+
+  for (let index = 0; index < dueFeeds.length; index += BATCH_SIZE) {
+    const batch = dueFeeds.slice(index, index + BATCH_SIZE);
+    results.push(
+      ...(await Promise.all(
+        batch.map((feed) => emitFeedSyncEvent(client, feed)),
+      )),
+    );
+  }
 
   const emitted = results.filter((result) => result.success).length;
   const failed = results.filter((result) => !result.success).length;

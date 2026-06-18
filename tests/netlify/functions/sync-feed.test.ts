@@ -53,8 +53,13 @@ vi.mock("@netlify/async-workloads", () => ({
 
 import handler from "../../../netlify/functions/sync-feed";
 
-const RECENT_FETCH = new Date(Date.now() - 60_000); // 1 minute ago
-const STALE_FETCH = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+function recentFetch() {
+  return new Date(Date.now() - 60_000); // 1 minute ago
+}
+
+function staleFetch() {
+  return new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+}
 
 function makeFeed(overrides: Record<string, unknown> = {}) {
   return {
@@ -116,7 +121,7 @@ describe("sync-feed workload", () => {
   });
 
   it("syncs an RSS feed and marks it synced", async () => {
-    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: STALE_FETCH }));
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: staleFetch() }));
 
     await (handler as Function)(makeEvent());
 
@@ -128,7 +133,7 @@ describe("sync-feed workload", () => {
   });
 
   it("no-ops when within debounce window in scheduled mode", async () => {
-    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: RECENT_FETCH }));
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: recentFetch() }));
 
     await (handler as Function)(
       makeEvent({
@@ -146,7 +151,7 @@ describe("sync-feed workload", () => {
   });
 
   it("does NOT debounce on-demand syncs even when recently fetched", async () => {
-    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: RECENT_FETCH }));
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: recentFetch() }));
 
     await (handler as Function)(
       makeEvent({
@@ -183,6 +188,23 @@ describe("sync-feed workload", () => {
     await expect((handler as Function)(makeEvent())).rejects.toMatchObject({
       name: "ErrorDoNotRetry",
     });
+  });
+
+  it("throws ErrorDoNotRetry when event sourceType does not match db source", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ source: "podcast" }));
+
+    await expect(
+      (handler as Function)(
+        makeEvent({
+          eventData: {
+            userId: 1,
+            feedId: 1,
+            sourceType: "rss",
+            mode: "scheduled",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
   });
 
   it("throws ErrorRetryAfterDelay when RSS fetch fails on early attempts", async () => {

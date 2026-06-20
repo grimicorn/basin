@@ -140,7 +140,11 @@ describe("DashboardOnboarding", () => {
   });
 
   it("does not emit feed-added when add results in an error", async () => {
-    stubFeeds({ error: ref("Something went wrong"), add: mockAdd });
+    const errorRef = ref<string | null>(null);
+    mockAdd.mockImplementation(async () => {
+      errorRef.value = "Something went wrong";
+    });
+    stubFeeds({ error: errorRef, add: mockAdd });
     const wrapper = shallowMount(DashboardOnboarding);
     await wrapper.find("form").trigger("submit");
     await wrapper.vm.$nextTick();

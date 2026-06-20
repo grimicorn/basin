@@ -40,6 +40,7 @@ const nuxtGlobals = {
   useConnections: "readonly",
   useUserSettings: "readonly",
   useUserProfile: "readonly",
+  useInputValidation: "readonly",
 };
 
 // Nitro / H3 globals — server-only auto-imports

@@ -19,6 +19,7 @@
         </div>
         <div class="col">
           <h4>Sources</h4>
+          <!-- Placeholder: link to source-specific pages once they exist -->
           <span>RSS &amp; Atom</span>
           <span>Podcasts</span>
           <span>YouTube</span>
@@ -26,6 +27,7 @@
         </div>
         <div class="col">
           <h4>Company</h4>
+          <!-- Placeholder: link to company pages once they exist -->
           <span>About</span>
           <span>Changelog</span>
           <span>Privacy</span>

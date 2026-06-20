@@ -8,11 +8,13 @@ import { useSearch } from "../app/composables/useSearch.js";
 import { USER_SETTINGS_DEFAULTS } from "../app/composables/useUserSettings.ts";
 import { useAppearanceStore } from "../app/stores/appearance.ts";
 import { useFeedStore } from "../app/stores/feed.ts";
+import { useInputValidation } from "../app/composables/useInputValidation.ts";
 
 globalThis.useToast = useToast;
 globalThis.useSearch = useSearch;
 globalThis.useAppearanceStore = useAppearanceStore;
 globalThis.useFeedStore = useFeedStore;
+globalThis.useInputValidation = useInputValidation;
 
 // Default stub for useUserSettings — returns defaults, no-ops on save.
 // Individual tests can override this with vi.stubGlobal if needed.

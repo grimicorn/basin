@@ -35,6 +35,12 @@ describe("auth.global middleware", () => {
     expect(mockNavigateTo).not.toHaveBeenCalled();
   });
 
+  it("redirects signed-in user from / to /dashboard", () => {
+    mockIsSignedIn.value = true;
+    authMiddleware({ path: "/" } as any);
+    expect(mockNavigateTo).toHaveBeenCalledWith("/dashboard");
+  });
+
   it("redirects signed-in user from /login to /dashboard", () => {
     mockIsSignedIn.value = true;
     authMiddleware({ path: "/login" } as any);

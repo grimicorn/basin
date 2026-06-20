@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import MarketingHeader from "~/components/MarketingHeader.vue";
 
 describe("MarketingHeader", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders the nav element", () => {
     const wrapper = shallowMount(MarketingHeader);
     expect(wrapper.find("header.mnav").exists()).toBe(true);
@@ -20,16 +24,9 @@ describe("MarketingHeader", () => {
   });
 
   it("renders open-app link when signed in", () => {
-    globalThis.useAuth = () => ({
-      isSignedIn: ref(true),
-      getToken: { value: vi.fn().mockResolvedValue(null) },
-    });
+    vi.stubGlobal("useAuth", () => ({ isSignedIn: ref(true) }));
     const wrapper = shallowMount(MarketingHeader);
     expect(wrapper.find("a[href='/dashboard']").exists()).toBe(true);
-    globalThis.useAuth = vi.fn(() => ({
-      isSignedIn: ref(false),
-      getToken: { value: vi.fn().mockResolvedValue(null) },
-    }));
   });
 
   it("matches snapshot — signed out", () => {

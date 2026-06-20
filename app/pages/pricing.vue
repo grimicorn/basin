@@ -75,7 +75,7 @@ function toggleFaq(index: number) {
           Yearly
         </button>
       </div>
-      <span class="save">Save 25%</span>
+      <span v-if="billing === 'year'" class="save">Save 25%</span>
     </div>
   </div>
 

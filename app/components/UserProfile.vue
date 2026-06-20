@@ -49,6 +49,8 @@ async function handleAvatarChange(event) {
         label="First name"
         placeholder="First name"
         :disabled="saving"
+        :error="error ?? undefined"
+        :success="success ? 'Profile updated.' : undefined"
       />
       <InputText
         id="profile-last-name"

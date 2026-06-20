@@ -645,6 +645,7 @@
   .steps {
     grid-template-columns: 1fr;
   }
+  /* Sign in / Start free CTAs remain visible; nav links are secondary on mobile */
   .mnav .links {
     display: none;
   }

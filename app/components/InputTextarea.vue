@@ -15,28 +15,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
-const fieldClasses = computed(() => ({
-  field: true,
-  area: true,
-  "is-success": !!props.success,
-  "is-error": !!props.error,
-  "is-disabled": props.disabled,
-}));
-
-const helpState = computed(() => {
-  if (props.error) {
-    return { text: props.error, type: "error" };
-  }
-  if (props.success && typeof props.success === "string") {
-    return { text: props.success, type: "success" };
-  }
-  if (props.helperText) {
-    return { text: props.helperText, type: "neutral" };
-  }
-  return null;
-});
-
-const showValidationIcon = computed(() => !!props.error || !!props.success);
+const { fieldClasses, helpState, showValidationIcon } = useInputValidation(
+  props,
+  {
+    area: true,
+  },
+);
 </script>
 
 <template>

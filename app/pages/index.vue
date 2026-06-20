@@ -54,7 +54,9 @@ useHead({
         <div class="mock-body">
           <div class="card unread">
             <div class="card-head tight">
-              <SourceTag :item="{ type: 'article', source: 'Stratechery', time: '2h' }" />
+              <SourceTag
+                :item="{ type: 'article', source: 'Stratechery', time: '2h' }"
+              />
             </div>
             <h3 class="card-title">
               The quiet web: why chronological feeds are coming back
@@ -95,9 +97,7 @@ useHead({
       <div class="sec-head">
         <div>
           <span class="eyebrow">What makes it quiet</span>
-          <h2 class="sec-title">
-            Built for reading,<br />not for engagement.
-          </h2>
+          <h2 class="sec-title">Built for reading,<br />not for engagement.</h2>
         </div>
         <p class="sec-lede">
           Every decision in Reader points the same way: fewer interruptions,
@@ -145,8 +145,8 @@ useHead({
           </span>
           <h3>Search everything</h3>
           <p>
-            One <span class="kbd">⌘K</span> palette across every source, tag
-            and saved item you've ever followed.
+            One <span class="kbd">⌘K</span> palette across every source, tag and
+            saved item you've ever followed.
           </p>
         </div>
         <div class="feature">
@@ -167,8 +167,8 @@ useHead({
           </span>
           <h3>Private by default</h3>
           <p>
-            No tracking, no resale, no engagement metrics. Your reading is
-            yours — export it anytime.
+            No tracking, no resale, no engagement metrics. Your reading is yours
+            — export it anytime.
           </p>
         </div>
       </div>

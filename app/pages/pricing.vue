@@ -56,8 +56,8 @@ function toggleFaq(index: number) {
     <span class="eyebrow dot" style="justify-content: center">Pricing</span>
     <h1 class="price-h1">Simple, quiet pricing.</h1>
     <p class="price-sub">
-      Start free forever. Upgrade to Pro when you outgrow ten sources — and
-      only then. Every paid plan starts with a 14-day free trial.
+      Start free forever. Upgrade to Pro when you outgrow ten sources — and only
+      then. Every paid plan starts with a 14-day free trial.
     </p>
 
     <div class="bill">

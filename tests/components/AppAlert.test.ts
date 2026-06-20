@@ -27,7 +27,9 @@ describe("AppAlert", () => {
       props: { theme: "warning" },
       slots: { default: "Something went wrong." },
     });
-    expect(wrapper.find(".alert-msg").text()).toContain("Something went wrong.");
+    expect(wrapper.find(".alert-msg").text()).toContain(
+      "Something went wrong.",
+    );
   });
 
   it("renders message prop when no slot", () => {

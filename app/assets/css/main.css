@@ -594,8 +594,12 @@ body {
   display: grid;
   place-items: center;
 }
-.field.is-success .val-ic { color: var(--ok); }
-.field.is-error .val-ic { color: var(--danger); }
+.field.is-success .val-ic {
+  color: var(--ok);
+}
+.field.is-error .val-ic {
+  color: var(--danger);
+}
 
 /* field group wrapper */
 .fgroup {
@@ -630,8 +634,12 @@ body {
   color: var(--muted);
   line-height: 1.45;
 }
-.fhelp.success { color: var(--ok); }
-.fhelp.error { color: var(--danger); }
+.fhelp.success {
+  color: var(--ok);
+}
+.fhelp.error {
+  color: var(--danger);
+}
 
 /* ============================================================
    Card base (shared across all card types)
@@ -832,10 +840,18 @@ body {
   flex: none;
   margin-top: 1px;
 }
-.alert.info .alert-ic { color: var(--info); }
-.alert.success .alert-ic { color: var(--ok); }
-.alert.warning .alert-ic { color: var(--warn); }
-.alert.error .alert-ic { color: var(--danger); }
+.alert.info .alert-ic {
+  color: var(--info);
+}
+.alert.success .alert-ic {
+  color: var(--ok);
+}
+.alert.warning .alert-ic {
+  color: var(--warn);
+}
+.alert.error .alert-ic {
+  color: var(--danger);
+}
 .alert-main {
   flex: 1;
   min-width: 0;

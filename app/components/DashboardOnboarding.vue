@@ -104,7 +104,11 @@ function cancelBluesky() {
             <RIcon name="rss" :size="16" />
           </template>
         </InputText>
-        <button type="submit" class="btn btn-primary ob-add-btn" :disabled="busy">
+        <button
+          type="submit"
+          class="btn btn-primary ob-add-btn"
+          :disabled="busy"
+        >
           <RIcon name="plus" :size="16" />
           {{ busy ? "Adding…" : "Add feed" }}
         </button>
@@ -188,12 +192,8 @@ function cancelBluesky() {
       <span class="ob-step active">
         <span class="ix">1</span>Add a source
       </span>
-      <span class="ob-step">
-        <span class="ix">2</span>Pick a layout
-      </span>
-      <span class="ob-step">
-        <span class="ix">3</span>Make it yours
-      </span>
+      <span class="ob-step"> <span class="ix">2</span>Pick a layout </span>
+      <span class="ob-step"> <span class="ix">3</span>Make it yours </span>
     </div>
   </div>
 </template>

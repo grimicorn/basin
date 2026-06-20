@@ -3,16 +3,26 @@ import { MOCK_BASE_URL } from "../mock-server";
 
 // Route-intercept the feeds and integrations APIs to simulate an empty account.
 // This avoids modifying the shared database while still exercising the onboarding UI.
-async function mockEmptyAccount(page: Parameters<Parameters<typeof test>[1]>[0]["page"]) {
+async function mockEmptyAccount(
+  page: Parameters<Parameters<typeof test>[1]>[0]["page"],
+) {
   await page.route("**/api/feeds", (route) => {
     if (route.request().method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "[]",
+      });
     }
     return route.continue();
   });
   await page.route("**/api/integrations", (route) => {
     if (route.request().method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "[]",
+      });
     }
     return route.continue();
   });
@@ -57,15 +67,11 @@ test.describe("Dashboard onboarding (empty account)", () => {
   });
 
   test("YouTube connection card is shown", async ({ page }) => {
-    await expect(
-      page.locator(".ob-src", { hasText: "YouTube" }),
-    ).toBeVisible();
+    await expect(page.locator(".ob-src", { hasText: "YouTube" })).toBeVisible();
   });
 
   test("Bluesky connection card is shown", async ({ page }) => {
-    await expect(
-      page.locator(".ob-src", { hasText: "Bluesky" }),
-    ).toBeVisible();
+    await expect(page.locator(".ob-src", { hasText: "Bluesky" })).toBeVisible();
   });
 
   test("shows the getting-started steps", async ({ page }) => {

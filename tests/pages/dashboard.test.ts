@@ -21,7 +21,15 @@ function stubEmptyFeeds() {
 
 function stubWithFeed() {
   vi.stubGlobal("useFeeds", () => ({
-    items: ref([{ id: 1, url: "https://example.com/feed.xml", title: "Test", source: "rss", createdAt: null }]),
+    items: ref([
+      {
+        id: 1,
+        url: "https://example.com/feed.xml",
+        title: "Test",
+        source: "rss",
+        createdAt: null,
+      },
+    ]),
     newUrl: ref(""),
     loading: ref(false),
     isAdding: ref(false),

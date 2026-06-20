@@ -53,7 +53,12 @@ const showValidationIcon = computed(() => !!props.error || !!props.success);
         :placeholder="placeholder"
         :disabled="disabled"
         :rows="rows"
-        @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+        @input="
+          emit(
+            'update:modelValue',
+            ($event.target as HTMLTextAreaElement).value,
+          )
+        "
       />
       <span v-if="showValidationIcon" class="val-ic">
         <svg

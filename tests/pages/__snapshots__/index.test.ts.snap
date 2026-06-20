@@ -39,7 +39,7 @@ exports[`home page (/) > matches snapshot 1`] = `
   <div class="wrap">
     <div class="sec-head">
       <div><span class="eyebrow">What makes it quiet</span>
-        <h2 class="sec-title"> Built for reading,<br>not for engagement. </h2>
+        <h2 class="sec-title">Built for reading,<br>not for engagement.</h2>
       </div>
       <p class="sec-lede"> Every decision in Reader points the same way: fewer interruptions, more of the things you actually chose to follow. </p>
     </div>

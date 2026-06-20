@@ -160,7 +160,6 @@ const formatter = new Intl.ListFormat("en", {
   border-top: 1px solid var(--border);
 }
 
-
 .bluesky-actions {
   display: flex;
   gap: 8px;

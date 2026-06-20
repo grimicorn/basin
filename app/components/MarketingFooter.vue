@@ -33,7 +33,10 @@
         </div>
       </div>
       <div class="mfoot-base">
-        <span>© {{ new Date().getFullYear() }} Reader — a quiet place for your feeds.</span>
+        <span
+          >© {{ new Date().getFullYear() }} Reader — a quiet place for your
+          feeds.</span
+        >
         <span>Built with JetBrains Mono · Nuxt 4</span>
       </div>
     </div>

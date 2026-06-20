@@ -657,3 +657,92 @@ body {
 .app-shell.app-ready {
   opacity: 1;
 }
+
+/* ============================================================
+   Alerts
+   ============================================================ */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.alert.info {
+  border-left-color: var(--info);
+  background: color-mix(in oklab, var(--info) 8%, var(--surface));
+}
+.alert.success {
+  border-left-color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 8%, var(--surface));
+}
+.alert.warning {
+  border-left-color: var(--warn);
+  background: color-mix(in oklab, var(--warn) 8%, var(--surface));
+}
+.alert.error {
+  border-left-color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 8%, var(--surface));
+}
+.alert-ic {
+  flex: none;
+  margin-top: 1px;
+}
+.alert.info .alert-ic { color: var(--info); }
+.alert.success .alert-ic { color: var(--ok); }
+.alert.warning .alert-ic { color: var(--warn); }
+.alert.error .alert-ic { color: var(--danger); }
+.alert-main {
+  flex: 1;
+  min-width: 0;
+}
+.alert-title {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+.alert-msg {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.alert-msg a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.alert-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.alert-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+  margin-top: -2px;
+}
+.alert-x:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.alert.compact {
+  padding: 10px 14px;
+  gap: 9px;
+}
+.alert.compact .alert-msg {
+  font-size: 12px;
+}

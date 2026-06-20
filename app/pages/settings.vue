@@ -122,25 +122,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.feed-stat {
-  font-size: 10.5px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.feed-stat.ok {
-  background: color-mix(in oklab, var(--src-rss) 14%, transparent);
-  color: var(--src-rss);
-}
-.feed-stat.error {
-  background: color-mix(in oklab, var(--src-video) 14%, transparent);
-  color: var(--src-video);
-}
-.feed-stat.count {
-  background: var(--surface-2);
-  color: var(--muted);
-}
-
 /* connection cards */
 .conn-grid {
   display: grid;

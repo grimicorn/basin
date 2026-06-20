@@ -1,0 +1,36 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DashboardOnboarding > matches snapshot 1`] = `
+"<div data-v-14d0d5d7="" class="ob">
+  <!-- hero -->
+  <div data-v-14d0d5d7="" class="ob-hero"><span data-v-14d0d5d7="" class="ob-badge"><r-icon-stub data-v-14d0d5d7="" name="inbox" size="34"></r-icon-stub></span>
+    <h1 data-v-14d0d5d7="">Your feed is empty — let's fill it.</h1>
+    <p data-v-14d0d5d7=""> Connect your first source and Reader starts pulling new items into one quiet, chronological stream. Add a feed URL, or link an account. </p>
+  </div><!-- quick add RSS -->
+  <div data-v-14d0d5d7="" class="ob-card">
+    <div data-v-14d0d5d7="" class="ob-card-h"><span data-v-14d0d5d7="" class="src-ic src-rss" style="--c: var(--src-rss); width: 26px; height: 26px;"><r-icon-stub data-v-14d0d5d7="" name="rss" size="15"></r-icon-stub></span><span data-v-14d0d5d7="" class="n">Start here</span><span data-v-14d0d5d7="" class="t">Add an RSS or podcast feed</span></div>
+    <p data-v-14d0d5d7="" class="hint"> Paste any feed URL — Reader auto-detects whether it's articles or a podcast. </p>
+    <div data-v-14d0d5d7="" class="ob-add">
+      <input-text-stub data-v-14d0d5d7="" id="ob-feed-url" modelvalue="" placeholder="https://example.com/feed.xml" disabled="false"></input-text-stub><button data-v-14d0d5d7="" class="btn btn-primary ob-add-btn">
+        <r-icon-stub data-v-14d0d5d7="" name="plus" size="16"></r-icon-stub> Add feed
+      </button>
+    </div>
+  </div>
+  <div data-v-14d0d5d7="" class="ob-or">or connect an account</div><!-- connect accounts -->
+  <div data-v-14d0d5d7="" class="ob-grid">
+    <div data-v-14d0d5d7="" class="ob-src"><span data-v-14d0d5d7="" class="conn-ic" style="--c: var(--src-video);"><r-icon-stub data-v-14d0d5d7="" name="video" size="20"></r-icon-stub></span>
+      <div data-v-14d0d5d7="" class="info">
+        <div data-v-14d0d5d7="" class="nm">YouTube</div>
+        <div data-v-14d0d5d7="" class="ds">Subscribe to channels</div>
+      </div><button data-v-14d0d5d7="" class="btn connect">Connect</button>
+    </div>
+    <div data-v-14d0d5d7="" class="ob-src"><span data-v-14d0d5d7="" class="conn-ic" style="--c: var(--src-tweet);"><r-icon-stub data-v-14d0d5d7="" name="chat" size="20"></r-icon-stub></span>
+      <div data-v-14d0d5d7="" class="info">
+        <div data-v-14d0d5d7="" class="nm">Bluesky</div>
+        <div data-v-14d0d5d7="" class="ds">Subscribe to channels</div>
+      </div><button data-v-14d0d5d7="" class="btn connect">Connect</button>
+    </div>
+  </div><!-- getting-started steps -->
+  <div class="ob-steps" data-v-14d0d5d7=""><span class="ob-step active" data-v-14d0d5d7=""><span class="ix" data-v-14d0d5d7="">1</span>Add a source </span><span class="ob-step" data-v-14d0d5d7=""><span class="ix" data-v-14d0d5d7="">2</span>Pick a layout </span><span class="ob-step" data-v-14d0d5d7=""><span class="ix" data-v-14d0d5d7="">3</span>Make it yours </span></div>
+</div>"
+`;

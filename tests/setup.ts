@@ -142,6 +142,7 @@ config.global.stubs = {
   AppAlert: true,
   MarketingHeader: true,
   MarketingFooter: true,
+  DashboardOnboarding: true,
   SettingsFeeds: true,
   SettingsConnections: true,
   SettingsReading: true,

@@ -34,6 +34,8 @@ globalThis.useRouter = vi.fn(() => ({
   replace: vi.fn(),
 }));
 globalThis.definePageMeta = vi.fn();
+globalThis.useHead = vi.fn();
+globalThis.useSeoMeta = vi.fn();
 
 // Nuxt / Nitro handler wrappers — identity so the inner function is what gets exported
 globalThis.defineNuxtRouteMiddleware = (fn: Function) => fn;
@@ -138,6 +140,8 @@ config.global.stubs = {
   InputText: true,
   InputTextarea: true,
   AppAlert: true,
+  MarketingHeader: true,
+  MarketingFooter: true,
   SettingsFeeds: true,
   SettingsConnections: true,
   SettingsReading: true,

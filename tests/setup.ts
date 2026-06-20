@@ -65,6 +65,29 @@ globalThis.onUnmounted = onUnmounted;
 // Nuxt's $fetch global — tests override per-suite as needed.
 globalThis.$fetch = vi.fn().mockResolvedValue([]);
 
+// Feed and connections composable stubs — individual tests override as needed.
+globalThis.useFeeds = vi.fn(() => ({
+  items: ref([]),
+  newUrl: ref(""),
+  loading: ref(false),
+  isAdding: ref(false),
+  discovering: ref(false),
+  error: ref(null),
+  load: vi.fn(),
+  add: vi.fn(),
+  remove: vi.fn(),
+}));
+
+globalThis.useConnections = vi.fn(() => ({
+  items: ref([]),
+  loading: ref(false),
+  error: ref(null),
+  load: vi.fn(),
+  connect: vi.fn(),
+  connectBluesky: vi.fn(),
+  disconnect: vi.fn(),
+}));
+
 // Clerk composable stubs
 const mockClerkUser = ref({
   firstName: "Demo",

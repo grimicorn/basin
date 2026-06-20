@@ -1,16 +1,29 @@
 <script setup>
-const { newUrl, isAdding, discovering, error, add, load } = useFeeds();
+const {
+  newUrl,
+  isAdding,
+  discovering,
+  error: feedError,
+  add,
+  load,
+} = useFeeds();
 onMounted(load);
 
 const {
   items: connections,
   loading: connLoading,
+  error: connError,
   connect,
+  connectBluesky,
 } = useConnections();
 
 const emit = defineEmits(["feed-added"]);
 
 const busy = computed(() => isAdding.value || discovering.value);
+
+const blueskyHandle = ref("");
+const blueskyPassword = ref("");
+const showBlueskyForm = ref(false);
 
 function iconForProvider(id) {
   if (id === "youtube") return "video";
@@ -20,13 +33,32 @@ function iconForProvider(id) {
 
 async function handleAdd() {
   await add();
-  if (!error.value) {
+  if (!feedError.value) {
     emit("feed-added");
   }
 }
 
 function handleConnect(id) {
+  if (id === "bluesky") {
+    showBlueskyForm.value = true;
+    return;
+  }
   connect(id);
+}
+
+async function submitBluesky() {
+  await connectBluesky(blueskyHandle.value, blueskyPassword.value);
+  if (!connError.value) {
+    showBlueskyForm.value = false;
+    blueskyHandle.value = "";
+    blueskyPassword.value = "";
+  }
+}
+
+function cancelBluesky() {
+  showBlueskyForm.value = false;
+  blueskyHandle.value = "";
+  blueskyPassword.value = "";
 }
 </script>
 
@@ -47,7 +79,10 @@ function handleConnect(id) {
     <!-- quick add RSS -->
     <div class="ob-card">
       <div class="ob-card-h">
-        <span class="src-ic src-rss" style="--c: var(--src-rss); width: 26px; height: 26px">
+        <span
+          class="src-ic src-rss"
+          style="--c: var(--src-rss); width: 26px; height: 26px"
+        >
           <RIcon name="rss" :size="15" />
         </span>
         <span class="n">Start here</span>
@@ -57,27 +92,28 @@ function handleConnect(id) {
         Paste any feed URL — Reader auto-detects whether it's articles or a
         podcast.
       </p>
-      <div class="ob-add">
+      <form class="ob-add" @submit.prevent="handleAdd">
         <InputText
           id="ob-feed-url"
           v-model="newUrl"
-          placeholder="https://example.com/feed.xml"
-          :error="error ?? undefined"
+          placeholder="https://example.com or https://example.com/feed.xml"
+          :error="feedError ?? undefined"
           :disabled="busy"
-          @keyup.enter="handleAdd"
         >
           <template #icon>
             <RIcon name="rss" :size="16" />
           </template>
         </InputText>
-        <button class="btn btn-primary ob-add-btn" :disabled="busy" @click="handleAdd">
+        <button type="submit" class="btn btn-primary ob-add-btn" :disabled="busy">
           <RIcon name="plus" :size="16" />
           {{ busy ? "Adding…" : "Add feed" }}
         </button>
-      </div>
+      </form>
     </div>
 
     <div class="ob-or">or connect an account</div>
+
+    <p v-if="connError" class="conn-error">{{ connError }}</p>
 
     <!-- connect accounts -->
     <div class="ob-grid">
@@ -85,21 +121,65 @@ function handleConnect(id) {
         v-for="conn in connections"
         :key="conn.id"
         class="ob-src"
+        :class="{ 'ob-src-expanded': conn.id === 'bluesky' && showBlueskyForm }"
       >
-        <span class="conn-ic" :style="{ '--c': conn.color }">
-          <RIcon :name="iconForProvider(conn.id)" :size="20" />
-        </span>
-        <div class="info">
-          <div class="nm">{{ conn.name }}</div>
-          <div class="ds">{{ conn.desc }}</div>
+        <div class="ob-src-row">
+          <span class="conn-ic" :style="{ '--c': conn.color }">
+            <RIcon :name="iconForProvider(conn.id)" :size="20" />
+          </span>
+          <div class="info">
+            <div class="nm">{{ conn.name }}</div>
+            <div class="ds">{{ conn.desc }}</div>
+          </div>
+          <button
+            class="btn connect"
+            :class="{ 'btn-primary': !conn.connected }"
+            :disabled="connLoading || conn.connected"
+            @click="handleConnect(conn.id)"
+          >
+            {{ conn.connected ? "Connected" : "Connect" }}
+          </button>
         </div>
-        <button
-          class="btn connect"
-          :disabled="connLoading || conn.connected"
-          @click="handleConnect(conn.id)"
+
+        <!-- Bluesky inline form -->
+        <div
+          v-if="conn.id === 'bluesky' && showBlueskyForm"
+          class="bluesky-form"
         >
-          {{ conn.connected ? "Connected" : "Connect" }}
-        </button>
+          <p class="hint">
+            Enter your Bluesky handle and an App Password from
+            <a href="https://bsky.app/settings/app-passwords" target="_blank">
+              bsky.app/settings/app-passwords</a
+            >.
+          </p>
+          <InputText
+            id="ob-bsky-handle"
+            v-model="blueskyHandle"
+            label="Handle"
+            placeholder="you or you.bsky.social"
+            :disabled="connLoading"
+          />
+          <InputText
+            id="ob-bsky-password"
+            v-model="blueskyPassword"
+            label="App Password"
+            type="password"
+            placeholder="xxxx-xxxx-xxxx-xxxx"
+            :disabled="connLoading"
+          />
+          <div class="bluesky-actions">
+            <button
+              class="btn btn-primary"
+              :disabled="connLoading || !blueskyHandle || !blueskyPassword"
+              @click="submitBluesky"
+            >
+              Connect
+            </button>
+            <button class="btn" :disabled="connLoading" @click="cancelBluesky">
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -163,7 +243,7 @@ function handleConnect(id) {
 .ob-add {
   display: flex;
   gap: 10px;
-  margin: 30px 0 0;
+  margin: 16px 0 0;
   align-items: flex-start;
 }
 
@@ -173,7 +253,7 @@ function handleConnect(id) {
 
 .ob-add-btn {
   flex-shrink: 0;
-  height: 40px;
+  height: 44px;
   align-self: flex-end;
 }
 
@@ -208,7 +288,7 @@ function handleConnect(id) {
 .ob-card .hint {
   font-size: 11.5px;
   color: var(--muted);
-  margin: 0 0 16px;
+  margin: 0 0 0;
 }
 
 .ob-or {
@@ -230,6 +310,12 @@ function handleConnect(id) {
   background: var(--border);
 }
 
+.conn-error {
+  font-size: 12px;
+  color: var(--danger);
+  margin: 0 0 12px;
+}
+
 .ob-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -238,8 +324,7 @@ function handleConnect(id) {
 
 .ob-src {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -251,10 +336,21 @@ function handleConnect(id) {
   border-color: var(--border-strong);
 }
 
+.ob-src-expanded {
+  grid-column: 1 / -1;
+}
+
+.ob-src-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .ob-src .conn-ic {
   width: 42px;
   height: 42px;
   border-radius: 11px;
+  flex-shrink: 0;
 }
 
 .ob-src .info {
@@ -272,6 +368,26 @@ function handleConnect(id) {
   font-size: 11px;
   color: var(--muted);
   margin-top: 2px;
+}
+
+.bluesky-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.bluesky-form .hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.bluesky-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .ob-steps {
@@ -323,8 +439,16 @@ function handleConnect(id) {
     grid-template-columns: 1fr;
   }
 
+  .ob-src-expanded {
+    grid-column: auto;
+  }
+
   .ob-add {
     flex-direction: column;
+  }
+
+  .ob-add-btn {
+    width: 100%;
   }
 }
 </style>

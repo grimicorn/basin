@@ -12,6 +12,7 @@ const bsConn = makeConnection({
 
 const mockAdd = vi.fn();
 const mockConnect = vi.fn();
+const mockConnectBluesky = vi.fn();
 const mockLoad = vi.fn();
 
 function stubFeeds(overrides = {}) {
@@ -26,12 +27,15 @@ function stubFeeds(overrides = {}) {
   }));
 }
 
-function stubConnections(connections = [ytConn, bsConn]) {
+function stubConnections(connections = [ytConn, bsConn], overrides = {}) {
   vi.stubGlobal("useConnections", () => ({
     items: ref(connections),
     loading: ref(false),
+    error: ref(null),
     connect: mockConnect,
+    connectBluesky: mockConnectBluesky,
     load: vi.fn(),
+    ...overrides,
   }));
 }
 
@@ -64,6 +68,12 @@ describe("DashboardOnboarding", () => {
     expect(wrapper.find(".ob-add-btn").exists()).toBe(true);
   });
 
+  it("submits the feed form via button click", async () => {
+    const wrapper = shallowMount(DashboardOnboarding);
+    await wrapper.find("form").trigger("submit");
+    expect(mockAdd).toHaveBeenCalledOnce();
+  });
+
   it("renders a connection card for each connection", () => {
     const wrapper = shallowMount(DashboardOnboarding);
     expect(wrapper.findAll(".ob-src")).toHaveLength(2);
@@ -76,37 +86,63 @@ describe("DashboardOnboarding", () => {
     expect(names).toContain("Bluesky");
   });
 
-  it("calls add when add feed button is clicked", async () => {
+  it("calls connect(id) when YouTube Connect is clicked", async () => {
     const wrapper = shallowMount(DashboardOnboarding);
-    await wrapper.find(".ob-add-btn").trigger("click");
-    expect(mockAdd).toHaveBeenCalledOnce();
+    const ytCard = wrapper.findAll(".ob-src")[0];
+    await ytCard.find(".connect").trigger("click");
+    expect(mockConnect).toHaveBeenCalledWith("youtube");
   });
 
-  it("calls connect with the connection id when Connect is clicked", async () => {
+  it("shows Bluesky form instead of calling connect when Bluesky Connect is clicked", async () => {
     const wrapper = shallowMount(DashboardOnboarding);
-    await wrapper.findAll(".ob-src .connect")[0].trigger("click");
-    expect(mockConnect).toHaveBeenCalledWith("youtube");
+    const bsCard = wrapper.findAll(".ob-src")[1];
+    await bsCard.find(".connect").trigger("click");
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(wrapper.find(".bluesky-form").exists()).toBe(true);
+  });
+
+  it("hides Bluesky form when Cancel is clicked", async () => {
+    const wrapper = shallowMount(DashboardOnboarding);
+    await wrapper.findAll(".ob-src")[1].find(".connect").trigger("click");
+    expect(wrapper.find(".bluesky-form").exists()).toBe(true);
+    await wrapper.find(".bluesky-actions .btn:last-child").trigger("click");
+    expect(wrapper.find(".bluesky-form").exists()).toBe(false);
+  });
+
+  it("calls connectBluesky with handle and password on form submit", async () => {
+    mockConnectBluesky.mockResolvedValue(undefined);
+    const inputStub = {
+      props: ["modelValue", "id", "label", "type", "placeholder", "disabled"],
+      emits: ["update:modelValue"],
+      template:
+        '<input :id="id" :type="type ?? \'text\'" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    };
+    const wrapper = shallowMount(DashboardOnboarding, {
+      global: { stubs: { InputText: inputStub } },
+    });
+    await wrapper.findAll(".ob-src")[1].find(".connect").trigger("click");
+    await wrapper.find("#ob-bsky-handle").setValue("you.bsky.social");
+    await wrapper.find("#ob-bsky-password").setValue("xxxx-xxxx-xxxx-xxxx");
+    await wrapper.find(".bluesky-actions .btn-primary").trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(mockConnectBluesky).toHaveBeenCalledWith(
+      "you.bsky.social",
+      "xxxx-xxxx-xxxx-xxxx",
+    );
   });
 
   it("emits feed-added after a successful add", async () => {
     mockAdd.mockResolvedValue(undefined);
     const wrapper = shallowMount(DashboardOnboarding);
-    await wrapper.find(".ob-add-btn").trigger("click");
+    await wrapper.find("form").trigger("submit");
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("feed-added")).toBeTruthy();
   });
 
   it("does not emit feed-added when add results in an error", async () => {
-    vi.stubGlobal("useFeeds", () => ({
-      newUrl: ref(""),
-      isAdding: ref(false),
-      discovering: ref(false),
-      error: ref("Something went wrong"),
-      add: mockAdd,
-      load: mockLoad,
-    }));
+    stubFeeds({ error: ref("Something went wrong"), add: mockAdd });
     const wrapper = shallowMount(DashboardOnboarding);
-    await wrapper.find(".ob-add-btn").trigger("click");
+    await wrapper.find("form").trigger("submit");
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("feed-added")).toBeFalsy();
   });

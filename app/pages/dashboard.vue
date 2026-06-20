@@ -9,8 +9,12 @@ const appearanceStore = useAppearanceStore();
 const connectedCount = computed(
   () => state.connections.filter((c) => c.connected).length,
 );
+
+const { items: realFeeds, loading: feedsLoading, load: loadFeeds } = useFeeds();
+onMounted(loadFeeds);
+
 const isOnboarding = computed(
-  () => state.feeds.length === 0 && connectedCount.value === 0,
+  () => !feedsLoading.value && realFeeds.value.length === 0,
 );
 
 const showSkeleton = computed(

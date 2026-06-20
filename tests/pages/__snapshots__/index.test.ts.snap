@@ -18,7 +18,7 @@ exports[`home page (/) > matches snapshot 1`] = `
       <div class="mock-body">
         <div class="card unread">
           <div class="card-head tight">
-            <source-tag-stub source="rss" name="Stratechery" time="2h"></source-tag-stub>
+            <source-tag-stub item="[object Object]"></source-tag-stub>
           </div>
           <h3 class="card-title"> The quiet web: why chronological feeds are coming back </h3>
           <p class="card-excerpt sm"> For a decade the timeline was something to be optimised. A small countertrend says the best feed is simply the one that ends. </p>

@@ -54,7 +54,7 @@ useHead({
         <div class="mock-body">
           <div class="card unread">
             <div class="card-head tight">
-              <SourceTag source="rss" name="Stratechery" time="2h" />
+              <SourceTag :item="{ type: 'article', source: 'Stratechery', time: '2h' }" />
             </div>
             <h3 class="card-title">
               The quiet web: why chronological feeds are coming back

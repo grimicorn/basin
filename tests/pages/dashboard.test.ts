@@ -1,19 +1,44 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import IndexPage from "~/pages/dashboard.vue";
 import { useFeedStore } from "~/stores/feed";
 
-describe("dashboard page", () => {
-  let state: ReturnType<typeof useFeedStore>["state"];
+const mockLoadFeeds = vi.fn();
 
+function stubEmptyFeeds() {
+  vi.stubGlobal("useFeeds", () => ({
+    items: ref([]),
+    newUrl: ref(""),
+    loading: ref(false),
+    isAdding: ref(false),
+    discovering: ref(false),
+    error: ref(null),
+    load: mockLoadFeeds,
+    add: vi.fn(),
+    remove: vi.fn(),
+  }));
+}
+
+function stubWithFeed() {
+  vi.stubGlobal("useFeeds", () => ({
+    items: ref([{ id: 1, url: "https://example.com/feed.xml", title: "Test", source: "rss", createdAt: null }]),
+    newUrl: ref(""),
+    loading: ref(false),
+    isAdding: ref(false),
+    discovering: ref(false),
+    error: ref(null),
+    load: mockLoadFeeds,
+    add: vi.fn(),
+    remove: vi.fn(),
+  }));
+}
+
+describe("dashboard page", () => {
   beforeEach(() => {
-    state = useFeedStore().state;
+    vi.resetAllMocks();
+    stubEmptyFeeds();
+    const state = useFeedStore().state;
     state.items = [];
-    state.feeds = [];
-    state.connections = state.connections.map((c: Record<string, unknown>) => ({
-      ...c,
-      connected: false,
-    }));
     state.loading = false;
     state.filter = "all";
     state.unreadOnly = false;
@@ -30,7 +55,7 @@ describe("dashboard page", () => {
     expect(wrapper.find(".page-title").text()).toBe("Your Feed");
   });
 
-  it("shows onboarding when there are no feeds and no connected accounts", () => {
+  it("shows onboarding when there are no real feeds", () => {
     const wrapper = shallowMount(IndexPage);
     expect(wrapper.find("dashboard-onboarding-stub").exists()).toBe(true);
     expect(wrapper.find(".feed").exists()).toBe(false);
@@ -41,17 +66,16 @@ describe("dashboard page", () => {
     expect(wrapper.find(".page-sub").text()).toContain("no sources yet");
   });
 
-  it("hides onboarding and shows feed when feeds exist", () => {
-    state.feeds = [{ id: "1", type: "rss", name: "Test", url: "x.com", count: 0, color: "", status: "ok" }];
+  it("hides onboarding and shows feed when real feeds exist", () => {
+    stubWithFeed();
     const wrapper = shallowMount(IndexPage);
     expect(wrapper.find("dashboard-onboarding-stub").exists()).toBe(false);
     expect(wrapper.find(".feed").exists()).toBe(true);
   });
 
-  it("hides onboarding when accounts are connected even with no feeds", () => {
-    state.connections = [{ ...state.connections[0], connected: true }];
-    const wrapper = shallowMount(IndexPage);
-    expect(wrapper.find("dashboard-onboarding-stub").exists()).toBe(false);
+  it("calls loadFeeds on mount", () => {
+    shallowMount(IndexPage);
+    expect(mockLoadFeeds).toHaveBeenCalledOnce();
   });
 
   it("matches snapshot (onboarding state)", () => {

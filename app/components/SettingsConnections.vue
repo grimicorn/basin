@@ -107,33 +107,21 @@ const formatter = new Intl.ListFormat("en", {
               >bsky.app/settings/app-passwords</a
             >.
           </p>
-          <div class="bluesky-field-row">
-            <label class="bluesky-label" for="bluesky-handle">Handle</label>
-            <div class="field">
-              <input
-                id="bluesky-handle"
-                v-model="blueskyHandle"
-                type="text"
-                placeholder="you or you.bsky.social"
-                :disabled="loading"
-              />
-            </div>
-          </div>
-          <div class="bluesky-field-row">
-            <label class="bluesky-label" for="bluesky-app-password"
-              >App Password</label
-            >
-            <div class="field">
-              <input
-                id="bluesky-app-password"
-                v-model="blueskyAppPassword"
-                type="password"
-                placeholder="xxxx-xxxx-xxxx-xxxx"
-                autocomplete="off"
-                :disabled="loading"
-              />
-            </div>
-          </div>
+          <InputText
+            id="bluesky-handle"
+            v-model="blueskyHandle"
+            label="Handle"
+            placeholder="you or you.bsky.social"
+            :disabled="loading"
+          />
+          <InputText
+            id="bluesky-app-password"
+            v-model="blueskyAppPassword"
+            label="App Password"
+            type="password"
+            placeholder="xxxx-xxxx-xxxx-xxxx"
+            :disabled="loading"
+          />
           <div class="bluesky-actions">
             <button
               class="btn btn-primary"
@@ -172,17 +160,6 @@ const formatter = new Intl.ListFormat("en", {
   border-top: 1px solid var(--border);
 }
 
-.bluesky-field-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.bluesky-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-}
 
 .bluesky-actions {
   display: flex;

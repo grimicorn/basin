@@ -9,15 +9,9 @@ exports[`UserProfile > matches snapshot 1`] = `
       </button><input data-v-f6022b20="" type="file" accept="image/*" class="profile-avatar-input" aria-label="Upload avatar image"></div>
   </div>
   <div data-v-f6022b20="" class="profile-fields">
-    <div data-v-f6022b20="" class="profile-field-row"><label data-v-f6022b20="" class="profile-label" for="profile-first-name">First name</label>
-      <div data-v-f6022b20="" class="field"><input data-v-f6022b20="" id="profile-first-name" type="text" placeholder="First name"></div>
-    </div>
-    <div data-v-f6022b20="" class="profile-field-row"><label data-v-f6022b20="" class="profile-label" for="profile-last-name">Last name</label>
-      <div data-v-f6022b20="" class="field"><input data-v-f6022b20="" id="profile-last-name" type="text" placeholder="Last name"></div>
-    </div>
+    <input-text-stub data-v-f6022b20="" id="profile-first-name" modelvalue="Demo" label="First name" placeholder="First name" disabled="false"></input-text-stub>
+    <input-text-stub data-v-f6022b20="" id="profile-last-name" modelvalue="User" label="Last name" placeholder="Last name" disabled="false"></input-text-stub>
   </div>
-  <!--v-if-->
-  <!--v-if-->
   <div data-v-f6022b20="" class="profile-actions"><button data-v-f6022b20="" type="submit" class="btn btn-primary">Save</button></div>
 </form>"
 `;

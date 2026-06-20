@@ -113,7 +113,16 @@ describe("SettingsConnections", () => {
       ok: true,
       handle: "you.bsky.social",
     });
-    const wrapper = shallowMount(SettingsConnections);
+    // Use a local stub that renders a real input so setValue works
+    const inputStub = {
+      props: ["modelValue", "id", "label", "type", "placeholder", "disabled"],
+      emits: ["update:modelValue"],
+      template:
+        '<input :id="id" :type="type ?? \'text\'" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    };
+    const wrapper = shallowMount(SettingsConnections, {
+      global: { stubs: { InputText: inputStub } },
+    });
     await wrapper.findAll("button.btn")[1].trigger("click");
     await wrapper.find("#bluesky-handle").setValue("you.bsky.social");
     await wrapper.find("#bluesky-app-password").setValue("xxxx-xxxx-xxxx-xxxx");

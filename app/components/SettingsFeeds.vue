@@ -32,18 +32,18 @@ function sourceColor(source) {
       automatically.
     </p>
 
-    <p v-if="error" class="desc feed-error">{{ error }}</p>
-
     <div class="add-feed">
-      <div class="field">
-        <RIcon name="rss" :size="16" />
-        <input
-          v-model="newUrl"
-          placeholder="https://example.com or https://example.com/feed.xml"
-          :disabled="busy"
-          @keyup.enter="add"
-        />
-      </div>
+      <InputText
+        v-model="newUrl"
+        placeholder="https://example.com or https://example.com/feed.xml"
+        :error="error ?? undefined"
+        :disabled="busy"
+        @keyup.enter="add"
+      >
+        <template #icon>
+          <RIcon name="rss" :size="16" />
+        </template>
+      </InputText>
       <button class="btn btn-primary" :disabled="busy" @click="add">
         <RIcon name="plus" :size="16" /> {{ buttonLabel }}
       </button>

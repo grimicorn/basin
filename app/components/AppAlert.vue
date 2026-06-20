@@ -23,6 +23,7 @@ const iconStroke = computed(() => (props.compact ? "2" : "1.8"));
 <template>
   <div :class="['alert', theme, { compact }]" role="alert">
     <span class="alert-ic">
+      <!-- eslint-disable vue/no-v-html -->
       <svg
         class="ricon"
         :width="iconSize"
@@ -35,6 +36,7 @@ const iconStroke = computed(() => (props.compact ? "2" : "1.8"));
         stroke-linejoin="round"
         v-html="icons[theme]"
       />
+      <!-- eslint-enable vue/no-v-html -->
     </span>
     <div class="alert-main">
       <div v-if="title && !compact" class="alert-title">{{ title }}</div>

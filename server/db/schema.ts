@@ -40,6 +40,7 @@ export const feeds = pgTable(
     description: text("description"),
     lastFetched: timestamp("last_fetched"),
     source: text("source").notNull(),
+    sourceOverride: text("source_override"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },

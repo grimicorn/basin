@@ -60,6 +60,13 @@ test.describe("Settings > Feeds", () => {
       .fill(newUrl);
     await page.locator(".btn-primary").click();
 
+    // After discovery + detection, the UI shows a confirmation panel before
+    // persisting the feed. Wait for the panel and click through it.
+    await expect(page.locator(".detect-confirm")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.locator(".detect-confirm .btn-primary").click();
+
     // The feed is stored without a title (feeds.post.ts does not parse feed
     // metadata), so .feed-name falls back to displaying the URL.
     const feedRow = page.locator(".feed-row", { hasText: newUrl });
@@ -82,6 +89,13 @@ test.describe("Settings > Feeds", () => {
       .locator(`input[placeholder="${FEED_INPUT_PLACEHOLDER}"]`)
       .fill(removeUrl);
     await page.locator(".btn-primary").click();
+
+    // After discovery + detection, the UI shows a confirmation panel before
+    // persisting the feed. Wait for the panel and click through it.
+    await expect(page.locator(".detect-confirm")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.locator(".detect-confirm .btn-primary").click();
 
     const feedRow = page.locator(".feed-row", { hasText: removeUrl });
     await expect(feedRow).toBeVisible({ timeout: 8_000 });

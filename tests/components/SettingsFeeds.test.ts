@@ -25,7 +25,12 @@ function stubFeeds(overrides: Partial<ReturnType<typeof makeStub>> = {}) {
 }
 
 function makeStub(
-  overrides: { items?: (typeof rssItem)[]; error?: string | null } = {},
+  overrides: {
+    items?: (typeof rssItem)[];
+    error?: string | null;
+    detectedSource?: "rss" | "podcast" | null;
+    pendingFeedUrl?: string | null;
+  } = {},
 ) {
   return {
     items: ref(overrides.items ?? [rssItem, podItem]),
@@ -33,9 +38,14 @@ function makeStub(
     loading: ref(false),
     isAdding: ref(false),
     discovering: ref(false),
+    detecting: ref(false),
     error: ref(overrides.error ?? null),
+    detectedSource: ref(overrides.detectedSource ?? null),
+    sourceOverride: ref(null),
+    pendingFeedUrl: ref(overrides.pendingFeedUrl ?? null),
     load: vi.fn(),
     add: vi.fn(),
+    confirmAdd: vi.fn(),
     remove: vi.fn(),
   };
 }
@@ -89,5 +99,59 @@ describe("SettingsFeeds", () => {
   it("matches snapshot with feeds", () => {
     const wrapper = shallowMount(SettingsFeeds);
     expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  describe("detection confirmation UI", () => {
+    it("shows the detect-confirm panel when detectedSource and pendingFeedUrl are set", () => {
+      stubFeeds({
+        detectedSource: "rss",
+        pendingFeedUrl: "https://example.com/feed.xml",
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".detect-confirm").exists()).toBe(true);
+    });
+
+    it("hides the detect-confirm panel when pendingFeedUrl is null", () => {
+      stubFeeds({ detectedSource: null, pendingFeedUrl: null });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".detect-confirm").exists()).toBe(false);
+    });
+
+    it("shows Detected: RSS label for an rss feed", () => {
+      stubFeeds({
+        detectedSource: "rss",
+        pendingFeedUrl: "https://example.com/feed.xml",
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".detect-label").text()).toContain("RSS");
+    });
+
+    it("shows Detected: Podcast label for a podcast feed", () => {
+      stubFeeds({
+        detectedSource: "podcast",
+        pendingFeedUrl: "https://podcast.example.com/feed.xml",
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".detect-label").text()).toContain("Podcast");
+    });
+
+    it("calls confirmAdd when the confirm button is clicked", async () => {
+      const stub = stubFeeds({
+        detectedSource: "rss",
+        pendingFeedUrl: "https://example.com/feed.xml",
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      await wrapper.find(".detect-actions .btn-primary").trigger("click");
+      expect(stub.confirmAdd).toHaveBeenCalled();
+    });
+
+    it("matches snapshot with detect-confirm visible", () => {
+      stubFeeds({
+        detectedSource: "podcast",
+        pendingFeedUrl: "https://podcast.example.com/feed.xml",
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.html()).toMatchSnapshot();
+    });
   });
 });

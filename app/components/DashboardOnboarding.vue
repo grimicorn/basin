@@ -99,6 +99,7 @@ function cancelBluesky() {
           placeholder="https://example.com or https://example.com/feed.xml"
           :error="feedError ?? undefined"
           :disabled="busy"
+          class="block!"
         >
           <template #icon>
             <RIcon name="rss" :size="16" />

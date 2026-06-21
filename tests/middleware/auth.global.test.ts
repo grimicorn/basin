@@ -15,14 +15,30 @@ describe("auth.global middleware", () => {
     mockNavigateTo.mockClear();
   });
 
-  it("redirects unauthenticated user to /login", () => {
+  it("does not redirect unauthenticated user on / (public)", () => {
     authMiddleware({ path: "/" } as any);
+    expect(mockNavigateTo).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect unauthenticated user on /pricing (public)", () => {
+    authMiddleware({ path: "/pricing" } as any);
+    expect(mockNavigateTo).not.toHaveBeenCalled();
+  });
+
+  it("redirects unauthenticated user on protected routes to /login", () => {
+    authMiddleware({ path: "/dashboard" } as any);
     expect(mockNavigateTo).toHaveBeenCalledWith("/login");
   });
 
   it("does not redirect unauthenticated user already on /login", () => {
     authMiddleware({ path: "/login" } as any);
     expect(mockNavigateTo).not.toHaveBeenCalled();
+  });
+
+  it("redirects signed-in user from / to /dashboard", () => {
+    mockIsSignedIn.value = true;
+    authMiddleware({ path: "/" } as any);
+    expect(mockNavigateTo).toHaveBeenCalledWith("/dashboard");
   });
 
   it("redirects signed-in user from /login to /dashboard", () => {

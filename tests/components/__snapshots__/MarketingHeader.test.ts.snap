@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MarketingHeader > matches snapshot — signed out 1`] = `
+"<header class="mnav">
+  <div class="wrap mnav-in"><a href="/" class="rlogo" aria-label="Reader home">
+      <r-logo-stub size="26" words=""></r-logo-stub>
+    </a>
+    <nav class="links"><a href="/#features">Features</a><a href="/#how">How it works</a><a href="/pricing" class=""> Pricing </a></nav>
+    <div class="mnav-cta"><button class="icon-btn" title="Theme: system" aria-label="Toggle theme">
+        <r-icon-stub name="monitor" size="18"></r-icon-stub>
+      </button><a href="/login" class="btn btn-ghost">Sign in</a><a href="/login" class="btn btn-primary"> Start free <r-icon-stub name="arrowRight" size="16"></r-icon-stub></a></div>
+  </div>
+</header>"
+`;

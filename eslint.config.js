@@ -9,6 +9,8 @@ const nuxtGlobals = {
   defineNuxtPlugin: "readonly",
   defineNuxtRouteMiddleware: "readonly",
   definePageMeta: "readonly",
+  useHead: "readonly",
+  useSeoMeta: "readonly",
   useNuxtApp: "readonly",
   useRuntimeConfig: "readonly",
   useRoute: "readonly",
@@ -38,6 +40,7 @@ const nuxtGlobals = {
   useConnections: "readonly",
   useUserSettings: "readonly",
   useUserProfile: "readonly",
+  useInputValidation: "readonly",
 };
 
 // Nitro / H3 globals — server-only auto-imports

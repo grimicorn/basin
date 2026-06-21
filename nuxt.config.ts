@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 const mainCss = fileURLToPath(
   new URL("./app/assets/css/main.css", import.meta.url),
 );
+const marketingCss = fileURLToPath(
+  new URL("./app/assets/css/marketing.css", import.meta.url),
+);
 
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
@@ -31,7 +34,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: "netlify",
   },
-  css: [mainCss],
+  css: [mainCss, marketingCss],
   vite: {
     plugins: [tailwindcss()],
     optimizeDeps: {
@@ -70,8 +73,5 @@ export default defineNuxtConfig({
       ],
     },
   },
-  routeRules: {
-    // Exact redirect
-    "/": { redirect: "/dashboard" },
-  },
+  routeRules: {},
 });

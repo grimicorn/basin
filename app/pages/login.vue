@@ -34,7 +34,7 @@ definePageMeta({ layout: "bare" });
     </aside>
 
     <div class="auth-main">
-      <SignIn />
+      <SignIn fallback-redirect-url="/dashboard" />
     </div>
   </div>
 </template>

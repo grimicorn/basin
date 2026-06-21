@@ -1,0 +1,68 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppAlert > matches snapshot — compact 1`] = `
+"<div class="alert info compact" role="alert"><span class="alert-ic"><!-- eslint-disable vue/no-v-html --><svg class="ricon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 7.5h.01"></path></svg><!-- eslint-enable vue/no-v-html --></span>
+  <div class="alert-main">
+    <!--v-if-->
+    <div class="alert-msg">A compact note.</div>
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`AppAlert > matches snapshot — dismissible 1`] = `
+"<div class="alert warning" role="alert"><span class="alert-ic"><!-- eslint-disable vue/no-v-html --><svg class="ricon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21.5 20H2.5L12 4Z"></path><path d="M12 10v4.5"></path><path d="M12 17.5h.01"></path></svg><!-- eslint-enable vue/no-v-html --></span>
+  <div class="alert-main">
+    <div class="alert-title">Heads up</div>
+    <div class="alert-msg">Dismissible alert.</div>
+    <!--v-if-->
+  </div><button class="alert-x" aria-label="Dismiss"><svg class="ricon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 6l12 12M18 6L6 18"></path>
+    </svg></button>
+</div>"
+`;
+
+exports[`AppAlert > matches snapshot — theme=error 1`] = `
+"<div class="alert error" role="alert"><span class="alert-ic"><!-- eslint-disable vue/no-v-html --><svg class="ricon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg><!-- eslint-enable vue/no-v-html --></span>
+  <div class="alert-main">
+    <div class="alert-title">Title</div>
+    <div class="alert-msg">Body text.</div>
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`AppAlert > matches snapshot — theme=info 1`] = `
+"<div class="alert info" role="alert"><span class="alert-ic"><!-- eslint-disable vue/no-v-html --><svg class="ricon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 7.5h.01"></path></svg><!-- eslint-enable vue/no-v-html --></span>
+  <div class="alert-main">
+    <div class="alert-title">Title</div>
+    <div class="alert-msg">Body text.</div>
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`AppAlert > matches snapshot — theme=success 1`] = `
+"<div class="alert success" role="alert"><span class="alert-ic"><!-- eslint-disable vue/no-v-html --><svg class="ricon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg><!-- eslint-enable vue/no-v-html --></span>
+  <div class="alert-main">
+    <div class="alert-title">Title</div>
+    <div class="alert-msg">Body text.</div>
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`AppAlert > matches snapshot — theme=warning 1`] = `
+"<div class="alert warning" role="alert"><span class="alert-ic"><!-- eslint-disable vue/no-v-html --><svg class="ricon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21.5 20H2.5L12 4Z"></path><path d="M12 10v4.5"></path><path d="M12 17.5h.01"></path></svg><!-- eslint-enable vue/no-v-html --></span>
+  <div class="alert-main">
+    <div class="alert-title">Title</div>
+    <div class="alert-msg">Body text.</div>
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;

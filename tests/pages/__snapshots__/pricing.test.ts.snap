@@ -1,0 +1,120 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`pricing page (/pricing) > matches snapshot 1`] = `
+"<!-- ============ HEADER ============ -->
+<div class="wrap price-top"><span class="eyebrow dot" style="justify-content: center;">Pricing</span>
+  <h1 class="price-h1">Simple, quiet pricing.</h1>
+  <p class="price-sub"> Start free forever. Upgrade to Pro when you outgrow ten sources — and only then. Every paid plan starts with a 14-day free trial. </p>
+  <div class="bill">
+    <div class="seg"><button class=""> Monthly </button><button class="active"> Yearly </button></div><span class="save">Save 25%</span>
+  </div>
+</div>
+<!-- ============ PLANS ============ -->
+<section class="section" style="padding-top: 52px; border-top-width: 0px; border-top-style: initial; border-top-color: initial;">
+  <div class="wrap">
+    <div class="plans">
+      <!-- FREE -->
+      <div class="plan">
+        <div class="plan-head"><span class="plan-name"><span class="dot" style="background:var(--muted);"></span> Free </span></div>
+        <p class="plan-tagline"> Everything one person needs to keep up with a handful of sources. </p>
+        <div class="plan-price"><span class="plan-amt">$0</span><span class="plan-per">forever</span></div>
+        <p class="plan-bill">No card required</p><a href="/login" class="btn">Get started</a>
+        <ul class="plan-feats">
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Up to <b>10 sources</b>
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> RSS, podcasts &amp; 1 connected account
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Chronological timeline
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub><span class="kbd">⌘K</span> search across recent items
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Light &amp; dark themes
+          </li>
+        </ul>
+      </div><!-- PRO -->
+      <div class="plan featured">
+        <div class="plan-head"><span class="plan-name"><span class="dot" style="background:var(--accent);"></span> Pro </span><span class="plan-pop">Most popular</span></div>
+        <p class="plan-tagline"> For people who follow everything, everywhere, and want it all in one stream. </p>
+        <div class="plan-price"><span class="plan-amt">$6</span><span class="plan-per">/ month</span></div>
+        <p class="plan-bill">billed $72/year · 14-day free trial</p><a href="/login" class="btn btn-primary"> Start 14-day trial <r-icon-stub name="arrowRight" size="16"></r-icon-stub></a>
+        <ul class="plan-feats">
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub><b>Unlimited</b> sources
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> All connections — YouTube, X &amp; Instagram
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Timeline, grid &amp; column layouts
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Full-text search across all history
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Saved items, read-later &amp; serif mode
+          </li>
+          <li>
+            <r-icon-stub name="check" size="16"></r-icon-stub> Export, backup &amp; priority refresh
+          </li>
+        </ul>
+      </div>
+    </div>
+    <p style="text-align: center; font-size: 11.5px; color: var(--muted); margin: 26px 0px 0px;"> Cancel anytime. We'll remind you before the trial ends — no surprise charges. </p>
+  </div>
+</section>
+<!-- ============ FAQ ============ -->
+<section class="section">
+  <div class="wrap">
+    <div class="sec-head" style="justify-content: center; text-align: center; margin-bottom: 36px;">
+      <div><span class="eyebrow" style="justify-content: center;">Questions</span>
+        <h2 class="sec-title">Good to know.</h2>
+      </div>
+    </div>
+    <div class="faq">
+      <div class="faq-item open"><button class="faq-q">What counts as a "source"? <r-icon-stub name="plus" size="18"></r-icon-stub></button>
+        <div class="faq-a">
+          <div>
+            <p>Any single feed or account you follow: one RSS URL, one podcast, one YouTube channel, or one connected account. Free includes up to ten; Pro is unlimited.</p>
+          </div>
+        </div>
+      </div>
+      <div class="faq-item"><button class="faq-q">How does the free trial work? <r-icon-stub name="plus" size="18"></r-icon-stub></button>
+        <div class="faq-a">
+          <div>
+            <p>Pro starts with 14 days free — full access, no card charged. We email you two days before it ends. If you do nothing, you simply drop back to the Free plan.</p>
+          </div>
+        </div>
+      </div>
+      <div class="faq-item"><button class="faq-q">Can I switch between monthly and yearly? <r-icon-stub name="plus" size="18"></r-icon-stub></button>
+        <div class="faq-a">
+          <div>
+            <p>Anytime. Yearly billing saves 25% over monthly. If you switch, we prorate the difference on your next invoice.</p>
+          </div>
+        </div>
+      </div>
+      <div class="faq-item"><button class="faq-q">What happens to my data if I downgrade? <r-icon-stub name="plus" size="18"></r-icon-stub></button>
+        <div class="faq-a">
+          <div>
+            <p>Nothing is deleted. Sources beyond the free limit are paused (not removed) and your saved items stay intact — reactivate them whenever you upgrade again.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ CTA BAND ============ -->
+<section class="section">
+  <div class="wrap">
+    <div class="cta-band"><span class="eyebrow dot" style="justify-content: center;"> Still reading? </span>
+      <h2>Try Pro free for 14 days.</h2>
+      <p>No card to start. Quiet by design, the moment you sign in.</p>
+      <div class="hero-ctas"><a href="/login" class="btn btn-primary btn-lg"> Start free trial <r-icon-stub name="arrowRight" size="17"></r-icon-stub></a><a href="/" class="btn btn-lg">Back to home</a></div>
+    </div>
+  </div>
+</section>"
+`;

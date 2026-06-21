@@ -43,35 +43,25 @@ async function handleAvatarChange(event) {
     </div>
 
     <div class="profile-fields">
-      <div class="profile-field-row">
-        <label class="profile-label" for="profile-first-name">First name</label>
-        <div class="field">
-          <input
-            id="profile-first-name"
-            v-model="firstName"
-            type="text"
-            placeholder="First name"
-            :disabled="saving"
-          />
-        </div>
-      </div>
-
-      <div class="profile-field-row">
-        <label class="profile-label" for="profile-last-name">Last name</label>
-        <div class="field">
-          <input
-            id="profile-last-name"
-            v-model="lastName"
-            type="text"
-            placeholder="Last name"
-            :disabled="saving"
-          />
-        </div>
-      </div>
+      <InputText
+        id="profile-first-name"
+        v-model="firstName"
+        label="First name"
+        placeholder="First name"
+        :disabled="saving"
+        :error="error ?? undefined"
+        :success="success ? 'Profile updated.' : undefined"
+      />
+      <InputText
+        id="profile-last-name"
+        v-model="lastName"
+        label="Last name"
+        placeholder="Last name"
+        :disabled="saving"
+        :error="error ?? undefined"
+        :success="success ? 'Profile updated.' : undefined"
+      />
     </div>
-
-    <p v-if="error" class="profile-error">{{ error }}</p>
-    <p v-if="success" class="profile-success">Profile updated.</p>
 
     <div class="profile-actions">
       <button type="submit" class="btn btn-primary" :disabled="saving">
@@ -109,30 +99,6 @@ async function handleAvatarChange(event) {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.profile-field-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.profile-label {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.profile-error {
-  font-size: 12.5px;
-  color: var(--src-video);
-  margin: 0;
-}
-
-.profile-success {
-  font-size: 12.5px;
-  color: var(--src-rss);
-  margin: 0;
 }
 
 .profile-actions {

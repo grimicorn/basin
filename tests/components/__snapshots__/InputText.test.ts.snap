@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`InputText > matches snapshot — default 1`] = `
+"<div class="fgroup"><label>Email
+    <!--v-if-->
+    <!--v-if-->
+  </label>
+  <div class="field"><input type="text" placeholder="you@example.com">
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`InputText > matches snapshot — disabled 1`] = `
+"<div class="fgroup"><label>Workspace
+    <!--v-if-->
+    <!--v-if-->
+  </label>
+  <div class="field is-disabled"><input type="text" disabled="">
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`InputText > matches snapshot — error state 1`] = `
+"<div class="fgroup"><label>Email
+    <!--v-if-->
+    <!--v-if-->
+  </label>
+  <div class="field is-error"><input type="text"><span class="val-ic"><svg class="ricon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg></span></div>
+  <div class="fhelp error"><svg class="ricon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M12 7.5v5.5"></path>
+      <path d="M12 16.5h.01"></path>
+    </svg> Invalid address</div>
+</div>"
+`;
+
+exports[`InputText > matches snapshot — success state 1`] = `
+"<div class="fgroup"><label>Email
+    <!--v-if-->
+    <!--v-if-->
+  </label>
+  <div class="field is-success"><input type="text"><span class="val-ic"><svg class="ricon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg></span></div>
+  <div class="fhelp success"><svg class="ricon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12.5l4.5 4.5L19 6.5"></path>
+    </svg> Looks good!</div>
+</div>"
+`;

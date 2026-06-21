@@ -8,11 +8,13 @@ import { useSearch } from "../app/composables/useSearch.js";
 import { USER_SETTINGS_DEFAULTS } from "../app/composables/useUserSettings.ts";
 import { useAppearanceStore } from "../app/stores/appearance.ts";
 import { useFeedStore } from "../app/stores/feed.ts";
+import { useInputValidation } from "../app/composables/useInputValidation.ts";
 
 globalThis.useToast = useToast;
 globalThis.useSearch = useSearch;
 globalThis.useAppearanceStore = useAppearanceStore;
 globalThis.useFeedStore = useFeedStore;
+globalThis.useInputValidation = useInputValidation;
 
 // Default stub for useUserSettings — returns defaults, no-ops on save.
 // Individual tests can override this with vi.stubGlobal if needed.
@@ -34,6 +36,8 @@ globalThis.useRouter = vi.fn(() => ({
   replace: vi.fn(),
 }));
 globalThis.definePageMeta = vi.fn();
+globalThis.useHead = vi.fn();
+globalThis.useSeoMeta = vi.fn();
 
 // Nuxt / Nitro handler wrappers — identity so the inner function is what gets exported
 globalThis.defineNuxtRouteMiddleware = (fn: Function) => fn;
@@ -62,6 +66,29 @@ globalThis.onUnmounted = onUnmounted;
 
 // Nuxt's $fetch global — tests override per-suite as needed.
 globalThis.$fetch = vi.fn().mockResolvedValue([]);
+
+// Feed and connections composable stubs — individual tests override as needed.
+globalThis.useFeeds = vi.fn(() => ({
+  items: ref([]),
+  newUrl: ref(""),
+  loading: ref(false),
+  isAdding: ref(false),
+  discovering: ref(false),
+  error: ref(null),
+  load: vi.fn(),
+  add: vi.fn(),
+  remove: vi.fn(),
+}));
+
+globalThis.useConnections = vi.fn(() => ({
+  items: ref([]),
+  loading: ref(false),
+  error: ref(null),
+  load: vi.fn(),
+  connect: vi.fn(),
+  connectBluesky: vi.fn(),
+  disconnect: vi.fn(),
+}));
 
 // Clerk composable stubs
 const mockClerkUser = ref({
@@ -135,6 +162,12 @@ config.global.stubs = {
   PhotoCard: true,
   AvatarButton: true,
   UserProfile: true,
+  InputText: true,
+  InputTextarea: true,
+  AppAlert: true,
+  MarketingHeader: true,
+  MarketingFooter: true,
+  DashboardOnboarding: true,
   SettingsFeeds: true,
   SettingsConnections: true,
   SettingsReading: true,

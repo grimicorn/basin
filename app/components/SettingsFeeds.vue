@@ -56,23 +56,19 @@ function cancelDetection() {
       automatically.
     </p>
 
-    <p v-if="error" class="desc feed-error">{{ error }}</p>
-
     <div class="add-feed">
-      <div class="field">
-        <RIcon name="rss" :size="16" />
-        <input
-          v-model="newUrl"
-          placeholder="https://example.com or https://example.com/feed.xml"
-          :disabled="busy || !!pendingFeedUrl"
-          @keyup.enter="add"
-        />
-      </div>
-      <button
-        class="btn btn-primary"
-        :disabled="busy || !!pendingFeedUrl"
-        @click="add"
+      <InputText
+        v-model="newUrl"
+        placeholder="https://example.com or https://example.com/feed.xml"
+        :error="error ?? undefined"
+        :disabled="busy"
+        @keyup.enter="add"
       >
+        <template #icon>
+          <RIcon name="rss" :size="16" />
+        </template>
+      </InputText>
+      <button class="btn btn-primary" :disabled="busy" @click="add">
         <RIcon name="plus" :size="16" /> {{ buttonLabel }}
       </button>
     </div>

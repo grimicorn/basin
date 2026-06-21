@@ -11,6 +11,8 @@ test.describe("Auth guards (authenticated)", () => {
   test("authenticated user can reach the dashboard", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByText("Your Feed")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Your Feed", { exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });

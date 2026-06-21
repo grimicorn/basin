@@ -83,10 +83,12 @@ describe("SettingsFeeds", () => {
     expect(stub.add).toHaveBeenCalled();
   });
 
-  it("shows the error message when error is set", () => {
+  it("passes error to InputText when error is set", () => {
     stubFeeds({ error: "Failed to load feeds" });
     const wrapper = shallowMount(SettingsFeeds);
-    expect(wrapper.find(".feed-error").text()).toBe("Failed to load feeds");
+    expect(wrapper.find("input-text-stub").attributes("error")).toBe(
+      "Failed to load feeds",
+    );
   });
 
   it("shows empty state when there are no feeds", () => {

@@ -1,35 +1,117 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`index page > matches snapshot (empty feed) 1`] = `
-"<main class="wrap">
-  <div class="subbar">
-    <div class="subbar-top">
-      <div>
-        <h1 class="page-title">Your Feed</h1>
-        <p class="page-sub"><b style="color: var(--ink-2);">0</b> unread across 2 sources · updated just now </p>
-      </div>
-      <div class="subbar-tools"><button class="fchip" title="Show unread only"><span class="dot" style="--c: var(--accent);"></span>Unread only </button><button class="btn btn-ghost">
-          <r-icon-stub name="checkAll" size="16"></r-icon-stub> Mark all read
-        </button>
-        <div class="seg"><button class="active" title="Timeline">
-            <r-icon-stub name="list" size="16"></r-icon-stub>
-          </button><button class="" title="Grid">
-            <r-icon-stub name="grid" size="16"></r-icon-stub>
-          </button><button class="" title="Columns">
-            <r-icon-stub name="columns" size="16"></r-icon-stub>
-          </button></div>
+exports[`home page (/) > matches snapshot 1`] = `
+"<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-glow" style="left: 88%; top: -300px;"></div>
+  <div class="wrap hero-b-in">
+    <div><span class="eyebrow dot">One feed · every source</span>
+      <h1 class="hero-h1"> Your whole internet,<br>in <span class="lav">chronological</span> order. </h1>
+      <p class="hero-sub"> Stop checking five apps. Reader folds RSS, podcasts, YouTube, X and Instagram into one timeline — no ranking, no ads, no doomscroll. Just the things you chose to follow. </p>
+      <div class="hero-ctas"><a href="/login" class="btn btn-primary btn-lg"> Start reading free <r-icon-stub name="arrowRight" size="17"></r-icon-stub></a><a href="/pricing" class="btn btn-lg">See pricing</a></div>
+      <p class="hero-note">
+        <r-icon-stub name="check" size="15"></r-icon-stub> Free for up to 10 sources · No credit card needed
+      </p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-url"><r-icon-stub name="lock" size="13"></r-icon-stub> reader.app/dashboard </span></div>
+      <div class="mock-body">
+        <div class="card unread">
+          <div class="card-head tight">
+            <source-tag-stub item="[object Object]"></source-tag-stub>
+          </div>
+          <h3 class="card-title"> The quiet web: why chronological feeds are coming back </h3>
+          <p class="card-excerpt sm"> For a decade the timeline was something to be optimised. A small countertrend says the best feed is simply the one that ends. </p>
+          <div class="card-foot">
+            <div class="chips"><span class="chip">#media</span><span class="chip">#rss</span></div><span class="card-meta">6 min read</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="filters"><button class="fchip active"><span class="dot" style="--c: var(--accent);"></span>All<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-rss);"></span>RSS<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-podcast);"></span>Podcasts<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-video);"></span>YouTube<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-tweet);"></span>X<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-photo);"></span>Instagram<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--accent);"></span>Saved<span class="count">0</span></button></div>
   </div>
-  <div class="feed layout-timeline">
-    <!-- skeleton -->
-    <!-- loaded -->
-    <div class="empty">
-      <r-icon-stub name="inbox" size="40"></r-icon-stub>
-      <h3>You're all caught up</h3>
-      <p> Nothing left in this filter. Try another source or pull to refresh. </p>
+</section>
+<!-- ============ SOURCES STRIP ============ -->
+<div class="wrap">
+  <div class="logos"><span class="lbl">Pulls from</span><b>RSS / Atom</b><b>Apple Podcasts</b><b>YouTube</b><b>X</b><b>Instagram</b><b>JSON Feed</b></div>
+</div>
+<!-- ============ FEATURES ============ -->
+<section id="features" class="section">
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="eyebrow">What makes it quiet</span>
+        <h2 class="sec-title">Built for reading,<br>not for engagement.</h2>
+      </div>
+      <p class="sec-lede"> Every decision in Reader points the same way: fewer interruptions, more of the things you actually chose to follow. </p>
+    </div>
+    <div class="feat-grid">
+      <div class="feature"><span class="fnum">01</span><span class="feat-ic"><r-icon-stub name="inbox" size="20"></r-icon-stub></span>
+        <h3>One unified feed</h3>
+        <p> Articles, episodes, videos and posts land in a single stream you can read top to bottom. </p>
+      </div>
+      <div class="feature"><span class="fnum">02</span><span class="feat-ic"><r-icon-stub name="list" size="20"></r-icon-stub></span>
+        <h3>Strictly chronological</h3>
+        <p> Newest first, always. No ranking model decides what you see or hides what you don't. </p>
+      </div>
+      <div class="feature"><span class="fnum">03</span><span class="feat-ic"><r-icon-stub name="link" size="20"></r-icon-stub></span>
+        <h3>Connect anything</h3>
+        <p> Paste any feed URL or link an account. Reader auto-detects the type and starts pulling. </p>
+      </div>
+      <div class="feature"><span class="fnum">04</span><span class="feat-ic"><r-icon-stub name="search" size="20"></r-icon-stub></span>
+        <h3>Search everything</h3>
+        <p> One <span class="kbd">⌘K</span> palette across every source, tag and saved item you've ever followed. </p>
+      </div>
+      <div class="feature"><span class="fnum">05</span><span class="feat-ic"><r-icon-stub name="sun" size="20"></r-icon-stub></span>
+        <h3>Read it your way</h3>
+        <p> Timeline, grid or per-source columns. Mono or serif. Light or dark. Tune the density to taste. </p>
+      </div>
+      <div class="feature"><span class="fnum">06</span><span class="feat-ic"><r-icon-stub name="shield" size="20"></r-icon-stub></span>
+        <h3>Private by default</h3>
+        <p> No tracking, no resale, no engagement metrics. Your reading is yours — export it anytime. </p>
+      </div>
     </div>
   </div>
-</main>"
+</section>
+<!-- ============ HOW IT WORKS ============ -->
+<section id="how" class="section">
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="eyebrow">How it works</span>
+        <h2 class="sec-title">Three steps to a calmer feed.</h2>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step"><span class="k">STEP 01</span>
+        <h3>Add your sources</h3>
+        <p> Paste feed URLs or connect YouTube, X and Instagram in a couple of clicks. </p>
+      </div>
+      <div class="step"><span class="k">STEP 02</span>
+        <h3>Reader fetches</h3>
+        <p> We pull new items in the background and merge them into one chronological timeline. </p>
+      </div>
+      <div class="step"><span class="k">STEP 03</span>
+        <h3>Read in peace</h3>
+        <p> Skim, save, or open the original. Mark all read and close the tab guilt-free. </p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ QUOTE ============ -->
+<section class="section">
+  <div class="wrap quote-wrap"><span class="eyebrow">Why people switch</span>
+    <p class="quote" style="margin-top:18px;"> "I replaced four apps and a dozen open tabs with one page. It's the first feed in years that <span class="lav">ends</span> — and that's the whole point." </p>
+    <div class="quote-by"><span class="av">DK</span>
+      <div><b style="color:var(--ink);font-weight:600;">Dana Kessler</b> · independent writer<br><span style="color:var(--faint);">reads ~40 sources daily</span></div>
+    </div>
+  </div>
+</section>
+<!-- ============ CTA BAND ============ -->
+<section class="section">
+  <div class="wrap">
+    <div class="cta-band"><span class="eyebrow dot" style="justify-content: center;"> Start in under a minute </span>
+      <h2>Bring your feeds home.</h2>
+      <p> Free forever for up to 10 sources. Upgrade only when you outgrow it. </p>
+      <div class="hero-ctas"><a href="/login" class="btn btn-primary btn-lg"> Start free <r-icon-stub name="arrowRight" size="17"></r-icon-stub></a><a href="/pricing" class="btn btn-lg">Compare plans</a></div>
+    </div>
+  </div>
+</section>"
 `;

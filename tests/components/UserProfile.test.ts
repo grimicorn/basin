@@ -8,9 +8,9 @@ describe("UserProfile", () => {
     expect(wrapper.html()).toMatchSnapshot();
   });
 
-  it("renders first and last name inputs", () => {
+  it("renders first and last name InputText components", () => {
     const wrapper = shallowMount(UserProfile);
-    const inputs = wrapper.findAll("input[type='text']");
+    const inputs = wrapper.findAll("input-text-stub");
     expect(inputs).toHaveLength(2);
   });
 
@@ -36,17 +36,7 @@ describe("UserProfile", () => {
     expect(fileInput.attributes("accept")).toBe("image/*");
   });
 
-  it("does not show error message when there is no error", () => {
-    const wrapper = shallowMount(UserProfile);
-    expect(wrapper.find(".profile-error").exists()).toBe(false);
-  });
-
-  it("does not show success message by default", () => {
-    const wrapper = shallowMount(UserProfile);
-    expect(wrapper.find(".profile-success").exists()).toBe(false);
-  });
-
-  it("shows error message when error is present", () => {
+  it("passes error to last name InputText when error is present", () => {
     const originalUseUserProfile = globalThis.useUserProfile;
     globalThis.useUserProfile = () => ({
       firstName: ref("Demo"),
@@ -59,15 +49,13 @@ describe("UserProfile", () => {
     });
 
     const wrapper = shallowMount(UserProfile);
-    expect(wrapper.find(".profile-error").exists()).toBe(true);
-    expect(wrapper.find(".profile-error").text()).toBe(
-      "Failed to save profile",
-    );
+    const stubs = wrapper.findAll("input-text-stub");
+    expect(stubs[1].attributes("error")).toBe("Failed to save profile");
 
     globalThis.useUserProfile = originalUseUserProfile;
   });
 
-  it("shows success message when save succeeds", () => {
+  it("passes success to last name InputText when save succeeds", () => {
     const originalUseUserProfile = globalThis.useUserProfile;
     globalThis.useUserProfile = () => ({
       firstName: ref("Demo"),
@@ -80,8 +68,8 @@ describe("UserProfile", () => {
     });
 
     const wrapper = shallowMount(UserProfile);
-    expect(wrapper.find(".profile-success").exists()).toBe(true);
-    expect(wrapper.find(".profile-success").text()).toBe("Profile updated.");
+    const stubs = wrapper.findAll("input-text-stub");
+    expect(stubs[1].attributes("success")).toBe("Profile updated.");
 
     globalThis.useUserProfile = originalUseUserProfile;
   });

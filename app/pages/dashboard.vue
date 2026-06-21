@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 const feedStore = useFeedStore();
 const state = feedStore.state;
@@ -9,6 +9,15 @@ const appearanceStore = useAppearanceStore();
 const connectedCount = computed(
   () => state.connections.filter((c) => c.connected).length,
 );
+
+const { items: realFeeds, loading: feedsLoading, load: loadFeeds } = useFeeds();
+onMounted(loadFeeds);
+
+const feedAdded = ref(false);
+const isOnboarding = computed(
+  () => !feedsLoading.value && realFeeds.value.length === 0 && !feedAdded.value,
+);
+
 const showSkeleton = computed(
   () =>
     state.loading &&
@@ -28,7 +37,11 @@ const staggerOn = computed(
       <div class="subbar-top">
         <div>
           <h1 class="page-title">Your Feed</h1>
-          <p class="page-sub">
+          <p v-if="isOnboarding" class="page-sub">
+            <b style="color: var(--ink-2)">0</b>
+            unread · no sources yet · let's change that
+          </p>
+          <p v-else class="page-sub">
             <b style="color: var(--ink-2)">{{ feedStore.unreadCount }}</b>
             unread across {{ state.feeds.length + connectedCount }} sources ·
             updated just now
@@ -93,7 +106,10 @@ const staggerOn = computed(
       </div>
     </div>
 
-    <div class="feed" :class="'layout-' + state.layout">
+    <!-- onboarding empty state -->
+    <DashboardOnboarding v-if="isOnboarding" @feed-added="feedAdded = true" />
+
+    <div v-else class="feed" :class="'layout-' + state.layout">
       <!-- skeleton -->
       <div v-if="showSkeleton" class="feed-grid">
         <SkeletonCard

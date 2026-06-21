@@ -14,7 +14,7 @@ exports[`login page > matches snapshot 1`] = `
     </div>
   </aside>
   <div class="auth-main">
-    <sign-in-stub></sign-in-stub>
+    <sign-in-stub fallback-redirect-url="/dashboard"></sign-in-stub>
   </div>
 </div>"
 `;

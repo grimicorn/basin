@@ -10,10 +10,8 @@ test.describe("Auth guards (unauthenticated)", () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
   });
 
-  test("visiting / redirects to /login", async ({ page }) => {
-    // routeRules redirects / → /dashboard server-side,
-    // then the client-side auth guard redirects /dashboard → /login.
+  test("visiting / stays on / (public marketing page)", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
   });
 });

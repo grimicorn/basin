@@ -5,7 +5,7 @@ export type SyncMode = "scheduled" | "on-demand";
 export interface SyncFeedEventData {
   userId: number;
   feedId: number;
-  sourceType: "rss" | "podcast" | "youtube";
+  sourceType: "rss" | "podcast" | "youtube" | "bluesky";
   mode: SyncMode;
 }
 

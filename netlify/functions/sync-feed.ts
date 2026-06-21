@@ -12,14 +12,36 @@ import {
   refreshAccessToken,
   fetchNewUploadsForChannel,
 } from "../../server/utils/youtubeAdapter";
+import {
+  fetchNewBlueskyPosts,
+  BLUESKY_SOURCE,
+  DEFAULT_POST_FILTER_POLICY,
+} from "../../server/utils/blueskyAdapter";
+import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
 import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEvent } from "./types";
 
 // Supported source types — expand as new adapters are added.
-const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast", "youtube"]);
+const SUPPORTED_SOURCE_TYPES = new Set([
+  "rss",
+  "podcast",
+  "youtube",
+  BLUESKY_SOURCE,
+]);
 
-async function fetchFeedRecord(feedId: number, userId: number) {
+type FeedRecord = {
+  id: number;
+  url: string;
+  title: string | null;
+  source: string;
+  lastFetched: Date | null;
+};
+
+async function fetchFeedRecord(
+  feedId: number,
+  userId: number,
+): Promise<FeedRecord | undefined> {
   const db = createDb();
   return db.query.feeds.findFirst({
     where: and(eq(feeds.id, feedId), eq(feeds.userId, userId)),
@@ -29,6 +51,23 @@ async function fetchFeedRecord(feedId: number, userId: number) {
       title: true,
       source: true,
       lastFetched: true,
+    },
+  });
+}
+
+async function fetchBlueskyIntegration(userId: number) {
+  const db = createDb();
+  return db.query.integrations.findFirst({
+    where: and(
+      eq(integrations.userId, userId),
+      eq(integrations.provider, "bluesky"),
+    ),
+    columns: {
+      accessToken: true,
+      refreshToken: true,
+      tokenSecret: true,
+      providerAccountId: true,
+      providerUsername: true,
     },
   });
 }
@@ -59,11 +98,14 @@ async function upsertFeedItems(
   return result.length;
 }
 
-async function markFeedSynced(feedId: number): Promise<void> {
+async function markFeedSynced(
+  feedId: number,
+  syncedAt = new Date(),
+): Promise<void> {
   const db = createDb();
   await db
     .update(feeds)
-    .set({ lastFetched: new Date() })
+    .set({ lastFetched: syncedAt })
     .where(eq(feeds.id, feedId));
 }
 
@@ -167,61 +209,72 @@ async function syncYouTubeFeed(
   return upsertFeedItems(feedId, newItems);
 }
 
-type FeedRecord = NonNullable<Awaited<ReturnType<typeof fetchFeedRecord>>>;
-
-async function dispatchSync(
-  feed: FeedRecord,
-  sourceType: string,
+async function syncBlueskyFeed(
+  feedId: number,
   userId: number,
+  lastFetched: Date | null,
 ): Promise<number> {
-  if (sourceType === "youtube") {
+  const integration = await fetchBlueskyIntegration(userId);
+
+  if (!integration) {
+    throw new ErrorDoNotRetry(
+      `No Bluesky integration found for user ${userId}. Connect Bluesky in Settings first.`,
+    );
+  }
+
+  if (!integration.tokenSecret) {
+    throw new ErrorDoNotRetry(
+      `Bluesky integration for user ${userId} is missing the app password. Reconnect Bluesky in Settings.`,
+    );
+  }
+
+  if (!integration.providerUsername) {
+    throw new ErrorDoNotRetry(
+      `Bluesky integration for user ${userId} is missing the username. Reconnect Bluesky in Settings.`,
+    );
+  }
+
+  const credentials: BlueskyCredentials = {
+    identifier: integration.providerUsername,
+    appPassword: integration.tokenSecret,
+    accessJwt: integration.accessToken ?? "",
+    refreshJwt: integration.refreshToken ?? "",
+    did: integration.providerAccountId ?? "",
+  };
+
+  const items = await fetchNewBlueskyPosts(
+    credentials,
+    feedId,
+    lastFetched,
+    DEFAULT_POST_FILTER_POLICY,
+  );
+
+  return upsertFeedItems(feedId, items);
+}
+
+async function runAdapter(
+  feedId: number,
+  userId: number,
+  feed: FeedRecord,
+): Promise<number> {
+  if (feed.source === "youtube") {
     return syncYouTubeFeed(
       feed.id,
       feed.url,
-      feed.title ?? null,
-      feed.lastFetched ?? null,
+      feed.title,
+      feed.lastFetched,
       userId,
     );
   }
 
-  return syncRssFeed(feed.id, feed.url);
-}
-
-function handleSyncError(
-  error: unknown,
-  feedId: number,
-  userId: number,
-  attempt: number,
-): never {
-  if (error instanceof ErrorDoNotRetry) {
-    throw error;
+  if (feed.source === BLUESKY_SOURCE) {
+    return syncBlueskyFeed(feedId, userId, feed.lastFetched);
   }
 
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(
-    JSON.stringify({
-      event: "sync-feed.error",
-      feedId,
-      userId,
-      attempt,
-      error: message,
-    }),
-  );
-
-  if (attempt >= 4) {
-    throw new ErrorDoNotRetry(
-      `Feed ${feedId} sync failed after ${attempt} attempts: ${message}`,
-    );
-  }
-
-  throw new ErrorRetryAfterDelay({
-    message: `Feed sync failed for feed ${feedId}: ${message}`,
-    retryDelay: "30s",
-    forceDelayTime: false,
-  });
+  return syncRssFeed(feedId, feed.url);
 }
 
-async function runSync(event: SyncFeedEvent): Promise<void> {
+export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
   const { userId, feedId, sourceType, mode } = event.eventData;
 
   if (!SUPPORTED_SOURCE_TYPES.has(sourceType)) {
@@ -267,14 +320,45 @@ async function runSync(event: SyncFeedEvent): Promise<void> {
     }),
   );
 
+  // Capture the sync-start time before reading any pages so the watermark never
+  // advances past what was actually read. A post created after the first
+  // timeline page but before completion would otherwise be skipped forever.
+  const syncStartedAt = new Date();
+
   let itemsSynced: number;
   try {
-    itemsSynced = await dispatchSync(feed, sourceType, userId);
+    itemsSynced = await runAdapter(feedId, userId, feed);
   } catch (error) {
-    handleSyncError(error, feedId, userId, event.attempt);
+    // ErrorDoNotRetry from adapters must propagate without wrapping.
+    if (error instanceof ErrorDoNotRetry) {
+      throw error;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      JSON.stringify({
+        event: "sync-feed.error",
+        feedId,
+        userId,
+        attempt: event.attempt,
+        error: message,
+      }),
+    );
+
+    if (event.attempt >= 4) {
+      throw new ErrorDoNotRetry(
+        `Feed ${feedId} sync failed after ${event.attempt} attempts: ${message}`,
+      );
+    }
+
+    throw new ErrorRetryAfterDelay({
+      message: `Feed sync failed for feed ${feedId} (${sourceType}): ${message}`,
+      retryDelay: "30s",
+      forceDelayTime: false,
+    });
   }
 
-  await markFeedSynced(feedId);
+  await markFeedSynced(feedId, syncStartedAt);
 
   console.log(
     JSON.stringify({
@@ -284,9 +368,7 @@ async function runSync(event: SyncFeedEvent): Promise<void> {
       itemsSynced,
     }),
   );
-}
-
-export default asyncWorkloadFn<SyncFeedEvent>(runSync);
+});
 
 export const asyncWorkloadConfig: AsyncWorkloadConfig<SyncFeedEvent> = {
   events: [SYNC_FEED_EVENT_NAME],

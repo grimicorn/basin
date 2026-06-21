@@ -314,6 +314,26 @@ describe("sync-feed workload", () => {
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
   });
+
+  it("marks the feed synced with a timestamp captured before the adapter runs", async () => {
+    // Verify that the timestamp passed to markFeedSynced is not later than the
+    // moment the handler was called — i.e. it reflects the sync start, not completion.
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: staleFetch() }));
+
+    const beforeCall = new Date();
+    await (handler as Function)(makeEvent());
+    const afterCall = new Date();
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastFetched: expect.any(Date),
+      }),
+    );
+
+    const syncedAt: Date = mockUpdateSet.mock.calls[0][0].lastFetched;
+    expect(syncedAt.getTime()).toBeGreaterThanOrEqual(beforeCall.getTime());
+    expect(syncedAt.getTime()).toBeLessThanOrEqual(afterCall.getTime());
+  });
 });
 
 // --- YouTube branch ---

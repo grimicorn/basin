@@ -5,14 +5,19 @@ import {
 } from "@netlify/async-workloads";
 import type { AsyncWorkloadConfig } from "@netlify/async-workloads";
 import { eq, and } from "drizzle-orm";
-import { feeds, feedItems } from "../../server/db/schema";
+import { feeds, feedItems, integrations } from "../../server/db/schema";
 import { parseRssFeed } from "../../server/utils/rssAdapter";
+import {
+  isTokenExpired,
+  refreshAccessToken,
+  fetchNewUploadsForChannel,
+} from "../../server/utils/youtubeAdapter";
 import { createDb } from "./db";
 import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEvent } from "./types";
 
 // Supported source types — expand as new adapters are added.
-const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast"]);
+const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast", "youtube"]);
 
 async function fetchFeedRecord(feedId: number, userId: number) {
   const db = createDb();
@@ -21,6 +26,7 @@ async function fetchFeedRecord(feedId: number, userId: number) {
     columns: {
       id: true,
       url: true,
+      title: true,
       source: true,
       lastFetched: true,
     },
@@ -66,7 +72,156 @@ async function syncRssFeed(feedId: number, feedUrl: string): Promise<number> {
   return upsertFeedItems(feedId, items);
 }
 
-export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
+async function fetchYouTubeIntegration(userId: number) {
+  const db = createDb();
+  return db.query.integrations.findFirst({
+    where: and(
+      eq(integrations.userId, userId),
+      eq(integrations.provider, "youtube"),
+    ),
+    columns: {
+      id: true,
+      accessToken: true,
+      refreshToken: true,
+      expiresAt: true,
+    },
+  });
+}
+
+async function persistRefreshedToken(
+  integrationId: number,
+  accessToken: string,
+  expiresAt: Date,
+): Promise<void> {
+  const db = createDb();
+  await db
+    .update(integrations)
+    .set({ accessToken, expiresAt, updatedAt: new Date() })
+    .where(eq(integrations.id, integrationId));
+}
+
+async function resolveValidAccessToken(
+  integration: NonNullable<Awaited<ReturnType<typeof fetchYouTubeIntegration>>>,
+): Promise<string> {
+  if (!isTokenExpired(integration.expiresAt)) {
+    return integration.accessToken;
+  }
+
+  if (!integration.refreshToken) {
+    throw new ErrorDoNotRetry(
+      "YouTube access token expired and no refresh token is stored. Re-connect your YouTube account.",
+    );
+  }
+
+  const clientId = process.env.NUXT_GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.NUXT_GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new ErrorDoNotRetry(
+      "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
+    );
+  }
+
+  const refreshed = await refreshAccessToken(
+    integration.refreshToken,
+    clientId,
+    clientSecret,
+  );
+
+  await persistRefreshedToken(
+    integration.id,
+    refreshed.accessToken,
+    refreshed.expiresAt,
+  );
+
+  return refreshed.accessToken;
+}
+
+async function syncYouTubeFeed(
+  feedId: number,
+  channelId: string,
+  channelTitle: string | null,
+  lastSyncedAt: Date | null,
+  userId: number,
+): Promise<number> {
+  const integration = await fetchYouTubeIntegration(userId);
+
+  if (!integration) {
+    throw new ErrorDoNotRetry(
+      `No YouTube integration found for user ${userId}. Re-connect your YouTube account.`,
+    );
+  }
+
+  // Resolve (and refresh if needed) the access token so it stays current.
+  // Even though we use the no-quota RSS feed for uploads, keeping the token
+  // fresh ensures the subscriptions API works on subsequent calls.
+  await resolveValidAccessToken(integration);
+
+  const newItems = await fetchNewUploadsForChannel(
+    channelId,
+    feedId,
+    channelTitle ?? channelId,
+    lastSyncedAt,
+  );
+
+  return upsertFeedItems(feedId, newItems);
+}
+
+type FeedRecord = NonNullable<Awaited<ReturnType<typeof fetchFeedRecord>>>;
+
+async function dispatchSync(
+  feed: FeedRecord,
+  sourceType: string,
+  userId: number,
+): Promise<number> {
+  if (sourceType === "youtube") {
+    return syncYouTubeFeed(
+      feed.id,
+      feed.url,
+      feed.title ?? null,
+      feed.lastFetched ?? null,
+      userId,
+    );
+  }
+
+  return syncRssFeed(feed.id, feed.url);
+}
+
+function handleSyncError(
+  error: unknown,
+  feedId: number,
+  userId: number,
+  attempt: number,
+): never {
+  if (error instanceof ErrorDoNotRetry) {
+    throw error;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(
+    JSON.stringify({
+      event: "sync-feed.error",
+      feedId,
+      userId,
+      attempt,
+      error: message,
+    }),
+  );
+
+  if (attempt >= 4) {
+    throw new ErrorDoNotRetry(
+      `Feed ${feedId} sync failed after ${attempt} attempts: ${message}`,
+    );
+  }
+
+  throw new ErrorRetryAfterDelay({
+    message: `Feed sync failed for feed ${feedId}: ${message}`,
+    retryDelay: "30s",
+    forceDelayTime: false,
+  });
+}
+
+async function runSync(event: SyncFeedEvent): Promise<void> {
   const { userId, feedId, sourceType, mode } = event.eventData;
 
   if (!SUPPORTED_SOURCE_TYPES.has(sourceType)) {
@@ -114,30 +269,9 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
 
   let itemsSynced: number;
   try {
-    itemsSynced = await syncRssFeed(feedId, feed.url);
+    itemsSynced = await dispatchSync(feed, sourceType, userId);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      JSON.stringify({
-        event: "sync-feed.error",
-        feedId,
-        userId,
-        attempt: event.attempt,
-        error: message,
-      }),
-    );
-
-    if (event.attempt >= 4) {
-      throw new ErrorDoNotRetry(
-        `Feed ${feedId} sync failed after ${event.attempt} attempts: ${message}`,
-      );
-    }
-
-    throw new ErrorRetryAfterDelay({
-      message: `RSS fetch failed for feed ${feedId}: ${message}`,
-      retryDelay: "30s",
-      forceDelayTime: false,
-    });
+    handleSyncError(error, feedId, userId, event.attempt);
   }
 
   await markFeedSynced(feedId);
@@ -150,7 +284,9 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
       itemsSynced,
     }),
   );
-});
+}
+
+export default asyncWorkloadFn<SyncFeedEvent>(runSync);
 
 export const asyncWorkloadConfig: AsyncWorkloadConfig<SyncFeedEvent> = {
   events: [SYNC_FEED_EVENT_NAME],

@@ -9,7 +9,7 @@ import type { SyncFeedEventData } from "./types";
 type DueFeed = { id: number; userId: number; source: string };
 
 // Source types that this scheduler knows how to sync via async workloads.
-const SYNCABLE_SOURCE_TYPES = ["rss", "podcast"] as const;
+const SYNCABLE_SOURCE_TYPES = ["rss", "podcast", "youtube"] as const;
 
 async function fetchDueFeeds(): Promise<DueFeed[]> {
   const db = createDb();

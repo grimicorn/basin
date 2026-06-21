@@ -11,7 +11,7 @@ exports[`DashboardOnboarding > matches snapshot 1`] = `
     <div data-v-14d0d5d7="" class="ob-card-h"><span data-v-14d0d5d7="" class="src-ic src-rss" style="--c: var(--src-rss); width: 26px; height: 26px;"><r-icon-stub data-v-14d0d5d7="" name="rss" size="15"></r-icon-stub></span><span data-v-14d0d5d7="" class="n">Start here</span><span data-v-14d0d5d7="" class="t">Add an RSS or podcast feed</span></div>
     <p data-v-14d0d5d7="" class="hint"> Paste any feed URL — Reader auto-detects whether it's articles or a podcast. </p>
     <form data-v-14d0d5d7="" class="ob-add">
-      <input-text-stub data-v-14d0d5d7="" id="ob-feed-url" modelvalue="" placeholder="https://example.com or https://example.com/feed.xml" disabled="false"></input-text-stub><button data-v-14d0d5d7="" type="submit" class="btn btn-primary ob-add-btn">
+      <input-text-stub data-v-14d0d5d7="" id="ob-feed-url" modelvalue="" placeholder="https://example.com or https://example.com/feed.xml" disabled="false" class="block!"></input-text-stub><button data-v-14d0d5d7="" type="submit" class="btn btn-primary ob-add-btn">
         <r-icon-stub data-v-14d0d5d7="" name="plus" size="16"></r-icon-stub> Add feed
       </button>
     </form>

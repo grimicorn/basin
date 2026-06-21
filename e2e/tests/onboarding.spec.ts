@@ -32,12 +32,17 @@ test.describe("Dashboard onboarding (empty account)", () => {
   test.beforeEach(async ({ page }) => {
     await mockEmptyAccount(page);
     await page.goto("/dashboard");
-    await expect(page.getByText("Your Feed")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Your Feed", { exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
     // Wait until the onboarding hero renders — this confirms useFeeds().load() has
     // completed and Vue has determined there are no feeds.
     await expect(
       page.getByText("Your feed is empty — let's fill it."),
     ).toBeVisible({ timeout: 15_000 });
+    // Wait for all in-flight API calls (feeds + integrations) to settle so
+    // connLoading is false and Connect buttons are enabled before tests click them.
+    await page.waitForLoadState("networkidle", { timeout: 10_000 });
   });
 
   test("shows the onboarding hero", async ({ page }) => {
@@ -113,6 +118,27 @@ test.describe("Dashboard onboarding (empty account)", () => {
         },
       ]);
 
+      // After the OAuth flow, integrations reload — return YouTube as connected.
+      // This overrides the mockEmptyAccount handler (Playwright uses LIFO order).
+      await page.route("**/api/integrations", (route) => {
+        if (route.request().method() === "GET") {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify([
+              {
+                id: 1,
+                provider: "youtube",
+                providerUsername: "@testchannel",
+                createdAt: new Date().toISOString(),
+              },
+            ]),
+          });
+        }
+        return route.continue();
+      });
+
+      // Intercept the OAuth initiation — return HTML that JS-redirects to the callback.
       await page.route(
         "**/api/auth/youtube",
         async (route) => {
@@ -120,22 +146,33 @@ test.describe("Dashboard onboarding (empty account)", () => {
           await route.fulfill({
             status: 200,
             contentType: "text/html",
-            body: `<script>location.replace(${JSON.stringify(callbackUrl)})</script>`,
+            body:
+              `<script>location.replace(${JSON.stringify(callbackUrl)})</` +
+              `script>`,
+          });
+        },
+        { times: 1 },
+      );
+
+      // Intercept the callback — skip the real Google token exchange and redirect
+      // straight to /dashboard.
+      await page.route(
+        "**/api/auth/youtube/callback**",
+        async (route) => {
+          await route.fulfill({
+            status: 302,
+            headers: { Location: "/dashboard" },
+            body: "",
           });
         },
         { times: 1 },
       );
 
       const ytCard = page.locator(".ob-src", { hasText: "YouTube" });
-
-      const callbackDone = page.waitForResponse(
-        (resp) => resp.url().includes("/api/auth/youtube/callback"),
-        { timeout: 20_000 },
-      );
       await ytCard.locator(".btn-primary").click();
-      await callbackDone;
 
-      // Callback redirects to /dashboard; wait for the integrations API to reload.
+      // Wait for the dashboard to reload after the OAuth callback redirect.
+      await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
       await page.waitForLoadState("networkidle", { timeout: 20_000 });
 
       // After connecting, the YouTube card should show as connected.
@@ -165,6 +202,41 @@ test.describe("Dashboard onboarding (empty account)", () => {
     test("can connect Bluesky with handle and app password", async ({
       page,
     }) => {
+      // Mock POST /api/auth/bluesky so the test never calls the real Bluesky API.
+      await page.route("**/api/auth/bluesky", (route) => {
+        if (route.request().method() === "POST") {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              ok: true,
+              handle: "e2etestuser.bsky.social",
+            }),
+          });
+        }
+        return route.continue();
+      });
+
+      // After the POST, useConnections.load() re-fetches integrations.
+      // Return Bluesky as connected so the .live indicator appears.
+      await page.route("**/api/integrations", (route) => {
+        if (route.request().method() === "GET") {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify([
+              {
+                id: 2,
+                provider: "bluesky",
+                providerUsername: "e2etestuser.bsky.social",
+                createdAt: new Date().toISOString(),
+              },
+            ]),
+          });
+        }
+        return route.continue();
+      });
+
       const bsCard = page.locator(".ob-src", { hasText: "Bluesky" });
       await bsCard.locator("button.connect").click();
 

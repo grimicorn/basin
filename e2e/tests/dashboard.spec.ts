@@ -3,7 +3,9 @@ import { test, expect } from "@playwright/test";
 test.describe("Dashboard", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Your Feed")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Your Feed", { exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
     // Wait for JS bundles to load and Vue to hydrate. setupWatchers() runs in
     // onMounted (client-only) — clicking seg/fchip buttons before hydration
     // loses the event because handlers aren't attached yet.

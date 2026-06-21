@@ -1,6 +1,21 @@
 <script setup lang="ts">
 definePageMeta({ layout: "marketing" });
 
+// The auth middleware redirects signed-in users away from "/" during route
+// navigation, but Clerk hydrates asynchronously after the initial render.
+// This watcher catches the case where Clerk's isSignedIn flips to true after
+// the middleware has already let the request through.
+const { isSignedIn } = useAuth();
+watch(
+  isSignedIn,
+  (signedIn) => {
+    if (signedIn) {
+      navigateTo("/dashboard");
+    }
+  },
+  { immediate: true },
+);
+
 useHead({
   title: "Reader — all your feeds, one quiet page",
   meta: [

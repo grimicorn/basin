@@ -23,7 +23,9 @@ exports[`DashboardOnboarding > matches snapshot 1`] = `
     <div data-v-14d0d5d7="" class="ob-src">
       <div data-v-14d0d5d7="" class="ob-src-row"><span data-v-14d0d5d7="" class="conn-ic" style="--c: var(--src-video);"><r-icon-stub data-v-14d0d5d7="" name="video" size="20"></r-icon-stub></span>
         <div data-v-14d0d5d7="" class="info">
-          <div data-v-14d0d5d7="" class="nm">YouTube</div>
+          <div data-v-14d0d5d7="" class="nm">YouTube
+            <!--v-if-->
+          </div>
           <div data-v-14d0d5d7="" class="ds">Subscribe to channels</div>
         </div><button data-v-14d0d5d7="" class="btn connect btn-primary">Connect</button>
       </div><!-- Bluesky inline form -->
@@ -32,7 +34,9 @@ exports[`DashboardOnboarding > matches snapshot 1`] = `
     <div data-v-14d0d5d7="" class="ob-src">
       <div data-v-14d0d5d7="" class="ob-src-row"><span data-v-14d0d5d7="" class="conn-ic" style="--c: var(--src-tweet);"><r-icon-stub data-v-14d0d5d7="" name="chat" size="20"></r-icon-stub></span>
         <div data-v-14d0d5d7="" class="info">
-          <div data-v-14d0d5d7="" class="nm">Bluesky</div>
+          <div data-v-14d0d5d7="" class="nm">Bluesky
+            <!--v-if-->
+          </div>
           <div data-v-14d0d5d7="" class="ds">Subscribe to channels</div>
         </div><button data-v-14d0d5d7="" class="btn connect btn-primary">Connect</button>
       </div><!-- Bluesky inline form -->

@@ -3,8 +3,10 @@ const {
   newUrl,
   isAdding,
   discovering,
+  detecting,
   error: feedError,
   add,
+  confirmAdd,
   load,
 } = useFeeds();
 onMounted(() => {
@@ -23,7 +25,9 @@ const {
 
 const emit = defineEmits(["feed-added"]);
 
-const busy = computed(() => isAdding.value || discovering.value);
+const busy = computed(
+  () => isAdding.value || discovering.value || detecting.value,
+);
 
 const blueskyHandle = ref("");
 const blueskyPassword = ref("");
@@ -37,6 +41,12 @@ function iconForProvider(id) {
 
 async function handleAdd() {
   await add();
+  if (feedError.value) {
+    return;
+  }
+  // Onboarding skips the source-type confirmation dialog and auto-confirms
+  // with whatever the server detected (rss or podcast).
+  await confirmAdd();
   if (!feedError.value) {
     emit("feed-added");
   }
@@ -137,7 +147,10 @@ function cancelBluesky() {
             <RIcon :name="iconForProvider(conn.id)" :size="20" />
           </span>
           <div class="info">
-            <div class="nm">{{ conn.name }}</div>
+            <div class="nm">
+              {{ conn.name }}
+              <span v-if="conn.connected" class="live"></span>
+            </div>
             <div class="ds">{{ conn.desc }}</div>
           </div>
           <button
@@ -367,6 +380,18 @@ function cancelBluesky() {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--src-rss);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--src-rss) 25%, transparent);
+  flex-shrink: 0;
 }
 
 .ob-src .ds {

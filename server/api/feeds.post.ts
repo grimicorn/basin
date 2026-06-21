@@ -94,6 +94,10 @@ export default defineEventHandler(async (event) => {
       source: resolvedSource,
       sourceOverride: sourceOverride ?? null,
     })
+    .onConflictDoUpdate({
+      target: [feeds.userId, feeds.url],
+      set: { source: resolvedSource, sourceOverride: sourceOverride ?? null },
+    })
     .returning();
 
   return { ...feed, detectedSource };

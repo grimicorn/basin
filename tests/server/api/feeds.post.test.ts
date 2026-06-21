@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockReturning = vi.fn();
+const mockOnConflictDoUpdate = vi.fn();
 const mockValues = vi.fn();
 const mockInsert = vi.fn();
 
@@ -41,7 +42,8 @@ describe("POST /api/feeds", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockInsert.mockReturnValue({ values: mockValues });
-    mockValues.mockReturnValue({ returning: mockReturning });
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockOnConflictDoUpdate.mockReturnValue({ returning: mockReturning });
     mockValidateFeedContent.mockResolvedValue(true);
     mockFetchFeedBody.mockResolvedValue(RSS_BODY);
     mockDetectFeedSource.mockReturnValue("rss");

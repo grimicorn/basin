@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { shallowMount } from "@vue/test-utils";
+import { shallowMount, flushPromises } from "@vue/test-utils";
 import DashboardOnboarding from "~/components/DashboardOnboarding.vue";
 import { makeConnection } from "../fixtures";
 
@@ -11,6 +11,7 @@ const bsConn = makeConnection({
 });
 
 const mockAdd = vi.fn();
+const mockConfirmAdd = vi.fn();
 const mockConnect = vi.fn();
 const mockConnectBluesky = vi.fn();
 const mockLoad = vi.fn();
@@ -20,8 +21,10 @@ function stubFeeds(overrides = {}) {
     newUrl: ref(""),
     isAdding: ref(false),
     discovering: ref(false),
+    detecting: ref(false),
     error: ref(null),
     add: mockAdd,
+    confirmAdd: mockConfirmAdd,
     load: mockLoad,
     ...overrides,
   }));
@@ -133,9 +136,10 @@ describe("DashboardOnboarding", () => {
 
   it("emits feed-added after a successful add", async () => {
     mockAdd.mockResolvedValue(undefined);
+    mockConfirmAdd.mockResolvedValue(undefined);
     const wrapper = shallowMount(DashboardOnboarding);
     await wrapper.find("form").trigger("submit");
-    await wrapper.vm.$nextTick();
+    await flushPromises();
     expect(wrapper.emitted("feed-added")).toBeTruthy();
   });
 

@@ -43,6 +43,13 @@
       "when": 1748000005000,
       "tag": "0005_fix_source_override_idempotent",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1748000006000,
+      "tag": "0006_add_feed_items_unique_index",
+      "breakpoints": true
     }
   ]
 }

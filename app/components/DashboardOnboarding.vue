@@ -7,12 +7,16 @@ const {
   add,
   load,
 } = useFeeds();
-onMounted(load);
+onMounted(() => {
+  load();
+  loadConnections();
+});
 
 const {
   items: connections,
   loading: connLoading,
   error: connError,
+  load: loadConnections,
   connect,
   connectBluesky,
 } = useConnections();

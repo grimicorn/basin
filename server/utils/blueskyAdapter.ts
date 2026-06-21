@@ -14,6 +14,10 @@ const TITLE_MAX_CHARS = 100;
 // Bluesky limits timeline pages to 100 posts; use a safe default.
 const PAGE_LIMIT = 50;
 
+// Safety cap for serverless environments: stop paginating after this many pages
+// to avoid timeout or memory exhaustion on first sync or very old watermarks.
+const MAX_PAGES = 100;
+
 export interface BlueskyCredentials {
   identifier: string;
   appPassword: string;
@@ -154,13 +158,24 @@ function isPostAfterWatermark(
   feedPost: AppBskyFeedDefs.FeedViewPost,
   watermark: Date,
 ): boolean {
+  // Prefer indexedAt (server-assigned) over record.createdAt (client-authored)
+  // to avoid skewing caused by future-dated or manipulated client timestamps.
   const record = feedPost.post.record as { createdAt?: string };
-  if (!record.createdAt) {
-    return true;
+  const candidate = feedPost.post.indexedAt ?? record.createdAt;
+
+  if (!candidate) {
+    return false;
   }
 
-  const postDate = new Date(record.createdAt);
-  return postDate > watermark;
+  const postDate = new Date(candidate);
+
+  if (Number.isNaN(postDate.getTime())) {
+    return false;
+  }
+
+  // Use >= so posts created at exactly the watermark boundary are included
+  // rather than silently dropped on the boundary edge.
+  return postDate >= watermark;
 }
 
 export async function createAgentSession(
@@ -215,12 +230,14 @@ export async function fetchNewBlueskyPosts(
   const agent = await deps.createSession(credentials);
   const items: NewFeedItem[] = [];
   let cursor: string | undefined;
+  let pagesFetched = 0;
 
   // If no watermark, use the epoch so everything is included (first sync).
   const watermark = lastSyncedAt ?? new Date(0);
 
-  while (true) {
+  while (pagesFetched < MAX_PAGES) {
     const page = await deps.getTimeline(agent, cursor);
+    pagesFetched += 1;
 
     if (page.feed.length === 0) {
       break;

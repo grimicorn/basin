@@ -86,11 +86,14 @@ async function upsertFeedItems(
   return result.length;
 }
 
-async function markFeedSynced(feedId: number): Promise<void> {
+async function markFeedSynced(
+  feedId: number,
+  syncedAt = new Date(),
+): Promise<void> {
   const db = createDb();
   await db
     .update(feeds)
-    .set({ lastFetched: new Date() })
+    .set({ lastFetched: syncedAt })
     .where(eq(feeds.id, feedId));
 }
 
@@ -127,7 +130,7 @@ async function syncBlueskyFeed(
   const credentials: BlueskyCredentials = {
     identifier: integration.providerUsername,
     appPassword: integration.tokenSecret,
-    accessJwt: integration.accessToken,
+    accessJwt: integration.accessToken ?? "",
     refreshJwt: integration.refreshToken ?? "",
     did: integration.providerAccountId ?? "",
   };
@@ -143,12 +146,11 @@ async function syncBlueskyFeed(
 }
 
 async function runAdapter(
-  sourceType: string,
   feedId: number,
   userId: number,
   feed: FeedRecord,
 ): Promise<number> {
-  if (sourceType === BLUESKY_SOURCE) {
+  if (feed.source === BLUESKY_SOURCE) {
     return syncBlueskyFeed(feedId, userId, feed.lastFetched);
   }
 
@@ -201,9 +203,14 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     }),
   );
 
+  // Capture the sync-start time before reading any pages so the watermark never
+  // advances past what was actually read. A post created after the first
+  // timeline page but before completion would otherwise be skipped forever.
+  const syncStartedAt = new Date();
+
   let itemsSynced: number;
   try {
-    itemsSynced = await runAdapter(sourceType, feedId, userId, feed);
+    itemsSynced = await runAdapter(feedId, userId, feed);
   } catch (error) {
     // ErrorDoNotRetry from adapters must propagate without wrapping.
     if (error instanceof ErrorDoNotRetry) {
@@ -234,7 +241,7 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     });
   }
 
-  await markFeedSynced(feedId);
+  await markFeedSynced(feedId, syncStartedAt);
 
   console.log(
     JSON.stringify({

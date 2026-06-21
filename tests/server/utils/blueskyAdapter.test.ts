@@ -373,6 +373,9 @@ describe("fetchNewBlueskyPosts", () => {
         makePost({
           post: {
             ...makePost().post,
+            // Set indexedAt to the same value as createdAt so watermark logic
+            // (which prefers indexedAt) behaves deterministically in tests.
+            indexedAt: date,
             record: {
               $type: "app.bsky.feed.post",
               text: `Post from ${date}`,
@@ -636,5 +639,117 @@ describe("fetchNewBlueskyPosts", () => {
     );
 
     expect(items).toHaveLength(0);
+  });
+
+  it("uses indexedAt (server-assigned) rather than record.createdAt for the watermark cutoff", async () => {
+    // indexedAt is before the watermark but createdAt is after — post should be excluded
+    // because the server says it was indexed before the watermark.
+    const watermark = new Date("2024-06-01T12:00:00.000Z");
+
+    mockDeps.getTimeline.mockResolvedValueOnce({
+      feed: [
+        makePost({
+          post: {
+            ...makePost().post,
+            indexedAt: "2024-06-01T11:00:00.000Z", // server-assigned — before watermark
+            record: {
+              $type: "app.bsky.feed.post",
+              text: "Future-dated post",
+              createdAt: "2024-06-01T13:00:00.000Z", // client-authored — after watermark
+            },
+          },
+        }),
+      ],
+    });
+
+    const items = await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      watermark,
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+    );
+
+    expect(items).toHaveLength(0);
+  });
+
+  it("includes a post at the exact watermark boundary (>= comparison)", async () => {
+    const watermark = new Date("2024-06-01T10:00:00.000Z");
+
+    mockDeps.getTimeline.mockResolvedValueOnce({
+      feed: [
+        makePost({
+          post: {
+            ...makePost().post,
+            indexedAt: "2024-06-01T10:00:00.000Z", // exactly at the watermark
+            record: {
+              $type: "app.bsky.feed.post",
+              text: "Boundary post",
+              createdAt: "2024-06-01T10:00:00.000Z",
+            },
+          },
+        }),
+      ],
+    });
+
+    const items = await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      watermark,
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+    );
+
+    expect(items).toHaveLength(1);
+  });
+
+  it("falls back to record.createdAt when indexedAt is absent", async () => {
+    const watermark = new Date("2024-06-01T09:00:00.000Z");
+
+    const postWithoutIndexedAt = makePost({
+      post: {
+        ...makePost().post,
+        indexedAt: undefined,
+        record: {
+          $type: "app.bsky.feed.post",
+          text: "No indexedAt post",
+          createdAt: "2024-06-01T10:00:00.000Z",
+        },
+      },
+    });
+
+    mockDeps.getTimeline.mockResolvedValueOnce({
+      feed: [postWithoutIndexedAt],
+    });
+
+    const items = await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      watermark,
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+    );
+
+    expect(items).toHaveLength(1);
+  });
+
+  it("stops fetching after 100 pages to prevent serverless timeout", async () => {
+    const watermark = new Date("2020-01-01T00:00:00.000Z");
+
+    // Every page returns a post after the watermark and a cursor so pagination
+    // would continue indefinitely without a cap.
+    mockDeps.getTimeline.mockResolvedValue(
+      makePagedTimeline(["2024-06-01T10:00:00.000Z"], "next-cursor"),
+    );
+
+    await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      watermark,
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+    );
+
+    expect(mockDeps.getTimeline).toHaveBeenCalledTimes(100);
   });
 });

@@ -35,6 +35,9 @@ export default defineEventHandler(async (event) => {
       provider: "bluesky",
       accessToken: session.accessJwt,
       refreshToken: session.refreshJwt,
+      // App password stored in tokenSecret so the sync worker can re-authenticate
+      // when both the access and refresh JWTs have expired.
+      tokenSecret: appPassword,
       providerAccountId: session.did,
       providerUsername: session.handle,
     })
@@ -43,6 +46,7 @@ export default defineEventHandler(async (event) => {
       set: {
         accessToken: session.accessJwt,
         refreshToken: session.refreshJwt,
+        tokenSecret: appPassword,
         providerAccountId: session.did,
         providerUsername: session.handle,
         updatedAt: new Date(),

@@ -136,6 +136,49 @@ describe("refreshAccessToken", () => {
     );
   });
 
+  it("throws when expires_in is missing from the response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ access_token: "tok" }),
+    });
+
+    await expect(refreshAccessToken("r", "c", "s")).rejects.toThrow(
+      "missing/invalid expires_in",
+    );
+  });
+
+  it("throws when expires_in is zero or negative", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          access_token: "tok",
+          expires_in: 0,
+          token_type: "Bearer",
+        }),
+    });
+
+    await expect(refreshAccessToken("r", "c", "s")).rejects.toThrow(
+      "missing/invalid expires_in",
+    );
+  });
+
+  it("throws when expires_in is non-numeric", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          access_token: "tok",
+          expires_in: "not-a-number",
+          token_type: "Bearer",
+        }),
+    });
+
+    await expect(refreshAccessToken("r", "c", "s")).rejects.toThrow(
+      "missing/invalid expires_in",
+    );
+  });
+
   it("sets expiresAt approximately expires_in seconds from now", async () => {
     const before = Date.now();
     mockFetch.mockResolvedValue({

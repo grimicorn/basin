@@ -84,6 +84,10 @@ export async function refreshAccessToken(
     throw new Error("Token refresh response missing access_token");
   }
 
+  if (!Number.isFinite(data.expires_in) || data.expires_in <= 0) {
+    throw new Error("Token refresh response missing/invalid expires_in");
+  }
+
   const expiresAt = new Date(Date.now() + data.expires_in * 1000);
 
   return { accessToken: data.access_token, expiresAt };

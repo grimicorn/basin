@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const {
   mockFindFirst,
@@ -319,6 +319,10 @@ describe("sync-feed workload", () => {
 // --- YouTube branch ---
 
 describe("sync-feed workload — YouTube source", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.resetAllMocks();
 
@@ -368,8 +372,8 @@ describe("sync-feed workload — YouTube source", () => {
       expiresAt: new Date(Date.now() + 3_600_000),
     });
 
-    process.env.NUXT_GOOGLE_CLIENT_ID = "test-client-id";
-    process.env.NUXT_GOOGLE_CLIENT_SECRET = "test-client-secret";
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "test-client-id");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "test-client-secret");
 
     await (handler as Function)(makeYouTubeEvent());
 
@@ -377,6 +381,9 @@ describe("sync-feed workload — YouTube source", () => {
       "refresh-token",
       "test-client-id",
       "test-client-secret",
+    );
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "fresh-token" }),
     );
     expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
   });

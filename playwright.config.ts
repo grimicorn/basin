@@ -57,20 +57,9 @@ export default defineConfig({
     {
       name: "chromium",
       dependencies: ["setup"],
-      teardown: "account",
-      // Exclude files that belong exclusively to other projects so they don't
-      // run twice with the wrong auth state.
-      testIgnore: [/auth-unauth\.spec\.ts/, /account\.spec\.ts/],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "e2e/.auth/user.json",
-      },
-    },
-    // Teardown project — runs after all "chromium" tests. Tests here may sign
-    // out (killing the Clerk FAPI session), so nothing else should depend on them.
-    {
-      name: "account",
-      testMatch: /account\.spec\.ts/,
+      // auth-unauth.spec.ts belongs to the "unauthenticated" project above.
+      // All other specs — including account.spec.ts — run here with auth state.
+      testIgnore: [/auth-unauth\.spec\.ts/],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",

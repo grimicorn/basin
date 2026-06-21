@@ -7,6 +7,7 @@ import type { AsyncWorkloadConfig } from "@netlify/async-workloads";
 import { eq, and } from "drizzle-orm";
 import { feeds, feedItems } from "../../server/db/schema";
 import { parseRssFeed } from "../../server/utils/rssAdapter";
+import { parsePodcastFeed } from "../../server/utils/podcastAdapter";
 import { createDb } from "./db";
 import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEvent } from "./types";
@@ -66,6 +67,25 @@ async function syncRssFeed(feedId: number, feedUrl: string): Promise<number> {
   return upsertFeedItems(feedId, items);
 }
 
+async function syncPodcastFeed(
+  feedId: number,
+  feedUrl: string,
+): Promise<number> {
+  const items = await parsePodcastFeed(feedUrl, feedId);
+  return upsertFeedItems(feedId, items);
+}
+
+function dispatchSync(
+  sourceType: string,
+  feedId: number,
+  feedUrl: string,
+): Promise<number> {
+  if (sourceType === "podcast") {
+    return syncPodcastFeed(feedId, feedUrl);
+  }
+  return syncRssFeed(feedId, feedUrl);
+}
+
 export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
   const { userId, feedId, sourceType, mode } = event.eventData;
 
@@ -114,7 +134,7 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
 
   let itemsSynced: number;
   try {
-    itemsSynced = await syncRssFeed(feedId, feed.url);
+    itemsSynced = await dispatchSync(sourceType, feedId, feed.url);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(

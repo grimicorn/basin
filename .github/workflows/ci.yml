@@ -110,16 +110,24 @@ jobs:
 
       - name: Create Neon branch
         id: neon
-        uses: neondatabase/create-neon-branch@v5
-        with:
-          project_id: ${{ secrets.NEON_PROJECT_ID }}
-          api_key: ${{ secrets.NEON_API_KEY }}
-          branch_name: ${{ steps.branch.outputs.name }}
+        run: |
+          response=$(curl -sf \
+            --request POST \
+            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+            --header "Authorization: Bearer ${NEON_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")
+          echo "branch_id=$(echo "$response" | jq -r '.branch.id')" >> $GITHUB_OUTPUT
+          echo "db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler')" >> $GITHUB_OUTPUT
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
 
       - name: Run e2e tests
         run: npx playwright test e2e/tests/${{ matrix.spec }}
         env:
-          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url_with_pooler }}
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
           NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           NUXT_CLERK_SECRET_KEY: ${{ secrets.NUXT_CLERK_SECRET_KEY }}
           NUXT_GOOGLE_CLIENT_ID: ${{ secrets.NUXT_GOOGLE_CLIENT_ID }}
@@ -132,11 +140,15 @@ jobs:
 
       - name: Delete Neon branch
         if: always()
-        uses: neondatabase/delete-neon-branch@v3
-        with:
-          project_id: ${{ secrets.NEON_PROJECT_ID }}
-          api_key: ${{ secrets.NEON_API_KEY }}
-          branch: ${{ steps.branch.outputs.name }}
+        run: |
+          curl -sf \
+            --request DELETE \
+            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
+            --header "Authorization: Bearer ${NEON_API_KEY}"
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
 
       - name: Upload test report
         uses: actions/upload-artifact@v4

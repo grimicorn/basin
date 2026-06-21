@@ -65,6 +65,9 @@ export const feedItems = pgTable(
     readAt: timestamp("read_at"),
     starred: boolean("starred").default(false),
     savedAt: timestamp("saved_at"),
+    // Podcast-specific fields — null for non-podcast feed items.
+    mediaUrl: text("media_url"),
+    mediaDuration: integer("media_duration"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
     searchVector: tsvector("search_vector"),

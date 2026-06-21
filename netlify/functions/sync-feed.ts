@@ -8,6 +8,11 @@ import { eq, and } from "drizzle-orm";
 import { feeds, feedItems, integrations } from "../../server/db/schema";
 import { parseRssFeed } from "../../server/utils/rssAdapter";
 import {
+  isTokenExpired,
+  refreshAccessToken,
+  fetchNewUploadsForChannel,
+} from "../../server/utils/youtubeAdapter";
+import {
   fetchNewBlueskyPosts,
   BLUESKY_SOURCE,
   DEFAULT_POST_FILTER_POLICY,
@@ -18,11 +23,17 @@ import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEvent } from "./types";
 
 // Supported source types — expand as new adapters are added.
-const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast", BLUESKY_SOURCE]);
+const SUPPORTED_SOURCE_TYPES = new Set([
+  "rss",
+  "podcast",
+  "youtube",
+  BLUESKY_SOURCE,
+]);
 
 type FeedRecord = {
   id: number;
   url: string;
+  title: string | null;
   source: string;
   lastFetched: Date | null;
 };
@@ -37,6 +48,7 @@ async function fetchFeedRecord(
     columns: {
       id: true,
       url: true,
+      title: true,
       source: true,
       lastFetched: true,
     },
@@ -102,6 +114,101 @@ async function syncRssFeed(feedId: number, feedUrl: string): Promise<number> {
   return upsertFeedItems(feedId, items);
 }
 
+async function fetchYouTubeIntegration(userId: number) {
+  const db = createDb();
+  return db.query.integrations.findFirst({
+    where: and(
+      eq(integrations.userId, userId),
+      eq(integrations.provider, "youtube"),
+    ),
+    columns: {
+      id: true,
+      accessToken: true,
+      refreshToken: true,
+      expiresAt: true,
+    },
+  });
+}
+
+async function persistRefreshedToken(
+  integrationId: number,
+  accessToken: string,
+  expiresAt: Date,
+): Promise<void> {
+  const db = createDb();
+  await db
+    .update(integrations)
+    .set({ accessToken, expiresAt, updatedAt: new Date() })
+    .where(eq(integrations.id, integrationId));
+}
+
+async function resolveValidAccessToken(
+  integration: NonNullable<Awaited<ReturnType<typeof fetchYouTubeIntegration>>>,
+): Promise<string> {
+  if (!isTokenExpired(integration.expiresAt)) {
+    return integration.accessToken;
+  }
+
+  if (!integration.refreshToken) {
+    throw new ErrorDoNotRetry(
+      "YouTube access token expired and no refresh token is stored. Re-connect your YouTube account.",
+    );
+  }
+
+  const clientId = process.env.NUXT_GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.NUXT_GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new ErrorDoNotRetry(
+      "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
+    );
+  }
+
+  const refreshed = await refreshAccessToken(
+    integration.refreshToken,
+    clientId,
+    clientSecret,
+  );
+
+  await persistRefreshedToken(
+    integration.id,
+    refreshed.accessToken,
+    refreshed.expiresAt,
+  );
+
+  return refreshed.accessToken;
+}
+
+async function syncYouTubeFeed(
+  feedId: number,
+  channelId: string,
+  channelTitle: string | null,
+  lastSyncedAt: Date | null,
+  userId: number,
+): Promise<number> {
+  const integration = await fetchYouTubeIntegration(userId);
+
+  if (!integration) {
+    throw new ErrorDoNotRetry(
+      `No YouTube integration found for user ${userId}. Re-connect your YouTube account.`,
+    );
+  }
+
+  // Resolve (and refresh if needed) the access token so it stays current.
+  // Even though we use the no-quota RSS feed for uploads, keeping the token
+  // fresh ensures the subscriptions API works on subsequent calls.
+  await resolveValidAccessToken(integration);
+
+  const newItems = await fetchNewUploadsForChannel(
+    channelId,
+    feedId,
+    channelTitle ?? channelId,
+    lastSyncedAt,
+  );
+
+  return upsertFeedItems(feedId, newItems);
+}
+
 async function syncBlueskyFeed(
   feedId: number,
   userId: number,
@@ -150,6 +257,16 @@ async function runAdapter(
   userId: number,
   feed: FeedRecord,
 ): Promise<number> {
+  if (feed.source === "youtube") {
+    return syncYouTubeFeed(
+      feed.id,
+      feed.url,
+      feed.title,
+      feed.lastFetched,
+      userId,
+    );
+  }
+
   if (feed.source === BLUESKY_SOURCE) {
     return syncBlueskyFeed(feedId, userId, feed.lastFetched);
   }

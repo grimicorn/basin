@@ -5,7 +5,7 @@ import { SYNC_FEED_EVENT_NAME } from "../../netlify/functions/types";
 import type { SyncFeedEventData } from "../../netlify/functions/types";
 
 // Source types eligible for on-demand sync via async workloads.
-const SYNCABLE_SOURCE_TYPES = ["rss", "podcast", "bluesky"] as const;
+const SYNCABLE_SOURCE_TYPES = ["rss", "podcast", "youtube", "bluesky"] as const;
 
 // On-demand events run at elevated priority so users see results faster.
 const ON_DEMAND_PRIORITY = 25;

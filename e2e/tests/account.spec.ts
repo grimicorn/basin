@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 
 const TEST_USER_EMAIL = "e2e-test@reader-app.dev";
 
-// These tests run in the "account" teardown project, which executes AFTER all
-// "chromium" tests finish. The logout test terminates the Clerk FAPI session, so
-// it must run last — after that, the stored auth state is stale.
+// These tests run in the "chromium" project in their own isolated CI shard,
+// each with a dedicated Neon branch. The logout test terminates the Clerk FAPI
+// session, but since each shard is isolated that has no impact on other specs.
 test.describe("Settings > Account", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/settings/account");

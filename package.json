@@ -30,11 +30,14 @@
     "@clerk/nuxt": "^2.5.3",
     "@electric-sql/pglite": "^0.5.1",
     "@neondatabase/serverless": "^1.1.0",
+    "@netlify/async-workloads": "^0.0.106",
+    "@netlify/functions": "^5.3.0",
     "@pinia/nuxt": "^0.11.3",
     "@sentry/nuxt": "^10.57.0",
     "drizzle-orm": "^0.45.2",
     "nuxt": "^4.0.0",
-    "pinia": "^3.0.4"
+    "pinia": "^3.0.4",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@clerk/backend": "^3.5.0",

@@ -1,5 +1,10 @@
 {
-  "entry": ["app/app.vue", "server/**/*.ts", "tests/__mocks__/**"],
+  "entry": [
+    "app/app.vue",
+    "server/**/*.ts",
+    "netlify/functions/**/*.ts",
+    "tests/__mocks__/**"
+  ],
   "duplicates": {
     "minOccurrences": 3,
     "ignore": ["*.test.*"]

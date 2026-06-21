@@ -1,5 +1,50 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`SettingsFeeds > detection confirmation UI > matches snapshot with detect-confirm visible 1`] = `
+"<section class="set-section">
+  <h2>RSS &amp; Podcasts</h2>
+  <p class="desc"> Paste a feed URL or a plain website address — Reader will find the feed automatically. </p>
+  <!--v-if-->
+  <div class="add-feed">
+    <div class="field">
+      <r-icon-stub name="rss" size="16"></r-icon-stub><input placeholder="https://example.com or https://example.com/feed.xml" disabled="">
+    </div><button class="btn btn-primary" disabled="">
+      <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
+    </button>
+  </div>
+  <div class="detect-confirm">
+    <p class="detect-label"> Detected: <strong>Podcast</strong></p>
+    <div class="detect-override"><label for="source-override">Override type:</label><select id="source-override">
+        <option>Podcast (detected)</option>
+        <option value="rss">RSS</option>
+        <option value="podcast">Podcast</option>
+      </select></div>
+    <div class="detect-actions"><button class="btn btn-primary">
+        <r-icon-stub name="plus" size="16"></r-icon-stub> Add as Podcast
+      </button><button class="btn"> Cancel </button></div>
+  </div>
+  <div class="feed-list">
+    <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
+      <div class="feed-info">
+        <div class="feed-name">Test Feed</div>
+        <div class="feed-url">https://example.com/feed.xml</div>
+      </div><button class="icon-btn" title="Remove">
+        <r-icon-stub name="trash" size="16"></r-icon-stub>
+      </button>
+    </div>
+    <div class="feed-row"><span class="feed-ic" style="--c: var(--src-podcast);"><r-icon-stub name="mic" size="16"></r-icon-stub></span>
+      <div class="feed-info">
+        <div class="feed-name">https://podcast.example.com/feed</div>
+        <div class="feed-url">https://podcast.example.com/feed</div>
+      </div><button class="icon-btn" title="Remove">
+        <r-icon-stub name="trash" size="16"></r-icon-stub>
+      </button>
+    </div>
+    <!--v-if-->
+  </div>
+</section>"
+`;
+
 exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
 "<section class="set-section">
   <h2>RSS &amp; Podcasts</h2>
@@ -9,6 +54,7 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
       <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
     </button>
   </div>
+  <!--v-if-->
   <div class="feed-list">
     <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
       <div class="feed-info">
@@ -40,6 +86,7 @@ exports[`SettingsFeeds > shows empty state when there are no feeds 1`] = `
       <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
     </button>
   </div>
+  <!--v-if-->
   <div class="feed-list">
     <p class="desc">No feeds added yet.</p>
   </div>

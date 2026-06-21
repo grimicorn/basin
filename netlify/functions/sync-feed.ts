@@ -5,16 +5,32 @@ import {
 } from "@netlify/async-workloads";
 import type { AsyncWorkloadConfig } from "@netlify/async-workloads";
 import { eq, and } from "drizzle-orm";
-import { feeds, feedItems } from "../../server/db/schema";
+import { feeds, feedItems, integrations } from "../../server/db/schema";
 import { parseRssFeed } from "../../server/utils/rssAdapter";
+import {
+  fetchNewBlueskyPosts,
+  BLUESKY_SOURCE,
+  DEFAULT_POST_FILTER_POLICY,
+} from "../../server/utils/blueskyAdapter";
+import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
 import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEvent } from "./types";
 
 // Supported source types — expand as new adapters are added.
-const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast"]);
+const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast", BLUESKY_SOURCE]);
 
-async function fetchFeedRecord(feedId: number, userId: number) {
+type FeedRecord = {
+  id: number;
+  url: string;
+  source: string;
+  lastFetched: Date | null;
+};
+
+async function fetchFeedRecord(
+  feedId: number,
+  userId: number,
+): Promise<FeedRecord | undefined> {
   const db = createDb();
   return db.query.feeds.findFirst({
     where: and(eq(feeds.id, feedId), eq(feeds.userId, userId)),
@@ -23,6 +39,23 @@ async function fetchFeedRecord(feedId: number, userId: number) {
       url: true,
       source: true,
       lastFetched: true,
+    },
+  });
+}
+
+async function fetchBlueskyIntegration(userId: number) {
+  const db = createDb();
+  return db.query.integrations.findFirst({
+    where: and(
+      eq(integrations.userId, userId),
+      eq(integrations.provider, "bluesky"),
+    ),
+    columns: {
+      accessToken: true,
+      refreshToken: true,
+      tokenSecret: true,
+      providerAccountId: true,
+      providerUsername: true,
     },
   });
 }
@@ -64,6 +97,62 @@ async function markFeedSynced(feedId: number): Promise<void> {
 async function syncRssFeed(feedId: number, feedUrl: string): Promise<number> {
   const items = await parseRssFeed(feedUrl, feedId);
   return upsertFeedItems(feedId, items);
+}
+
+async function syncBlueskyFeed(
+  feedId: number,
+  userId: number,
+  lastFetched: Date | null,
+): Promise<number> {
+  const integration = await fetchBlueskyIntegration(userId);
+
+  if (!integration) {
+    throw new ErrorDoNotRetry(
+      `No Bluesky integration found for user ${userId}. Connect Bluesky in Settings first.`,
+    );
+  }
+
+  if (!integration.tokenSecret) {
+    throw new ErrorDoNotRetry(
+      `Bluesky integration for user ${userId} is missing the app password. Reconnect Bluesky in Settings.`,
+    );
+  }
+
+  if (!integration.providerUsername) {
+    throw new ErrorDoNotRetry(
+      `Bluesky integration for user ${userId} is missing the username. Reconnect Bluesky in Settings.`,
+    );
+  }
+
+  const credentials: BlueskyCredentials = {
+    identifier: integration.providerUsername,
+    appPassword: integration.tokenSecret,
+    accessJwt: integration.accessToken,
+    refreshJwt: integration.refreshToken ?? "",
+    did: integration.providerAccountId ?? "",
+  };
+
+  const items = await fetchNewBlueskyPosts(
+    credentials,
+    feedId,
+    lastFetched,
+    DEFAULT_POST_FILTER_POLICY,
+  );
+
+  return upsertFeedItems(feedId, items);
+}
+
+async function runAdapter(
+  sourceType: string,
+  feedId: number,
+  userId: number,
+  feed: FeedRecord,
+): Promise<number> {
+  if (sourceType === BLUESKY_SOURCE) {
+    return syncBlueskyFeed(feedId, userId, feed.lastFetched);
+  }
+
+  return syncRssFeed(feedId, feed.url);
 }
 
 export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
@@ -114,8 +203,13 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
 
   let itemsSynced: number;
   try {
-    itemsSynced = await syncRssFeed(feedId, feed.url);
+    itemsSynced = await runAdapter(sourceType, feedId, userId, feed);
   } catch (error) {
+    // ErrorDoNotRetry from adapters must propagate without wrapping.
+    if (error instanceof ErrorDoNotRetry) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     console.error(
       JSON.stringify({
@@ -134,7 +228,7 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     }
 
     throw new ErrorRetryAfterDelay({
-      message: `RSS fetch failed for feed ${feedId}: ${message}`,
+      message: `Feed sync failed for feed ${feedId} (${sourceType}): ${message}`,
       retryDelay: "30s",
       forceDelayTime: false,
     });

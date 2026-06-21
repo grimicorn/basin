@@ -117,8 +117,15 @@ jobs:
             --header "Authorization: Bearer ${NEON_API_KEY}" \
             --header "Content-Type: application/json" \
             --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")
-          echo "branch_id=$(echo "$response" | jq -r '.branch.id')" >> $GITHUB_OUTPUT
-          echo "db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler')" >> $GITHUB_OUTPUT
+          branch_id=$(echo "$response" | jq -r '.branch.id')
+          db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri')
+          if [ "$db_url" = "null" ] || [ -z "$db_url" ]; then
+            echo "Neon API did not return a connection URI. Full response:"
+            echo "$response" | jq '.'
+            exit 1
+          fi
+          echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
+          echo "db_url=$db_url" >> $GITHUB_OUTPUT
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}

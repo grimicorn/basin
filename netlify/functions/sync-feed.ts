@@ -5,25 +5,70 @@ import {
 } from "@netlify/async-workloads";
 import type { AsyncWorkloadConfig } from "@netlify/async-workloads";
 import { eq, and } from "drizzle-orm";
-import { feeds, feedItems } from "../../server/db/schema";
+import { feeds, feedItems, integrations } from "../../server/db/schema";
 import { parseRssFeed } from "../../server/utils/rssAdapter";
 import { parsePodcastFeed } from "../../server/utils/podcastAdapter";
+import {
+  isTokenExpired,
+  refreshAccessToken,
+  fetchNewUploadsForChannel,
+} from "../../server/utils/youtubeAdapter";
+import {
+  fetchNewBlueskyPosts,
+  BLUESKY_SOURCE,
+  DEFAULT_POST_FILTER_POLICY,
+} from "../../server/utils/blueskyAdapter";
+import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
 import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEvent } from "./types";
 
 // Supported source types — expand as new adapters are added.
-const SUPPORTED_SOURCE_TYPES = new Set(["rss", "podcast"]);
+const SUPPORTED_SOURCE_TYPES = new Set([
+  "rss",
+  "podcast",
+  "youtube",
+  BLUESKY_SOURCE,
+]);
 
-async function fetchFeedRecord(feedId: number, userId: number) {
+type FeedRecord = {
+  id: number;
+  url: string;
+  title: string | null;
+  source: string;
+  lastFetched: Date | null;
+};
+
+async function fetchFeedRecord(
+  feedId: number,
+  userId: number,
+): Promise<FeedRecord | undefined> {
   const db = createDb();
   return db.query.feeds.findFirst({
     where: and(eq(feeds.id, feedId), eq(feeds.userId, userId)),
     columns: {
       id: true,
       url: true,
+      title: true,
       source: true,
       lastFetched: true,
+    },
+  });
+}
+
+async function fetchBlueskyIntegration(userId: number) {
+  const db = createDb();
+  return db.query.integrations.findFirst({
+    where: and(
+      eq(integrations.userId, userId),
+      eq(integrations.provider, "bluesky"),
+    ),
+    columns: {
+      accessToken: true,
+      refreshToken: true,
+      tokenSecret: true,
+      providerAccountId: true,
+      providerUsername: true,
     },
   });
 }
@@ -54,11 +99,14 @@ async function upsertFeedItems(
   return result.length;
 }
 
-async function markFeedSynced(feedId: number): Promise<void> {
+async function markFeedSynced(
+  feedId: number,
+  syncedAt = new Date(),
+): Promise<void> {
   const db = createDb();
   await db
     .update(feeds)
-    .set({ lastFetched: new Date() })
+    .set({ lastFetched: syncedAt })
     .where(eq(feeds.id, feedId));
 }
 
@@ -75,15 +123,168 @@ async function syncPodcastFeed(
   return upsertFeedItems(feedId, items);
 }
 
-function dispatchSync(
-  sourceType: string,
-  feedId: number,
-  feedUrl: string,
-): Promise<number> {
-  if (sourceType === "podcast") {
-    return syncPodcastFeed(feedId, feedUrl);
+async function fetchYouTubeIntegration(userId: number) {
+  const db = createDb();
+  return db.query.integrations.findFirst({
+    where: and(
+      eq(integrations.userId, userId),
+      eq(integrations.provider, "youtube"),
+    ),
+    columns: {
+      id: true,
+      accessToken: true,
+      refreshToken: true,
+      expiresAt: true,
+    },
+  });
+}
+
+async function persistRefreshedToken(
+  integrationId: number,
+  accessToken: string,
+  expiresAt: Date,
+): Promise<void> {
+  const db = createDb();
+  await db
+    .update(integrations)
+    .set({ accessToken, expiresAt, updatedAt: new Date() })
+    .where(eq(integrations.id, integrationId));
+}
+
+async function resolveValidAccessToken(
+  integration: NonNullable<Awaited<ReturnType<typeof fetchYouTubeIntegration>>>,
+): Promise<string> {
+  if (!isTokenExpired(integration.expiresAt)) {
+    return integration.accessToken;
   }
-  return syncRssFeed(feedId, feedUrl);
+
+  if (!integration.refreshToken) {
+    throw new ErrorDoNotRetry(
+      "YouTube access token expired and no refresh token is stored. Re-connect your YouTube account.",
+    );
+  }
+
+  const clientId = process.env.NUXT_GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.NUXT_GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new ErrorDoNotRetry(
+      "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
+    );
+  }
+
+  const refreshed = await refreshAccessToken(
+    integration.refreshToken,
+    clientId,
+    clientSecret,
+  );
+
+  await persistRefreshedToken(
+    integration.id,
+    refreshed.accessToken,
+    refreshed.expiresAt,
+  );
+
+  return refreshed.accessToken;
+}
+
+async function syncYouTubeFeed(
+  feedId: number,
+  channelId: string,
+  channelTitle: string | null,
+  lastSyncedAt: Date | null,
+  userId: number,
+): Promise<number> {
+  const integration = await fetchYouTubeIntegration(userId);
+
+  if (!integration) {
+    throw new ErrorDoNotRetry(
+      `No YouTube integration found for user ${userId}. Re-connect your YouTube account.`,
+    );
+  }
+
+  // Resolve (and refresh if needed) the access token so it stays current.
+  // Even though we use the no-quota RSS feed for uploads, keeping the token
+  // fresh ensures the subscriptions API works on subsequent calls.
+  await resolveValidAccessToken(integration);
+
+  const newItems = await fetchNewUploadsForChannel(
+    channelId,
+    feedId,
+    channelTitle ?? channelId,
+    lastSyncedAt,
+  );
+
+  return upsertFeedItems(feedId, newItems);
+}
+
+async function syncBlueskyFeed(
+  feedId: number,
+  userId: number,
+  lastFetched: Date | null,
+): Promise<number> {
+  const integration = await fetchBlueskyIntegration(userId);
+
+  if (!integration) {
+    throw new ErrorDoNotRetry(
+      `No Bluesky integration found for user ${userId}. Connect Bluesky in Settings first.`,
+    );
+  }
+
+  if (!integration.tokenSecret) {
+    throw new ErrorDoNotRetry(
+      `Bluesky integration for user ${userId} is missing the app password. Reconnect Bluesky in Settings.`,
+    );
+  }
+
+  if (!integration.providerUsername) {
+    throw new ErrorDoNotRetry(
+      `Bluesky integration for user ${userId} is missing the username. Reconnect Bluesky in Settings.`,
+    );
+  }
+
+  const credentials: BlueskyCredentials = {
+    identifier: integration.providerUsername,
+    appPassword: integration.tokenSecret,
+    accessJwt: integration.accessToken ?? "",
+    refreshJwt: integration.refreshToken ?? "",
+    did: integration.providerAccountId ?? "",
+  };
+
+  const items = await fetchNewBlueskyPosts(
+    credentials,
+    feedId,
+    lastFetched,
+    DEFAULT_POST_FILTER_POLICY,
+  );
+
+  return upsertFeedItems(feedId, items);
+}
+
+async function runAdapter(
+  feedId: number,
+  userId: number,
+  feed: FeedRecord,
+): Promise<number> {
+  if (feed.source === "podcast") {
+    return syncPodcastFeed(feedId, feed.url);
+  }
+
+  if (feed.source === "youtube") {
+    return syncYouTubeFeed(
+      feed.id,
+      feed.url,
+      feed.title,
+      feed.lastFetched,
+      userId,
+    );
+  }
+
+  if (feed.source === BLUESKY_SOURCE) {
+    return syncBlueskyFeed(feedId, userId, feed.lastFetched);
+  }
+
+  return syncRssFeed(feedId, feed.url);
 }
 
 export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
@@ -132,10 +333,20 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     }),
   );
 
+  // Capture the sync-start time before reading any pages so the watermark never
+  // advances past what was actually read. A post created after the first
+  // timeline page but before completion would otherwise be skipped forever.
+  const syncStartedAt = new Date();
+
   let itemsSynced: number;
   try {
-    itemsSynced = await dispatchSync(sourceType, feedId, feed.url);
+    itemsSynced = await runAdapter(feedId, userId, feed);
   } catch (error) {
+    // ErrorDoNotRetry from adapters must propagate without wrapping.
+    if (error instanceof ErrorDoNotRetry) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     console.error(
       JSON.stringify({
@@ -154,13 +365,13 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     }
 
     throw new ErrorRetryAfterDelay({
-      message: `RSS fetch failed for feed ${feedId}: ${message}`,
+      message: `Feed sync failed for feed ${feedId} (${sourceType}): ${message}`,
       retryDelay: "30s",
       forceDelayTime: false,
     });
   }
 
-  await markFeedSynced(feedId);
+  await markFeedSynced(feedId, syncStartedAt);
 
   console.log(
     JSON.stringify({

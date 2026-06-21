@@ -7,6 +7,7 @@ import type { AsyncWorkloadConfig } from "@netlify/async-workloads";
 import { eq, and } from "drizzle-orm";
 import { feeds, feedItems, integrations } from "../../server/db/schema";
 import { parseRssFeed } from "../../server/utils/rssAdapter";
+import { parsePodcastFeed } from "../../server/utils/podcastAdapter";
 import {
   isTokenExpired,
   refreshAccessToken,
@@ -111,6 +112,14 @@ async function markFeedSynced(
 
 async function syncRssFeed(feedId: number, feedUrl: string): Promise<number> {
   const items = await parseRssFeed(feedUrl, feedId);
+  return upsertFeedItems(feedId, items);
+}
+
+async function syncPodcastFeed(
+  feedId: number,
+  feedUrl: string,
+): Promise<number> {
+  const items = await parsePodcastFeed(feedUrl, feedId);
   return upsertFeedItems(feedId, items);
 }
 
@@ -257,6 +266,10 @@ async function runAdapter(
   userId: number,
   feed: FeedRecord,
 ): Promise<number> {
+  if (feed.source === "podcast") {
+    return syncPodcastFeed(feedId, feed.url);
+  }
+
   if (feed.source === "youtube") {
     return syncYouTubeFeed(
       feed.id,

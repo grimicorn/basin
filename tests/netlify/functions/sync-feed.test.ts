@@ -10,6 +10,7 @@ const {
   mockInsertOnConflict,
   mockInsertReturning,
   mockParseRssFeed,
+  mockParsePodcastFeed,
   mockFetchNewUploadsForChannel,
   mockIsTokenExpired,
   mockRefreshAccessToken,
@@ -23,6 +24,7 @@ const {
   mockInsertOnConflict: vi.fn(),
   mockInsertReturning: vi.fn(),
   mockParseRssFeed: vi.fn(),
+  mockParsePodcastFeed: vi.fn(),
   mockFetchNewUploadsForChannel: vi.fn(),
   mockIsTokenExpired: vi.fn(),
   mockRefreshAccessToken: vi.fn(),
@@ -41,6 +43,10 @@ vi.mock("../../../netlify/functions/db", () => ({
 
 vi.mock("../../../server/utils/rssAdapter", () => ({
   parseRssFeed: mockParseRssFeed,
+}));
+
+vi.mock("../../../server/utils/podcastAdapter", () => ({
+  parsePodcastFeed: mockParsePodcastFeed,
 }));
 
 vi.mock("../../../server/utils/youtubeAdapter", () => ({
@@ -186,6 +192,28 @@ describe("sync-feed workload", () => {
         starred: false,
         tags: null,
         searchVector: null,
+        mediaUrl: null,
+        mediaDuration: null,
+      },
+    ]);
+
+    mockParsePodcastFeed.mockResolvedValue([
+      {
+        feedId: 1,
+        guid: "urn:podcast:1",
+        title: "Episode 1",
+        url: "https://example.com/ep/1",
+        author: "My Podcast",
+        content: "Episode summary.",
+        imageUrl: "https://example.com/art.jpg",
+        publishedAt: new Date(),
+        savedAt: new Date(),
+        readAt: null,
+        starred: false,
+        tags: null,
+        searchVector: null,
+        mediaUrl: "https://cdn.example.com/ep1.mp3",
+        mediaDuration: 2730,
       },
     ]);
   });
@@ -313,6 +341,39 @@ describe("sync-feed workload", () => {
 
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispatches to parsePodcastFeed for a podcast source", async () => {
+    mockFindFirst.mockResolvedValue(
+      makeFeed({ source: "podcast", lastFetched: null }),
+    );
+
+    await (handler as Function)(
+      makeEvent({
+        eventData: {
+          userId: 1,
+          feedId: 1,
+          sourceType: "podcast",
+          mode: "scheduled",
+        },
+      }),
+    );
+
+    expect(mockParsePodcastFeed).toHaveBeenCalledWith(
+      "https://example.com/feed.xml",
+      1,
+    );
+    expect(mockParseRssFeed).not.toHaveBeenCalled();
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT dispatch parsePodcastFeed for an RSS source", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: null }));
+
+    await (handler as Function)(makeEvent());
+
+    expect(mockParseRssFeed).toHaveBeenCalledTimes(1);
+    expect(mockParsePodcastFeed).not.toHaveBeenCalled();
   });
 
   it("marks the feed synced with a timestamp captured before the adapter runs", async () => {

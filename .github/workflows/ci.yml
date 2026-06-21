@@ -61,28 +61,33 @@ jobs:
               - 'playwright.config.*'
               - 'package-lock.json'
 
+  discover-specs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      specs: ${{ steps.list.outputs.specs }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: List e2e spec files
+        id: list
+        run: |
+          specs=$(for f in e2e/tests/*.spec.ts; do basename "$f"; done | jq -R . | jq -sc .)
+          echo "specs=$specs" >> $GITHUB_OUTPUT
+
   e2e:
     runs-on: ubuntu-latest
-    needs: [ci, changes]
+    needs: [ci, changes, discover-specs]
     if: needs.changes.result == 'success' && needs.changes.outputs.src == 'true'
-    # Serialises e2e across all open PRs (shared Neon DB branch).
-    # cancel-in-progress: false lets a run finish so globalTeardown cleans up
-    # before the next PR's run starts. Note: workflow-level cancel-in-progress: true
-    # above will still cancel this job if a new commit is pushed to the SAME PR
-    # mid-run — job-level concurrency cannot override workflow-level cancellation.
-    # If globalSetup does a full truncate+reseed, this is safe; if not, the next
-    # PR run may inherit dirty DB state.
-    concurrency:
-      group: e2e-shared-db
-      cancel-in-progress: false
+    # fail-fast: false so a single spec failure doesn't cancel the other shards.
+    strategy:
+      fail-fast: false
+      matrix:
+        spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
     # Required repository secrets (Settings → Secrets → Actions):
-    #   E2E_DATABASE_URL              — Neon branch connection string (see .env.e2e.example)
-    #   NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-    #   NUXT_CLERK_SECRET_KEY
-    #   NUXT_GOOGLE_CLIENT_ID
-    #   NUXT_GOOGLE_CLIENT_SECRET
-    #   NUXT_INSTAGRAM_CLIENT_ID
-    #   NUXT_INSTAGRAM_CLIENT_SECRET
+    #   NEON_API_KEY, NEON_PROJECT_ID
+    #   NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY, NUXT_CLERK_SECRET_KEY
+    #   NUXT_GOOGLE_CLIENT_ID, NUXT_GOOGLE_CLIENT_SECRET
+    #   NUXT_INSTAGRAM_CLIENT_ID, NUXT_INSTAGRAM_CLIENT_SECRET
     steps:
       - uses: actions/checkout@v4
 
@@ -100,10 +105,41 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
-      - name: Run e2e tests
-        run: npm run e2e
+      - name: Compute Neon branch name
+        id: branch
+        run: |
+          name="ci-${{ github.run_id }}-${{ github.run_attempt }}-${SPEC%.spec.ts}"
+          echo "name=$name" >> $GITHUB_OUTPUT
         env:
-          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          SPEC: ${{ matrix.spec }}
+
+      - name: Create Neon branch
+        id: neon
+        run: |
+          response=$(curl -sf \
+            --request POST \
+            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+            --header "Authorization: Bearer ${NEON_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")
+          branch_id=$(echo "$response" | jq -r '.branch.id')
+          db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri')
+          if [ "$db_url" = "null" ] || [ -z "$db_url" ]; then
+            echo "Neon API did not return a connection URI. Full response:"
+            echo "$response" | jq '.'
+            exit 1
+          fi
+          echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
+          echo "db_url=$db_url" >> $GITHUB_OUTPUT
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+
+      - name: Run e2e tests
+        run: npx playwright test e2e/tests/${{ matrix.spec }}
+        env:
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
           NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           NUXT_CLERK_SECRET_KEY: ${{ secrets.NUXT_CLERK_SECRET_KEY }}
           NUXT_GOOGLE_CLIENT_ID: ${{ secrets.NUXT_GOOGLE_CLIENT_ID }}
@@ -114,10 +150,22 @@ jobs:
           # The port must match E2E_MOCK_SERVER_PORT (default 3099).
           NUXT_FEED_DISCOVERY_ALLOWED_HOSTS: "127.0.0.1:3099"
 
+      - name: Delete Neon branch
+        if: always()
+        run: |
+          curl -sf \
+            --request DELETE \
+            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
+            --header "Authorization: Bearer ${NEON_API_KEY}"
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+
       - name: Upload test report
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.spec }}
           path: e2e/report/
           retention-days: 7

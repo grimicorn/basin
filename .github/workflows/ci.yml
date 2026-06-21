@@ -61,23 +61,28 @@ jobs:
               - 'playwright.config.*'
               - 'package-lock.json'
 
+  discover-specs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      specs: ${{ steps.list.outputs.specs }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: List e2e spec files
+        id: list
+        run: |
+          specs=$(for f in e2e/tests/*.spec.ts; do basename "$f"; done | jq -R . | jq -sc .)
+          echo "specs=$specs" >> $GITHUB_OUTPUT
+
   e2e:
     runs-on: ubuntu-latest
-    needs: [ci, changes]
+    needs: [ci, changes, discover-specs]
     if: needs.changes.result == 'success' && needs.changes.outputs.src == 'true'
     # fail-fast: false so a single spec failure doesn't cancel the other shards.
     strategy:
       fail-fast: false
       matrix:
-        spec:
-          - auth-unauth.spec.ts
-          - auth.spec.ts
-          - account.spec.ts
-          - connections.spec.ts
-          - dashboard.spec.ts
-          - feeds.spec.ts
-          - onboarding.spec.ts
-          - settings.spec.ts
+        spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
     # Required repository secrets (Settings → Secrets → Actions):
     #   NEON_API_KEY, NEON_PROJECT_ID
     #   NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY, NUXT_CLERK_SECRET_KEY

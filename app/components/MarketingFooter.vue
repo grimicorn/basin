@@ -29,7 +29,6 @@
           <h4>Company</h4>
           <!-- Placeholder: link to company pages once they exist -->
           <span>About</span>
-          <span>Changelog</span>
           <span>Privacy</span>
           <span>Contact</span>
         </div>

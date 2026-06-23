@@ -55,9 +55,24 @@ async function handleSubmit() {
 }
 
 const socials = [
-  { icon: "bluesky", name: "Bluesky", handle: "@reader.app" },
-  { icon: "youtube", name: "YouTube", handle: "/reader" },
-  { icon: "github", name: "GitHub", handle: "/reader-app" },
+  {
+    icon: "bluesky",
+    name: "Bluesky",
+    handle: "@reader.app",
+    url: "https://bsky.app/profile/reader.app",
+  },
+  {
+    icon: "youtube",
+    name: "YouTube",
+    handle: "/reader",
+    url: "https://www.youtube.com/@reader",
+  },
+  {
+    icon: "github",
+    name: "GitHub",
+    handle: "/reader-app",
+    url: "https://github.com/reader-app",
+  },
 ];
 </script>
 
@@ -181,7 +196,9 @@ const socials = [
                 v-for="social in socials"
                 :key="social.name"
                 class="social"
-                href="#"
+                :href="social.url"
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 <span class="si"><RIcon :name="social.icon" :size="17" /></span>
                 {{ social.name }}

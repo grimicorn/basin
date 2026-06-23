@@ -89,8 +89,14 @@ describe("contact page (/contact)", () => {
     expect(wrapper.find(".form-error").exists()).toBe(true);
   });
 
-  it("renders social links", () => {
+  it("renders social links pointing at real profile URLs", () => {
     const wrapper = shallowMount(ContactPage);
-    expect(wrapper.findAll(".socials .social")).toHaveLength(3);
+    const links = wrapper.findAll(".socials .social");
+    expect(links).toHaveLength(3);
+    links.forEach((link) => {
+      const href = link.attributes("href");
+      expect(href).toMatch(/^https:\/\//);
+      expect(href).not.toBe("#");
+    });
   });
 });

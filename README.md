@@ -46,7 +46,7 @@ The schema lives in [`server/db/schema.ts`](server/db/schema.ts). Tables:
 | `users`         | One row per authenticated user, keyed by Clerk's `userId` |
 | `feeds`         | RSS and podcast feeds belonging to a user                 |
 | `feed_items`    | Individual items fetched from a feed                      |
-| `integrations`  | OAuth tokens for YouTube and Twitter (encrypted at rest)  |
+| `integrations`  | OAuth tokens for YouTube and Bluesky (encrypted at rest)  |
 | `user_settings` | Per-user reading preferences                              |
 
 ### Database commands

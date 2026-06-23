@@ -135,7 +135,7 @@ export async function fetchFeedItems(
       feeds,
       and(eq(feedItems.feedId, feeds.id), eq(feeds.userId, userId)),
     )
-    .orderBy(desc(feedItems.publishedAt))
+    .orderBy(desc(feedItems.publishedAt), desc(feedItems.id))
     .limit(limit + 1)
     .offset(offset);
 

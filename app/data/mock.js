@@ -70,21 +70,12 @@ export const connections = [
     since: "Connected Apr 2026",
   },
   {
-    id: "twitter",
-    name: "X / Twitter",
+    id: "bluesky",
+    name: "Bluesky",
     desc: "Home timeline & lists",
     connected: true,
     account: "@you",
     color: "var(--src-tweet)",
     since: "Connected Feb 2026",
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    desc: "Following feed",
-    connected: false,
-    account: "",
-    color: "var(--src-photo)",
-    since: "",
   },
 ];

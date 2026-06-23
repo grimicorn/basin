@@ -18,10 +18,6 @@ describe("FEED_SOURCE_TO_ITEM_TYPE", () => {
     expect(FEED_SOURCE_TO_ITEM_TYPE["tweet"]).toBe("tweet");
   });
 
-  it("maps photo to photo", () => {
-    expect(FEED_SOURCE_TO_ITEM_TYPE["photo"]).toBe("photo");
-  });
-
   it("returns undefined for unknown source types", () => {
     expect(FEED_SOURCE_TO_ITEM_TYPE["newsletter"]).toBeUndefined();
   });

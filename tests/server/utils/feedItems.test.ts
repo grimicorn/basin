@@ -192,4 +192,14 @@ describe("fetchFeedItems", () => {
     expect(mockLimit).toHaveBeenCalledTimes(1);
     expect(mockOffset).toHaveBeenCalledTimes(1);
   });
+
+  it("orders by publishedAt desc then id desc for deterministic pagination", async () => {
+    await fetchFeedItems(1, {});
+    // orderBy must receive two arguments so identical publishedAt timestamps
+    // don't produce non-deterministic page boundaries.
+    expect(mockOrderBy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+    );
+  });
 });

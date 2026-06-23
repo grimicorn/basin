@@ -9,11 +9,10 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event);
 
   function parseIntOrUndefined(value: unknown): number | undefined {
-    if (typeof value !== "string") {
+    if (typeof value !== "string" || !/^\d+$/.test(value)) {
       return undefined;
     }
-    const parsed = parseInt(value, 10);
-    return Number.isNaN(parsed) ? undefined : parsed;
+    return Number.parseInt(value, 10);
   }
 
   const limit = parseIntOrUndefined(query.limit);

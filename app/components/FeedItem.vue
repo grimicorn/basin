@@ -4,7 +4,6 @@ import ArticleCard from "./ArticleCard.vue";
 import VideoCard from "./VideoCard.vue";
 import PodcastCard from "./PodcastCard.vue";
 import TweetCard from "./TweetCard.vue";
-import PhotoCard from "./PhotoCard.vue";
 
 const props = defineProps({ item: { type: Object, required: true } });
 defineEmits(["save", "open"]);
@@ -14,7 +13,6 @@ const map = {
   video: VideoCard,
   podcast: PodcastCard,
   tweet: TweetCard,
-  photo: PhotoCard,
 };
 const comp = computed(() => map[props.item.type]);
 </script>

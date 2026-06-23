@@ -26,9 +26,6 @@ definePageMeta({ layout: "bare" });
           <span class="auth-src src-tweet"
             ><RIcon name="chat" :size="18"
           /></span>
-          <span class="auth-src src-photo"
-            ><RIcon name="photo" :size="18"
-          /></span>
         </div>
       </div>
     </aside>

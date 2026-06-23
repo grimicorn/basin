@@ -34,8 +34,6 @@ export const ICONS = {
     '<rect x="7" y="5.5" width="3.4" height="13" rx="1" fill="currentColor" stroke="none"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1" fill="currentColor" stroke="none"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>',
   rss: '<path d="M5 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" fill="currentColor" stroke="none"/><path d="M4.5 10.5A9 9 0 0 1 13.5 19.5M4.5 5A14.5 14.5 0 0 1 19 19.5"/>',
-  photo:
-    '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M5 17l4.5-4 3 2.5L16 11l4 4.5"/>',
   chat: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V6a1 1 0 0 1 1-1Z"/>',
   video:
     '<rect x="3.5" y="6" width="13" height="12" rx="2"/><path d="M16.5 10l4-2.5v9l-4-2.5"/>',
@@ -56,6 +54,15 @@ export const ICONS = {
     '<path d="M12 20s-7-4.6-7-9.5A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 3.5C19 15.4 12 20 12 20Z"/>',
   repost:
     '<path d="M5 9l3-3 3 3M8 6v8a2 2 0 0 0 2 2h6M19 15l-3 3-3-3M16 18v-8a2 2 0 0 0-2-2H8"/>',
+  shield: '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  pulse: '<path d="M3 12h4l3 8 4-16 3 8h4"/>',
+  bluesky:
+    '<path d="M12 11c-1.6-3-4.3-5-6.4-5C4 6 4 7.6 4 9.2c0 1.7 1 5 1.7 6 .7 1 2 1.2 3 .6 1-.7 2.4-2 3.3-3.2.9 1.2 2.3 2.5 3.3 3.2 1 .6 2.3.4 3-.6.7-1 1.7-4.3 1.7-6C20 7.6 20 6 18.4 6 16.3 6 13.6 8 12 11Z"/>',
+  youtube:
+    '<path d="M21.5 7.2a2.7 2.7 0 0 0-1.9-1.9C17.9 4.8 12 4.8 12 4.8s-5.9 0-7.6.5A2.7 2.7 0 0 0 2.5 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .5 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.6.5 7.6.5s5.9 0 7.6-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.5-4.8Z"/><path d="M10 15l5-3-5-3v6Z" fill="currentColor" stroke="none"/>',
+  github:
+    '<path d="M9 19c-4 1.2-4-2-6-2.5M15 21v-3.3a3 3 0 0 0-.8-2.2c2.6-.3 5.4-1.3 5.4-5.8a4.5 4.5 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6 0C10.4 1.5 9.4 1.8 9.4 1.8a4.2 4.2 0 0 0-.1 3.2A4.5 4.5 0 0 0 8 8.2c0 4.4 2.8 5.5 5.4 5.8a3 3 0 0 0-.8 2.1V21"/>',
 };
 
 // source meta
@@ -63,8 +70,7 @@ export const SOURCES = {
   article: { icon: "rss", label: "RSS", cls: "src-rss" },
   podcast: { icon: "mic", label: "Podcast", cls: "src-podcast" },
   video: { icon: "video", label: "YouTube", cls: "src-video" },
-  tweet: { icon: "chat", label: "X", cls: "src-tweet" },
-  photo: { icon: "photo", label: "Instagram", cls: "src-photo" },
+  tweet: { icon: "chat", label: "Bluesky", cls: "src-tweet" },
 };
 
 // Logo marks (64x64 inner svg). Default mark = "stack" (aggregated feed).

@@ -64,20 +64,6 @@ export const makePodcast = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-export const makePhoto = (overrides: Record<string, unknown> = {}) => ({
-  id: 5,
-  type: "photo",
-  source: "Test Artist",
-  handle: "@testartist",
-  caption: "A beautiful test photo caption.",
-  time: "6h",
-  meta: "234 likes",
-  unread: false,
-  saved: true,
-  thumb: "https://example.com/photo.jpg",
-  ...overrides,
-});
-
 export const makeFeed = (overrides: Record<string, unknown> = {}) => ({
   id: "f1",
   type: "rss",

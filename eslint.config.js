@@ -62,9 +62,6 @@ const nitroGlobals = {
   buildYouTubeAuthUrl: "readonly",
   exchangeCodeForTokens: "readonly",
   getYouTubeChannelHandle: "readonly",
-  buildInstagramAuthUrl: "readonly",
-  exchangeInstagramCode: "readonly",
-  getInstagramUserInfo: "readonly",
   createBlueskySession: "readonly",
 };
 
@@ -76,6 +73,7 @@ export default [
       ".output/**",
       "dist/**",
       "node_modules/**",
+      "design/**",
     ],
   },
   eslint.configs.recommended,

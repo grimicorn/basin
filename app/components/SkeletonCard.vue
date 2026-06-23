@@ -4,7 +4,7 @@ defineProps({ kind: { type: String, default: "article" } });
 
 <template>
   <div class="card sk-card" :class="'sk-' + kind">
-    <div v-if="kind === 'video' || kind === 'photo'" class="sk sk-thumb"></div>
+    <div v-if="kind === 'video'" class="sk sk-thumb"></div>
     <div class="sk-pad">
       <div class="sk-row">
         <div class="sk sk-tag"></div>
@@ -36,9 +36,6 @@ defineProps({ kind: { type: String, default: "article" } });
   width: 100%;
   aspect-ratio: 16/9;
   border-radius: 0;
-}
-.sk-photo .sk-thumb {
-  aspect-ratio: 4/5;
 }
 .sk-row {
   display: flex;

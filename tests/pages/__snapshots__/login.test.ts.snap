@@ -10,7 +10,7 @@ exports[`login page > matches snapshot 1`] = `
     <div class="auth-quote">
       <p> Everything you follow — articles, shows, videos, posts — arriving on one quiet, chronological page. </p>
       <div class="by"> — no algorithm, no infinite scroll, just your sources </div>
-      <div class="auth-srcs"><span class="auth-src src-rss"><r-icon-stub name="rss" size="18"></r-icon-stub></span><span class="auth-src src-podcast"><r-icon-stub name="mic" size="18"></r-icon-stub></span><span class="auth-src src-video"><r-icon-stub name="video" size="18"></r-icon-stub></span><span class="auth-src src-tweet"><r-icon-stub name="chat" size="18"></r-icon-stub></span><span class="auth-src src-photo"><r-icon-stub name="photo" size="18"></r-icon-stub></span></div>
+      <div class="auth-srcs"><span class="auth-src src-rss"><r-icon-stub name="rss" size="18"></r-icon-stub></span><span class="auth-src src-podcast"><r-icon-stub name="mic" size="18"></r-icon-stub></span><span class="auth-src src-video"><r-icon-stub name="video" size="18"></r-icon-stub></span><span class="auth-src src-tweet"><r-icon-stub name="chat" size="18"></r-icon-stub></span></div>
     </div>
   </aside>
   <div class="auth-main">

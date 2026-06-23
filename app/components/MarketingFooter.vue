@@ -23,15 +23,13 @@
           <span>RSS &amp; Atom</span>
           <span>Podcasts</span>
           <span>YouTube</span>
-          <span>X &amp; Instagram</span>
+          <span>Bluesky</span>
         </div>
         <div class="col">
           <h4>Company</h4>
-          <!-- Placeholder: link to company pages once they exist -->
-          <span>About</span>
-          <span>Changelog</span>
-          <span>Privacy</span>
-          <span>Contact</span>
+          <NuxtLink to="/about">About</NuxtLink>
+          <NuxtLink to="/privacy">Privacy</NuxtLink>
+          <NuxtLink to="/contact">Contact</NuxtLink>
         </div>
       </div>
       <div class="mfoot-base">

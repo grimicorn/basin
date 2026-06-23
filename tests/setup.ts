@@ -159,7 +159,6 @@ config.global.stubs = {
   VideoCard: true,
   PodcastCard: true,
   TweetCard: true,
-  PhotoCard: true,
   AvatarButton: true,
   UserProfile: true,
   InputText: true,

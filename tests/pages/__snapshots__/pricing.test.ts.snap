@@ -47,7 +47,7 @@ exports[`pricing page (/pricing) > matches snapshot 1`] = `
             <r-icon-stub name="check" size="16"></r-icon-stub><b>Unlimited</b> sources
           </li>
           <li>
-            <r-icon-stub name="check" size="16"></r-icon-stub> All connections — YouTube, X &amp; Instagram
+            <r-icon-stub name="check" size="16"></r-icon-stub> All connections — YouTube &amp; Bluesky
           </li>
           <li>
             <r-icon-stub name="check" size="16"></r-icon-stub> Timeline, grid &amp; column layouts

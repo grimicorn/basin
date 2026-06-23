@@ -75,7 +75,9 @@ describe("useAppearanceStore", () => {
     const VALID_DENSITIES = ["compact", "cozy", "roomy"];
 
     it("defaults to cozy", () => {
-      expect(store.state.density).toBe("cozy");
+      setActivePinia(createPinia());
+      const freshStore = useAppearanceStore();
+      expect(freshStore.state.density).toBe("cozy");
     });
 
     it.each(VALID_DENSITIES)(

@@ -166,6 +166,11 @@ describe("sync-feed workload", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
+    // Silence the workload's structured JSON event logs so they don't clutter
+    // test output. Set after resetAllMocks so the reset doesn't clear the spies.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
     mockUpdate.mockReturnValue({ set: mockUpdateSet });
     mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });
     mockUpdateWhere.mockResolvedValue(undefined);
@@ -406,6 +411,11 @@ describe("sync-feed workload — YouTube source", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+
+    // Silence the workload's structured JSON event logs so they don't clutter
+    // test output. Set after resetAllMocks so the reset doesn't clear the spies.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     mockUpdate.mockReturnValue({ set: mockUpdateSet });
     mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });

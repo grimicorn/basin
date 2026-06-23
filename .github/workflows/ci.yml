@@ -87,7 +87,6 @@ jobs:
     #   NEON_API_KEY, NEON_PROJECT_ID
     #   NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY, NUXT_CLERK_SECRET_KEY
     #   NUXT_GOOGLE_CLIENT_ID, NUXT_GOOGLE_CLIENT_SECRET
-    #   NUXT_INSTAGRAM_CLIENT_ID, NUXT_INSTAGRAM_CLIENT_SECRET
     steps:
       - uses: actions/checkout@v4
 
@@ -144,8 +143,6 @@ jobs:
           NUXT_CLERK_SECRET_KEY: ${{ secrets.NUXT_CLERK_SECRET_KEY }}
           NUXT_GOOGLE_CLIENT_ID: ${{ secrets.NUXT_GOOGLE_CLIENT_ID }}
           NUXT_GOOGLE_CLIENT_SECRET: ${{ secrets.NUXT_GOOGLE_CLIENT_SECRET }}
-          NUXT_INSTAGRAM_CLIENT_ID: ${{ secrets.NUXT_INSTAGRAM_CLIENT_ID }}
-          NUXT_INSTAGRAM_CLIENT_SECRET: ${{ secrets.NUXT_INSTAGRAM_CLIENT_SECRET }}
           # Allow the mock server's loopback address through SSRF validation.
           # The port must match E2E_MOCK_SERVER_PORT (default 3099).
           NUXT_FEED_DISCOVERY_ALLOWED_HOSTS: "127.0.0.1:3099"

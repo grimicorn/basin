@@ -267,57 +267,6 @@ const item = computed(() => feedStore.state.activeItem);
               </div>
             </div>
           </div>
-
-          <!-- PHOTO -->
-          <div v-else-if="item.type === 'photo'">
-            <div
-              class="ph"
-              :data-label="item.thumb"
-              style="border-radius: 0; width: 100%; height: 440px"
-            >
-              <span class="photo-badge src-photo"
-                ><RIcon name="photo" :size="12" /> Instagram</span
-              >
-            </div>
-            <div class="p-7 sm:p-7">
-              <div class="mb-4 flex items-center gap-3">
-                <span
-                  class="avatar src-photo"
-                  style="width: 40px; height: 40px; font-size: 13px"
-                  >{{ item.source.slice(0, 2).toUpperCase() }}</span
-                >
-                <div class="min-w-0">
-                  <b class="text-ink block text-[14px] font-semibold">{{
-                    item.source
-                  }}</b>
-                  <span class="text-muted text-[12px]"
-                    >{{ item.meta }} · {{ item.time }} ago</span
-                  >
-                </div>
-                <button class="icon-btn ml-auto">
-                  <RIcon name="heart" :size="20" />
-                </button>
-              </div>
-              <p class="photo-text mb-5" style="font-size: 14px">
-                {{ item.caption }}
-              </p>
-              <div
-                class="text-faint mb-3 text-[10px] tracking-[.14em] uppercase"
-              >
-                Comments
-              </div>
-              <div class="flex flex-col gap-3">
-                <div
-                  v-for="(c, i) in feedStore.photoComments(item)"
-                  :key="i"
-                  class="text-[13px]"
-                >
-                  <b class="text-ink font-semibold">{{ c.who }}</b>
-                  <span class="text-ink-2">{{ c.text }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </template>
       </div>
     </div>

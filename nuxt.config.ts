@@ -26,8 +26,6 @@ export default defineNuxtConfig({
     databaseUrl: "",
     googleClientId: "",
     googleClientSecret: "",
-    instagramClientId: "",
-    instagramClientSecret: "",
   },
   devtools: { enabled: true },
   future: { compatibilityVersion: 4 },

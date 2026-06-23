@@ -25,6 +25,14 @@ describe("auth.global middleware", () => {
     expect(mockNavigateTo).not.toHaveBeenCalled();
   });
 
+  it.each(["/about", "/privacy", "/contact"])(
+    "does not redirect unauthenticated user on %s (public)",
+    (path) => {
+      authMiddleware({ path } as any);
+      expect(mockNavigateTo).not.toHaveBeenCalled();
+    },
+  );
+
   it("redirects unauthenticated user on protected routes to /login", () => {
     authMiddleware({ path: "/dashboard" } as any);
     expect(mockNavigateTo).toHaveBeenCalledWith("/login");

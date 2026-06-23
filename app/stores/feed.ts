@@ -36,19 +36,11 @@ export const useFeedStore = defineStore("feed", () => {
     { id: "article", label: "RSS", c: "var(--src-rss)" },
     { id: "podcast", label: "Podcasts", c: "var(--src-podcast)" },
     { id: "video", label: "YouTube", c: "var(--src-video)" },
-    { id: "tweet", label: "X", c: "var(--src-tweet)" },
-    { id: "photo", label: "Instagram", c: "var(--src-photo)" },
+    { id: "tweet", label: "Bluesky", c: "var(--src-tweet)" },
     { id: "saved", label: "Saved", c: "var(--accent)" },
   ];
 
-  const skeletonKinds = [
-    "article",
-    "video",
-    "tweet",
-    "podcast",
-    "photo",
-    "article",
-  ];
+  const skeletonKinds = ["article", "video", "tweet", "podcast", "article"];
 
   const unreadCount = computed(
     () => state.items.filter((i: Record<string, unknown>) => i.unread).length,
@@ -68,7 +60,7 @@ export const useFeedStore = defineStore("feed", () => {
   });
 
   const decks = computed(() => {
-    const order = ["article", "podcast", "video", "tweet", "photo"];
+    const order = ["article", "podcast", "video", "tweet"];
     return order
       .map((t) => ({
         type: t,
@@ -221,7 +213,6 @@ export const useFeedStore = defineStore("feed", () => {
       video: "VideoCard",
       podcast: "PodcastCard",
       tweet: "TweetCard",
-      photo: "PhotoCard",
     })[type];
 
   const articleBody = (item: Record<string, unknown>) =>
@@ -259,11 +250,6 @@ export const useFeedStore = defineStore("feed", () => {
     },
   ];
 
-  const photoComments = () => [
-    { who: "northern.light", text: "the light here is unreal 🔥" },
-    { who: "wanderframe", text: "saving this for inspiration" },
-  ];
-
   const sourceMeta = (type: string) => SOURCES[type as keyof typeof SOURCES];
 
   return {
@@ -290,7 +276,6 @@ export const useFeedStore = defineStore("feed", () => {
     podcastNotes,
     videoDesc,
     tweetReplies,
-    photoComments,
     sourceMeta,
   };
 });

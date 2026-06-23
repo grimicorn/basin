@@ -146,6 +146,25 @@ describe("fetchFeedItems", () => {
     expect(mockOffset).toHaveBeenCalledWith(50);
   });
 
+  it("computes nextOffset as offset + limit for non-first pages", async () => {
+    const rows = Array.from(
+      { length: FEED_ITEMS_DEFAULT_LIMIT + 1 },
+      (_, i) => ({
+        ...mockRow,
+        id: i + 1,
+      }),
+    );
+    mockOffset.mockResolvedValue(rows);
+    const result = await fetchFeedItems(1, { offset: 50 });
+    expect(result.nextOffset).toBe(50 + FEED_ITEMS_DEFAULT_LIMIT);
+  });
+
+  it("maps feedTitle to handle field on results", async () => {
+    mockOffset.mockResolvedValue([mockRow]);
+    const result = await fetchFeedItems(1, {});
+    expect(result.items[0].handle).toBe("Test Feed");
+  });
+
   it("clamps limit to the maximum allowed value", async () => {
     mockOffset.mockResolvedValue([]);
     await fetchFeedItems(1, { limit: 9999 });

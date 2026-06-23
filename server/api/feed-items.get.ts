@@ -7,10 +7,17 @@ export default defineEventHandler(async (event) => {
   }
 
   const query = getQuery(event);
-  const limit =
-    typeof query.limit === "string" ? parseInt(query.limit, 10) : undefined;
-  const offset =
-    typeof query.offset === "string" ? parseInt(query.offset, 10) : undefined;
+
+  function parseIntOrUndefined(value: unknown): number | undefined {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const parsed = parseInt(value, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
+  const limit = parseIntOrUndefined(query.limit);
+  const offset = parseIntOrUndefined(query.offset);
 
   return fetchFeedItems(user.id, { limit, offset });
 });

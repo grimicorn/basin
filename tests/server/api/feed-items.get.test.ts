@@ -89,6 +89,17 @@ describe("GET /api/feed-items", () => {
     });
   });
 
+  it("passes undefined for non-numeric limit and offset", async () => {
+    mockGetQuery.mockReturnValue({ limit: "abc", offset: "xyz" });
+    mockFetchFeedItems.mockResolvedValue(mockPage);
+    const event = { context: { user: { id: 1 } } };
+    await handler(event);
+    expect(mockFetchFeedItems).toHaveBeenCalledWith(1, {
+      limit: undefined,
+      offset: undefined,
+    });
+  });
+
   it("returns nextOffset as null when on the last page", async () => {
     mockFetchFeedItems.mockResolvedValue({ ...mockPage, nextOffset: null });
     const event = { context: { user: { id: 1 } } };

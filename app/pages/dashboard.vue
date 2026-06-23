@@ -14,9 +14,13 @@ const isOnboarding = computed(
 );
 
 onMounted(async () => {
-  await loadFeeds();
-  if (realFeeds.value.length > 0) {
-    await feedStore.loadItems();
+  try {
+    await loadFeeds();
+    if (realFeeds.value.length > 0) {
+      await feedStore.loadItems();
+    }
+  } catch (error) {
+    console.error("Failed to load dashboard data:", error);
   }
 });
 

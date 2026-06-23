@@ -22,7 +22,7 @@ useHead({
     {
       name: "description",
       content:
-        "Stop checking five apps. Reader folds RSS, podcasts, YouTube, X and Instagram into one timeline — no ranking, no ads, no doomscroll.",
+        "Stop checking multiple apps. Reader folds RSS, podcasts, YouTube and Bluesky into one timeline — no ranking, no ads, no doomscroll.",
     },
   ],
 });
@@ -40,8 +40,8 @@ useHead({
           <span class="lav">chronological</span> order.
         </h1>
         <p class="hero-sub">
-          Stop checking five apps. Reader folds RSS, podcasts, YouTube, X and
-          Instagram into one timeline — no ranking, no ads, no doomscroll. Just
+          Stop checking five apps. Reader folds RSS, podcasts, YouTube and
+          Bluesky into one timeline — no ranking, no ads, no doomscroll. Just
           the things you chose to follow.
         </p>
         <div class="hero-ctas">
@@ -100,8 +100,7 @@ useHead({
       <b>RSS / Atom</b>
       <b>Apple Podcasts</b>
       <b>YouTube</b>
-      <b>X</b>
-      <b>Instagram</b>
+      <b>Bluesky</b>
       <b>JSON Feed</b>
     </div>
   </div>
@@ -204,7 +203,7 @@ useHead({
           <span class="k">STEP 01</span>
           <h3>Add your sources</h3>
           <p>
-            Paste feed URLs or connect YouTube, X and Instagram in a couple of
+            Paste feed URLs or connect YouTube and Bluesky in a couple of
             clicks.
           </p>
         </div>

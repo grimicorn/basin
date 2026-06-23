@@ -95,13 +95,6 @@ describe("useConnections", () => {
       expect(mockLocation.href).toBe("");
     });
 
-    it("navigates to /api/auth/instagram for the Instagram provider", () => {
-      const { connect } = useConnections();
-      connect("instagram");
-      expect(mockLocation.href).toBe("/api/auth/instagram");
-      expect(mockShowToast).not.toHaveBeenCalled();
-    });
-
     it("does not navigate or show a toast for bluesky (form-based flow)", () => {
       const { connect } = useConnections();
       connect("bluesky");

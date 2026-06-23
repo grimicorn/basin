@@ -34,8 +34,6 @@ export const ICONS = {
     '<rect x="7" y="5.5" width="3.4" height="13" rx="1" fill="currentColor" stroke="none"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1" fill="currentColor" stroke="none"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>',
   rss: '<path d="M5 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" fill="currentColor" stroke="none"/><path d="M4.5 10.5A9 9 0 0 1 13.5 19.5M4.5 5A14.5 14.5 0 0 1 19 19.5"/>',
-  photo:
-    '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M5 17l4.5-4 3 2.5L16 11l4 4.5"/>',
   chat: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V6a1 1 0 0 1 1-1Z"/>',
   video:
     '<rect x="3.5" y="6" width="13" height="12" rx="2"/><path d="M16.5 10l4-2.5v9l-4-2.5"/>',
@@ -63,8 +61,7 @@ export const SOURCES = {
   article: { icon: "rss", label: "RSS", cls: "src-rss" },
   podcast: { icon: "mic", label: "Podcast", cls: "src-podcast" },
   video: { icon: "video", label: "YouTube", cls: "src-video" },
-  tweet: { icon: "chat", label: "X", cls: "src-tweet" },
-  photo: { icon: "photo", label: "Instagram", cls: "src-photo" },
+  tweet: { icon: "chat", label: "Bluesky", cls: "src-tweet" },
 };
 
 // Logo marks (64x64 inner svg). Default mark = "stack" (aggregated feed).

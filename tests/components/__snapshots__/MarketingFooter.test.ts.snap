@@ -13,10 +13,10 @@ exports[`MarketingFooter > matches snapshot 1`] = `
         <h4>Product</h4><a href="/#features">Features</a><a href="/pricing">Pricing</a><a href="/dashboard">Open app</a>
       </div>
       <div class="col">
-        <h4>Sources</h4><!-- Placeholder: link to source-specific pages once they exist --><span>RSS &amp; Atom</span><span>Podcasts</span><span>YouTube</span><span>X &amp; Instagram</span>
+        <h4>Sources</h4><!-- Placeholder: link to source-specific pages once they exist --><span>RSS &amp; Atom</span><span>Podcasts</span><span>YouTube</span><span>Bluesky</span>
       </div>
       <div class="col">
-        <h4>Company</h4><!-- Placeholder: link to company pages once they exist --><span>About</span><span>Changelog</span><span>Privacy</span><span>Contact</span>
+        <h4>Company</h4><!-- Placeholder: link to company pages once they exist --><span>About</span><span>Privacy</span><span>Contact</span>
       </div>
     </div>
     <div class="mfoot-base"><span>© 2026 Reader — a quiet place for your feeds.</span><span>Built with JetBrains Mono · Nuxt 4</span></div>

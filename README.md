@@ -1,6 +1,6 @@
 # Reader
 
-All your content feeds — RSS, podcasts, YouTube, X, and Instagram — in one quiet, chronological place.
+All your content feeds — RSS, podcasts, YouTube, and Bluesky — in one quiet, chronological place.
 
 ## Requirements
 
@@ -41,13 +41,13 @@ The app uses [Drizzle ORM](https://orm.drizzle.team) with a [Neon](https://neon.
 
 The schema lives in [`server/db/schema.ts`](server/db/schema.ts). Tables:
 
-| Table           | Description                                                          |
-| --------------- | -------------------------------------------------------------------- |
-| `users`         | One row per authenticated user, keyed by Clerk's `userId`            |
-| `feeds`         | RSS and podcast feeds belonging to a user                            |
-| `feed_items`    | Individual items fetched from a feed                                 |
-| `integrations`  | OAuth tokens for YouTube, Instagram, and Twitter (encrypted at rest) |
-| `user_settings` | Per-user reading preferences                                         |
+| Table           | Description                                               |
+| --------------- | --------------------------------------------------------- |
+| `users`         | One row per authenticated user, keyed by Clerk's `userId` |
+| `feeds`         | RSS and podcast feeds belonging to a user                 |
+| `feed_items`    | Individual items fetched from a feed                      |
+| `integrations`  | OAuth tokens for YouTube and Twitter (encrypted at rest)  |
+| `user_settings` | Per-user reading preferences                              |
 
 ### Database commands
 

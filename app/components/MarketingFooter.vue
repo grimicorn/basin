@@ -24,7 +24,6 @@
           <span>Podcasts</span>
           <span>YouTube</span>
           <span>Bluesky</span>
-          <span>X &amp; Instagram</span>
         </div>
         <div class="col">
           <h4>Company</h4>

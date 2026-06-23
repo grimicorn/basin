@@ -32,7 +32,6 @@ describe("useFeedStore", () => {
       item({ id: 2, type: "video", unread: false, saved: true }),
       item({ id: 3, type: "podcast", unread: true, saved: false }),
       item({ id: 4, type: "tweet", unread: false, saved: false }),
-      item({ id: 5, type: "photo", unread: true, saved: true }),
     ];
     state.filter = "all";
     state.unreadOnly = false;
@@ -47,7 +46,7 @@ describe("useFeedStore", () => {
 
   describe("countFor", () => {
     it("counts all items", () => {
-      expect(feed.countFor("all")).toBe(5);
+      expect(feed.countFor("all")).toBe(4);
     });
 
     it("counts items by type", () => {
@@ -57,25 +56,25 @@ describe("useFeedStore", () => {
     });
 
     it("counts saved items", () => {
-      expect(feed.countFor("saved")).toBe(2);
+      expect(feed.countFor("saved")).toBe(1);
     });
   });
 
   describe("unreadCount", () => {
     it("returns the number of unread items", () => {
-      expect(feed.unreadCount).toBe(3);
+      expect(feed.unreadCount).toBe(2);
     });
 
     it("updates when an item changes", () => {
       state.items[0].unread = false;
-      expect(feed.unreadCount).toBe(2);
+      expect(feed.unreadCount).toBe(1);
     });
   });
 
   describe("visibleItems", () => {
     it("returns all items when filter is all", () => {
       state.filter = "all";
-      expect(feed.visibleItems).toHaveLength(5);
+      expect(feed.visibleItems).toHaveLength(4);
     });
 
     it("filters by type", () => {
@@ -87,14 +86,14 @@ describe("useFeedStore", () => {
 
     it("filters saved items", () => {
       state.filter = "saved";
-      expect(feed.visibleItems).toHaveLength(2);
+      expect(feed.visibleItems).toHaveLength(1);
       expect(feed.visibleItems.every((i) => i.saved)).toBe(true);
     });
 
     it("applies unreadOnly across filter", () => {
       state.unreadOnly = true;
       state.filter = "all";
-      expect(feed.visibleItems).toHaveLength(3);
+      expect(feed.visibleItems).toHaveLength(2);
       expect(feed.visibleItems.every((i) => i.unread)).toBe(true);
     });
   });
@@ -161,7 +160,7 @@ describe("useFeedStore", () => {
     });
 
     it("wraps around at the end", () => {
-      state.activeItem = state.items[4];
+      state.activeItem = state.items[3];
       feed.detailNav(1);
       expect(state.activeItem!.id).toBe(1);
     });

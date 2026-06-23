@@ -153,7 +153,7 @@ function toggleFaq(index: number) {
             </li>
             <li>
               <RIcon name="check" :size="16" />
-              All connections — YouTube, X &amp; Instagram
+              All connections — YouTube &amp; Bluesky
             </li>
             <li>
               <RIcon name="check" :size="16" />

@@ -53,28 +53,6 @@ function handleYouTubeChannels(
   });
 }
 
-// ── Instagram: token exchange ────────────────────────────────────────────
-function handleInstagramTokenExchange(
-  _req: IncomingMessage,
-  res: ServerResponse,
-): void {
-  jsonResponse(res, {
-    access_token: "mock_instagram_access_token",
-    token_type: "bearer",
-  });
-}
-
-// ── Instagram: user info ─────────────────────────────────────────────────
-function handleInstagramUserInfo(
-  _req: IncomingMessage,
-  res: ServerResponse,
-): void {
-  jsonResponse(res, {
-    id: "123456789",
-    username: "e2etestuser",
-  });
-}
-
 // ── Feed proxy: returns a minimal valid RSS feed for any URL ─────────────
 // Used by the feed validator (FEED_FETCH_PROXY_URL) so e2e tests never
 // make real outbound HTTP requests when adding a feed.
@@ -111,8 +89,6 @@ function handleFeedXml(_req: IncomingMessage, res: ServerResponse): void {
 const routes: Record<RouteKey, RouteHandler> = {
   "POST /token": handleTokenExchange,
   "GET /youtube/v3/channels": handleYouTubeChannels,
-  "POST /v19.0/oauth/access_token": handleInstagramTokenExchange,
-  "GET /v19.0/me": handleInstagramUserInfo,
   "GET /feed-proxy": handleFeedProxy,
   "GET /feed.xml": handleFeedXml,
 };

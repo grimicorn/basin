@@ -28,16 +28,9 @@ const PROVIDERS: Omit<Connection, "connected" | "account" | "since">[] = [
     desc: "Following feed",
     color: "var(--src-tweet)",
   },
-  // Disabled until Business approval is completed
-  // {
-  //   id: "instagram",
-  //   name: "Instagram",
-  //   desc: "Following feed",
-  //   color: "var(--src-photo)",
-  // },
 ];
 
-const OAUTH_PROVIDERS = new Set(["youtube", "instagram"]);
+const OAUTH_PROVIDERS = new Set(["youtube"]);
 const FORM_PROVIDERS = new Set(["bluesky"]);
 
 function formatSince(iso: string | null): string {

@@ -1,6 +1,6 @@
 # Third-Party API Auth Storage
 
-A single `integrations` table handles YouTube, Instagram, and Twitter — the providers
+A single `integrations` table handles YouTube and Twitter — the providers
 differ enough (OAuth 1.0a vs 2.0, expiry behavior) that you need flexible nullable
 fields, but not so much that separate tables are worth it.
 
@@ -16,11 +16,11 @@ export const integrations = pgTable(
     userId: integer("user_id")
       .references(() => users.id)
       .notNull(),
-    provider: text("provider").notNull(), // 'youtube' | 'instagram' | 'twitter'
+    provider: text("provider").notNull(), // 'youtube' | 'twitter'
 
     // Tokens — always encrypted at rest
     accessToken: text("access_token").notNull(), // all providers
-    refreshToken: text("refresh_token"), // OAuth 2.0 only (YouTube, Instagram)
+    refreshToken: text("refresh_token"), // OAuth 2.0 only (YouTube)
     tokenSecret: text("token_secret"), // OAuth 1.0a only (Twitter v1.1)
 
     // Lifecycle
@@ -87,8 +87,7 @@ openssl rand -hex 32
 
 ## Token Refresh Utility
 
-YouTube and Instagram tokens expire — wrap access in a utility that handles
-it automatically:
+YouTube tokens expire — wrap access in a utility that handles it automatically:
 
 ```ts
 // server/utils/integrations.ts
@@ -116,11 +115,10 @@ export async function getValidToken(userId: number, provider: string) {
 
 ## Per-Provider Notes
 
-| Provider  | OAuth version | Expiry       | Notes                                              |
-| --------- | ------------- | ------------ | -------------------------------------------------- |
-| YouTube   | 2.0           | 1 hour       | `accessToken` + `refreshToken`, refresh via Google |
-| Instagram | 2.0           | 60 days      | Long-lived token, refresh before expiry            |
-| Twitter   | 1.0a or 2.0   | Never (1.0a) | 1.0a needs `tokenSecret`, 2.0 behaves like YouTube |
+| Provider | OAuth version | Expiry       | Notes                                              |
+| -------- | ------------- | ------------ | -------------------------------------------------- |
+| YouTube  | 2.0           | 1 hour       | `accessToken` + `refreshToken`, refresh via Google |
+| Twitter  | 1.0a or 2.0   | Never (1.0a) | 1.0a needs `tokenSecret`, 2.0 behaves like YouTube |
 
 Twitter's v2 API supports OAuth 2.0 now but some endpoints still require 1.0a —
 worth keeping `tokenSecret` around even if you go 2.0 for most things.

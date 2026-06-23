@@ -10,7 +10,7 @@ const showBlueskyForm = ref(false);
 function iconForProvider(id) {
   if (id === "youtube") return "video";
   if (id === "bluesky") return "chat";
-  return "photo";
+  return "link";
 }
 
 function toggleConn(connection) {

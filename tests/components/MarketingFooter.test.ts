@@ -18,6 +18,13 @@ describe("MarketingFooter", () => {
     expect(wrapper.find("a[href='/dashboard']").exists()).toBe(true);
   });
 
+  it("links the company pages (about, privacy, contact)", () => {
+    const wrapper = shallowMount(MarketingFooter);
+    expect(wrapper.find("a[href='/about']").exists()).toBe(true);
+    expect(wrapper.find("a[href='/privacy']").exists()).toBe(true);
+    expect(wrapper.find("a[href='/contact']").exists()).toBe(true);
+  });
+
   it("matches snapshot", () => {
     const wrapper = shallowMount(MarketingFooter);
     expect(wrapper.html()).toMatchSnapshot();

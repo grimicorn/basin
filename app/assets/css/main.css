@@ -44,7 +44,6 @@
   --src-podcast: oklch(0.62 0.17 300);
   --src-video: oklch(0.62 0.19 25);
   --src-tweet: oklch(0.64 0.13 240);
-  --src-photo: oklch(0.66 0.17 350);
 
   --radius: 14px;
   --radius-sm: 9px;
@@ -231,9 +230,6 @@ body {
 }
 .src-tweet {
   --c: var(--src-tweet);
-}
-.src-photo {
-  --c: var(--src-photo);
 }
 
 .btn {
@@ -738,7 +734,6 @@ body {
 /* serif reading mode (font tweak) */
 :root[data-reading="serif"] .card-excerpt,
 :root[data-reading="serif"] .tw-text,
-:root[data-reading="serif"] .photo-text,
 :root[data-reading="serif"] .detail-prose p,
 :root[data-reading="serif"] .detail-title,
 :root[data-reading="serif"] .detail-tweet {
@@ -748,8 +743,7 @@ body {
   font-size: 17.5px;
 }
 :root[data-reading="serif"] .card-excerpt,
-:root[data-reading="serif"] .tw-text,
-:root[data-reading="serif"] .photo-text {
+:root[data-reading="serif"] .tw-text {
   font-size: 14.5px;
 }
 :root[data-reading="serif"] .card-title {

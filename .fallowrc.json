@@ -5,6 +5,7 @@
     "netlify/functions/**/*.ts",
     "tests/__mocks__/**"
   ],
+  "ignorePatterns": ["design/**"],
   "duplicates": {
     "minOccurrences": 3,
     "ignore": ["*.test.*"]

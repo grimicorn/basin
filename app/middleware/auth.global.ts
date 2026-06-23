@@ -1,4 +1,4 @@
-const PUBLIC_PATHS = ["/", "/pricing"];
+const PUBLIC_PATHS = ["/", "/pricing", "/about", "/privacy", "/contact"];
 
 export default defineNuxtRouteMiddleware((to) => {
   const { isSignedIn } = useAuth();

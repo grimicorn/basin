@@ -7,6 +7,5 @@ export const FEED_SOURCE_TO_ITEM_TYPE: Record<string, string> = {
   podcast: "podcast",
   video: "video",
   tweet: "tweet",
-  photo: "photo",
   bluesky: "tweet",
 };

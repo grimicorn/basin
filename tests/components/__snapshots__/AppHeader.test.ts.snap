@@ -10,7 +10,7 @@ exports[`AppHeader > matches snapshot 1`] = `
         <r-icon-stub name="search" size="16"></r-icon-stub><span class="st-label">Search everything…</span><span class="kbd">⌘K</span>
       </button><button class="icon-btn" title="Refresh feeds">
         <r-icon-stub name="refresh" size="18"></r-icon-stub>
-      </button><button class="icon-btn has-dot" title="Notifications">
+      </button><button class="icon-btn" title="Notifications">
         <r-icon-stub name="bell" size="18"></r-icon-stub>
       </button><button class="icon-btn" title="Theme: system">
         <r-icon-stub name="monitor" size="18"></r-icon-stub>

@@ -1,6 +1,6 @@
 /* Reader — mock content & settings data (ESM).
    Swap these arrays for real API responses when wiring the backend. */
-export const items = [
+const items = [
   {
     id: 1,
     type: "article",

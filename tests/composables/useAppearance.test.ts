@@ -70,4 +70,20 @@ describe("useAppearanceStore", () => {
       expect(() => store.applyToDom()).not.toThrow();
     });
   });
+
+  describe("density", () => {
+    const VALID_DENSITIES = ["compact", "cozy", "roomy"];
+
+    it("defaults to cozy", () => {
+      expect(store.state.density).toBe("cozy");
+    });
+
+    it.each(VALID_DENSITIES)(
+      "accepts '%s' as a valid density value",
+      (density) => {
+        store.state.density = density;
+        expect(store.state.density).toBe(density);
+      },
+    );
+  });
 });

@@ -159,15 +159,16 @@ body {
   --gap: 12px;
   --card-pad: 14px;
 }
-:root {
+:root,
+:root[data-density="cozy"] {
   --pad: 20px;
   --gap: 18px;
   --card-pad: 18px;
 }
-:root[data-density="comfortable"] {
-  --pad: 24px;
-  --gap: 24px;
-  --card-pad: 22px;
+:root[data-density="roomy"] {
+  --pad: 28px;
+  --gap: 26px;
+  --card-pad: 24px;
 }
 
 /* radius tweak */

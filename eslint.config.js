@@ -73,6 +73,7 @@ export default [
       ".output/**",
       "dist/**",
       "node_modules/**",
+      "design/**",
     ],
   },
   eslint.configs.recommended,

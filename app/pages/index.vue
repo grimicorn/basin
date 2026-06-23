@@ -34,7 +34,7 @@ useHead({
     <div class="hero-glow" style="left: 88%; top: -300px" />
     <div class="wrap hero-b-in">
       <div>
-        <span class="eyebrow dot">One feed · every source</span>
+        <span class="eyebrow dot w-full!">One feed · every source</span>
         <h1 class="hero-h1">
           Your whole internet,<br />in
           <span class="lav">chronological</span> order.
@@ -251,7 +251,7 @@ useHead({
   <section class="section">
     <div class="wrap">
       <div class="cta-band">
-        <span class="eyebrow dot" style="justify-content: center">
+        <span class="eyebrow dot w-full!" style="justify-content: center">
           Start in under a minute
         </span>
         <h2>Bring your feeds home.</h2>

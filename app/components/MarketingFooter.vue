@@ -23,6 +23,7 @@
           <span>RSS &amp; Atom</span>
           <span>Podcasts</span>
           <span>YouTube</span>
+          <span>Bluesky</span>
           <span>X &amp; Instagram</span>
         </div>
         <div class="col">

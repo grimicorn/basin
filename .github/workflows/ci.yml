@@ -79,8 +79,11 @@ jobs:
     needs: [ci, changes, discover-specs]
     if: needs.changes.result == 'success' && needs.changes.outputs.src == 'true'
     # fail-fast: false so a single spec failure doesn't cancel the other shards.
+    # max-parallel: 3 caps concurrent Neon branch creation to stay within the
+    # project's branch limit when multiple specs run at the same time.
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
     # Required repository secrets (Settings → Secrets → Actions):

@@ -1,4 +1,4 @@
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { feedItems, feeds } from "../db/schema";
 import { FEED_SOURCE_TO_ITEM_TYPE } from "../../app/utils/feedSources";
 import { formatRelativeTime } from "./search";
@@ -135,7 +135,7 @@ export async function fetchFeedItems(
       feeds,
       and(eq(feedItems.feedId, feeds.id), eq(feeds.userId, userId)),
     )
-    .orderBy(desc(feedItems.publishedAt), desc(feedItems.id))
+    .orderBy(sql`${feedItems.publishedAt} DESC NULLS LAST`, desc(feedItems.id))
     .limit(limit + 1)
     .offset(offset);
 

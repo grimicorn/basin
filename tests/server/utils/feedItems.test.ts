@@ -191,12 +191,26 @@ describe("fetchFeedItems", () => {
     expect(mockOrderBy).toHaveBeenCalledTimes(1);
     expect(mockLimit).toHaveBeenCalledTimes(1);
     expect(mockOffset).toHaveBeenCalledTimes(1);
+
+    const [selectOrder] = mockSelect.mock.invocationCallOrder;
+    const [fromOrder] = mockFrom.mock.invocationCallOrder;
+    const [innerJoinOrder] = mockInnerJoin.mock.invocationCallOrder;
+    const [orderByOrder] = mockOrderBy.mock.invocationCallOrder;
+    const [limitOrder] = mockLimit.mock.invocationCallOrder;
+    const [offsetOrder] = mockOffset.mock.invocationCallOrder;
+
+    expect(selectOrder).toBeLessThan(fromOrder);
+    expect(fromOrder).toBeLessThan(innerJoinOrder);
+    expect(innerJoinOrder).toBeLessThan(orderByOrder);
+    expect(orderByOrder).toBeLessThan(limitOrder);
+    expect(limitOrder).toBeLessThan(offsetOrder);
   });
 
-  it("orders by publishedAt desc then id desc for deterministic pagination", async () => {
+  it("orders by publishedAt desc nulls last then id desc for deterministic pagination", async () => {
     await fetchFeedItems(1, {});
-    // orderBy must receive two arguments so identical publishedAt timestamps
-    // don't produce non-deterministic page boundaries.
+    // orderBy must receive two arguments: publishedAt DESC NULLS LAST (so items
+    // without a date sort to the bottom) and id DESC as a deterministic tiebreaker
+    // when multiple items share the same timestamp.
     expect(mockOrderBy).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),

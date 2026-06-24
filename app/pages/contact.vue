@@ -14,6 +14,8 @@ useHead({
   ],
 });
 
+const CONTACT_EMAIL = "hello@reader.app";
+
 const form = ref<HTMLFormElement | null>(null);
 const sent = ref(false);
 const submitting = ref(false);
@@ -47,8 +49,7 @@ async function handleSubmit() {
     }
     sent.value = true;
   } catch {
-    error.value =
-      "Something went wrong sending your message. Please email hello@reader.app instead.";
+    error.value = `Something went wrong sending your message. Please email ${CONTACT_EMAIL} instead.`;
   } finally {
     submitting.value = false;
   }
@@ -172,7 +173,9 @@ const socials = [
         <div class="contact-aside">
           <div class="aside-block">
             <h4>Email us</h4>
-            <a class="mail" href="mailto:hello@reader.app">hello@reader.app</a>
+            <a class="mail" :href="`mailto:${CONTACT_EMAIL}`">{{
+              CONTACT_EMAIL
+            }}</a>
             <p style="margin-top: 8px">
               For privacy questions,
               <a

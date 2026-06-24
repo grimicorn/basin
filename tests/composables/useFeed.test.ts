@@ -268,4 +268,70 @@ describe("useFeedStore", () => {
       expect(result).toContain("My Video");
     });
   });
+
+  describe("loadItems", () => {
+    const pageOne = [item({ id: 101 }), item({ id: 102 })];
+    const pageTwo = [item({ id: 103 }), item({ id: 104 })];
+
+    beforeEach(() => {
+      vi.mocked(globalThis.$fetch).mockReset();
+    });
+
+    it("replaces items when offset is 0 (first page)", async () => {
+      vi.mocked(globalThis.$fetch).mockResolvedValue({
+        items: pageOne,
+        total: 2,
+        nextOffset: null,
+      });
+      state.items = [item({ id: 999 })];
+      await feed.loadItems({ offset: 0 });
+      expect(state.items).toHaveLength(2);
+      expect(state.items.map((i) => i.id)).toEqual([101, 102]);
+    });
+
+    it("replaces items when offset is omitted (first page)", async () => {
+      vi.mocked(globalThis.$fetch).mockResolvedValue({
+        items: pageOne,
+        total: 2,
+        nextOffset: null,
+      });
+      state.items = [item({ id: 999 })];
+      await feed.loadItems();
+      expect(state.items.map((i) => i.id)).toEqual([101, 102]);
+    });
+
+    it("appends items when offset is greater than 0 (subsequent page)", async () => {
+      vi.mocked(globalThis.$fetch).mockResolvedValue({
+        items: pageTwo,
+        total: 4,
+        nextOffset: null,
+      });
+      state.items = pageOne as never;
+      await feed.loadItems({ offset: 2 });
+      expect(state.items).toHaveLength(4);
+      expect(state.items.map((i) => i.id)).toEqual([101, 102, 103, 104]);
+    });
+
+    it("does not duplicate first-page items on a repeated first-page load", async () => {
+      vi.mocked(globalThis.$fetch).mockResolvedValue({
+        items: pageOne,
+        total: 2,
+        nextOffset: null,
+      });
+      state.items = pageOne as never;
+      await feed.loadItems({ offset: 0 });
+      expect(state.items).toHaveLength(2);
+    });
+
+    it("deduplicates items with overlapping ids when appending a subsequent page", async () => {
+      vi.mocked(globalThis.$fetch).mockResolvedValue({
+        items: [item({ id: 102 }), item({ id: 103 })],
+        total: 3,
+        nextOffset: null,
+      });
+      state.items = pageOne as never;
+      await feed.loadItems({ offset: 1 });
+      expect(state.items.map((i) => i.id)).toEqual([101, 102, 103]);
+    });
+  });
 });

@@ -115,16 +115,28 @@ jobs:
       - name: Create Neon branch
         id: neon
         run: |
-          response=$(curl -sf \
-            --request POST \
-            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
-            --header "Authorization: Bearer ${NEON_API_KEY}" \
-            --header "Content-Type: application/json" \
-            --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")
+          # Neon API can return 4xx/5xx under concurrent load from parallel spec
+          # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
+          max_attempts=4
+          attempt=0
+          response=""
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            if response=$(curl -sf \
+              --request POST \
+              --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}"); then
+              break
+            fi
+            echo "Attempt $attempt failed. Waiting $((2 ** attempt))s before retry..."
+            sleep $((2 ** attempt))
+          done
           branch_id=$(echo "$response" | jq -r '.branch.id')
           db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri')
           if [ "$db_url" = "null" ] || [ -z "$db_url" ]; then
-            echo "Neon API did not return a connection URI. Full response:"
+            echo "Neon API did not return a connection URI after $max_attempts attempts. Full response:"
             echo "$response" | jq '.'
             exit 1
           fi

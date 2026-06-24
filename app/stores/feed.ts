@@ -9,6 +9,8 @@ import { SOURCES } from "~/lib/icons";
 const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 
 export const useFeedStore = defineStore("feed", () => {
+  const { getToken } = useAuth();
+
   const state = reactive({
     items: [] as Record<string, unknown>[],
     feeds: clone(seedFeeds),
@@ -77,7 +79,7 @@ export const useFeedStore = defineStore("feed", () => {
   }
 
   async function loadItems(params: { limit?: number; offset?: number } = {}) {
-    const { getToken } = useAuth();
+    const { showToast } = useToast();
     const token = await getToken.value();
     const headers: Record<string, string> = token
       ? { Authorization: `Bearer ${token}` }
@@ -91,20 +93,24 @@ export const useFeedStore = defineStore("feed", () => {
       query.offset = String(params.offset);
     }
 
-    const response = await $fetch<{
-      items: Record<string, unknown>[];
-      total: number;
-      nextOffset: number | null;
-    }>("/api/feed-items", { headers, query });
+    try {
+      const response = await $fetch<{
+        items: Record<string, unknown>[];
+        total: number;
+        nextOffset: number | null;
+      }>("/api/feed-items", { headers, query });
 
-    if ((params.offset ?? 0) > 0) {
-      const seen = new Set(state.items.map((i) => i.id));
-      state.items = [
-        ...state.items,
-        ...response.items.filter((i) => !seen.has(i.id)),
-      ];
-    } else {
-      state.items = response.items;
+      if ((params.offset ?? 0) > 0) {
+        const seen = new Set(state.items.map((i) => i.id));
+        state.items = [
+          ...state.items,
+          ...response.items.filter((i) => !seen.has(i.id)),
+        ];
+      } else {
+        state.items = response.items;
+      }
+    } catch {
+      showToast("Failed to load feed items — please try again");
     }
   }
 

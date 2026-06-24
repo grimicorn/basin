@@ -27,3 +27,4 @@ e2e/.clerk-user-id
 e2e/report/
 test-results
 /.claude
+/.clerk

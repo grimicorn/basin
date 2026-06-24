@@ -6,17 +6,23 @@ const state = feedStore.state;
 
 const appearanceStore = useAppearanceStore();
 
-const connectedCount = computed(
-  () => state.connections.filter((c) => c.connected).length,
-);
-
 const { items: realFeeds, loading: feedsLoading, load: loadFeeds } = useFeeds();
-onMounted(loadFeeds);
 
 const feedAdded = ref(false);
 const isOnboarding = computed(
   () => !feedsLoading.value && realFeeds.value.length === 0 && !feedAdded.value,
 );
+
+onMounted(async () => {
+  try {
+    await loadFeeds();
+    if (realFeeds.value.length > 0) {
+      await feedStore.loadItems();
+    }
+  } catch (error) {
+    console.error("Failed to load dashboard data:", error);
+  }
+});
 
 const showSkeleton = computed(
   () =>
@@ -43,8 +49,7 @@ const staggerOn = computed(
           </p>
           <p v-else class="page-sub">
             <b style="color: var(--ink-2)">{{ feedStore.unreadCount }}</b>
-            unread across {{ state.feeds.length + connectedCount }} sources ·
-            updated just now
+            unread across {{ realFeeds.length }} sources · updated just now
           </p>
         </div>
         <div class="subbar-tools">

@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, computed } from "vue";
 import {
-  items as seedItems,
   feeds as seedFeeds,
   connections as seedConnections,
 } from "~/data/mock";
@@ -10,8 +9,10 @@ import { SOURCES } from "~/lib/icons";
 const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 
 export const useFeedStore = defineStore("feed", () => {
+  const { getToken } = useAuth();
+
   const state = reactive({
-    items: clone(seedItems),
+    items: [] as Record<string, unknown>[],
     feeds: clone(seedFeeds),
     connections: clone(seedConnections),
     filter: "all",
@@ -75,6 +76,42 @@ export const useFeedStore = defineStore("feed", () => {
     const settings = await load();
     state.layout = settings.layout ?? "timeline";
     state.unreadOnly = settings.showUnreadOnly ?? false;
+  }
+
+  async function loadItems(params: { limit?: number; offset?: number } = {}) {
+    const { showToast } = useToast();
+    const token = await getToken.value();
+    const headers: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    const query: Record<string, string> = {};
+    if (params.limit !== undefined) {
+      query.limit = String(params.limit);
+    }
+    if (params.offset !== undefined) {
+      query.offset = String(params.offset);
+    }
+
+    try {
+      const response = await $fetch<{
+        items: Record<string, unknown>[];
+        total: number;
+        nextOffset: number | null;
+      }>("/api/feed-items", { headers, query });
+
+      if ((params.offset ?? 0) > 0) {
+        const seen = new Set(state.items.map((i) => i.id));
+        state.items = [
+          ...state.items,
+          ...response.items.filter((i) => !seen.has(i.id)),
+        ];
+      } else {
+        state.items = response.items;
+      }
+    } catch {
+      showToast("Failed to load feed items — please try again");
+    }
   }
 
   async function setupWatchers() {
@@ -260,6 +297,7 @@ export const useFeedStore = defineStore("feed", () => {
     visibleItems,
     decks,
     countFor,
+    loadItems,
     setupWatchers,
     runFeedLoad,
     refresh,

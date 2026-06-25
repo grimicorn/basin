@@ -3,7 +3,10 @@ import { ref, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import { useInfiniteScroll } from "~/composables/useInfiniteScroll";
 
-type IntersectCallback = (_arg: IntersectionObserverEntry[]) => void;
+type IntersectCallback = (
+  _entries: IntersectionObserverEntry[],
+  _observer: IntersectionObserver,
+) => void;
 
 // Capture the callback registered with IntersectionObserver so tests can
 // trigger it directly, without needing a real browser intersection event.

@@ -41,11 +41,13 @@ const staggerOn = computed(
 // Infinite scroll: local windowing over the already-loaded visibleItems list.
 // We never modify feed.ts — the store owns all items; we just slice here.
 const visibleCount = ref(PAGE_SIZE);
-const isLoadingMore = ref(false);
 
-// Reset window whenever the underlying list changes (filter/unread toggle)
+// Reset window when the list identity changes (e.g. filter or unread toggle switches
+// to a different set). Keying on length alone misses cases where a differently-filtered
+// list happens to have the same count, so we use a stable ID signature instead.
+// loadNextPage is synchronous (pure JS slice), so there is no async loading state to track.
 watch(
-  () => feedStore.visibleItems.length,
+  () => feedStore.visibleItems.map((item) => item.id).join(","),
   () => {
     visibleCount.value = PAGE_SIZE;
   },
@@ -63,13 +65,11 @@ const isEndOfFeed = computed(
 );
 
 function loadNextPage() {
-  if (isEndOfFeed.value || isLoadingMore.value) {
+  if (isEndOfFeed.value) {
     return;
   }
-  isLoadingMore.value = true;
   const nextCount = visibleCount.value + PAGE_SIZE;
   visibleCount.value = Math.min(nextCount, feedStore.visibleItems.length);
-  isLoadingMore.value = false;
 }
 
 const sentinelEl = ref(null);
@@ -196,10 +196,6 @@ useInfiniteScroll(sentinelEl, loadNextPage);
             class="feed-sentinel"
             aria-hidden="true"
           ></div>
-
-          <div v-if="isLoadingMore" class="feed-loading" aria-live="polite">
-            Loading more&hellip;
-          </div>
 
           <div v-if="isEndOfFeed" class="feed-end" aria-live="polite">
             You've reached the end
@@ -340,7 +336,6 @@ useInfiniteScroll(sentinelEl, loadNextPage);
 .feed-sentinel {
   height: 1px;
 }
-.feed-loading,
 .feed-end {
   text-align: center;
   padding: 24px 0;

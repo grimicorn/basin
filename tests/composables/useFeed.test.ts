@@ -340,12 +340,18 @@ describe("useFeedStore", () => {
 
   describe("sync queue integration", () => {
     let queueAction: ReturnType<typeof vi.fn>;
+    let showToast: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
       queueAction = vi.fn().mockResolvedValue(undefined);
       vi.stubGlobal(
         "useSyncQueue",
         vi.fn(() => ({ queueAction })),
+      );
+      showToast = vi.fn();
+      vi.stubGlobal(
+        "useToast",
+        vi.fn(() => ({ showToast })),
       );
     });
 
@@ -385,6 +391,20 @@ describe("useFeedStore", () => {
         expect(payload.guid).toBe("guid-unsave");
         expect(payload.savedAt).toBeNull();
       });
+
+      it("rolls back the local state and shows a toast when queueAction rejects", async () => {
+        queueAction.mockRejectedValue(new Error("DB unavailable"));
+        const feedItem = state.items[0];
+        feedItem.saved = false;
+        feedItem.feedId = 10;
+        feedItem.guid = "guid-save-fail";
+
+        await expect(feed.toggleSave(feedItem)).resolves.toBeUndefined();
+        expect(feedItem.saved).toBe(false);
+        expect(showToast).toHaveBeenCalledWith(
+          "Could not queue change for sync",
+        );
+      });
     });
 
     describe("toggleStar", () => {
@@ -415,6 +435,20 @@ describe("useFeedStore", () => {
         const [action, payload] = queueAction.mock.calls[0];
         expect(action).toBe("star");
         expect(payload.starred).toBe(false);
+      });
+
+      it("rolls back the local state and shows a toast when queueAction rejects", async () => {
+        queueAction.mockRejectedValue(new Error("DB unavailable"));
+        const feedItem = state.items[0];
+        feedItem.starred = false;
+        feedItem.feedId = 20;
+        feedItem.guid = "guid-star-fail";
+
+        await expect(feed.toggleStar(feedItem)).resolves.toBeUndefined();
+        expect(feedItem.starred).toBe(false);
+        expect(showToast).toHaveBeenCalledWith(
+          "Could not queue change for sync",
+        );
       });
     });
 
@@ -450,6 +484,21 @@ describe("useFeedStore", () => {
 
         expect(queueAction).not.toHaveBeenCalled();
       });
+
+      it("rolls back items to unread and shows a toast when queueAction rejects", async () => {
+        queueAction.mockRejectedValue(new Error("DB unavailable"));
+        state.items = [
+          item({ feedId: 1, guid: "g1", unread: true }),
+          item({ feedId: 2, guid: "g2", unread: true }),
+        ];
+
+        await expect(feed.markAllRead()).resolves.toBeUndefined();
+        expect(showToast).toHaveBeenCalledWith(
+          "Could not queue change for sync",
+        );
+        // Items are rolled back to unread since queueing failed
+        expect(state.items.every((i) => i.unread)).toBe(true);
+      });
     });
 
     describe("openItem", () => {
@@ -478,6 +527,21 @@ describe("useFeedStore", () => {
         await feed.openItem(feedItem);
 
         expect(queueAction).not.toHaveBeenCalled();
+      });
+
+      it("rolls back unread state and shows a toast when queueAction rejects", async () => {
+        queueAction.mockRejectedValue(new Error("DB unavailable"));
+        const feedItem = state.items[0];
+        feedItem.unread = true;
+        feedItem.feedId = 42;
+        feedItem.guid = "guid-open-fail";
+
+        await expect(feed.openItem(feedItem)).resolves.toBeUndefined();
+        expect(feedItem.unread).toBe(true);
+        expect(state.activeItem).toBe(feedItem);
+        expect(showToast).toHaveBeenCalledWith(
+          "Could not queue change for sync",
+        );
       });
     });
   });

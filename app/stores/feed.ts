@@ -170,28 +170,43 @@ export const useFeedStore = defineStore("feed", () => {
       .length;
   }
 
+  const SYNC_ERROR_MESSAGE = "Could not queue change for sync";
+
   async function toggleSave(item: Record<string, unknown>) {
     const { showToast } = useToast();
+    const previousSaved = item.saved;
     item.saved = !item.saved;
     showToast(item.saved ? "Saved for later" : "Removed from saved");
 
     const { queueAction } = useSyncQueue();
-    await queueAction("save", {
-      feedId: item.feedId,
-      guid: item.guid,
-      savedAt: item.saved ? new Date().toISOString() : null,
-    });
+    try {
+      await queueAction("save", {
+        feedId: item.feedId,
+        guid: item.guid,
+        savedAt: item.saved ? new Date().toISOString() : null,
+      });
+    } catch {
+      item.saved = previousSaved;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
   async function toggleStar(item: Record<string, unknown>) {
+    const { showToast } = useToast();
+    const previousStarred = item.starred;
     item.starred = !item.starred;
 
     const { queueAction } = useSyncQueue();
-    await queueAction("star", {
-      feedId: item.feedId,
-      guid: item.guid,
-      starred: item.starred,
-    });
+    try {
+      await queueAction("star", {
+        feedId: item.feedId,
+        guid: item.guid,
+        starred: item.starred,
+      });
+    } catch {
+      item.starred = previousStarred;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
   async function markAllRead() {
@@ -207,11 +222,16 @@ export const useFeedStore = defineStore("feed", () => {
     const { queueAction } = useSyncQueue();
     const now = new Date().toISOString();
     for (const feedItem of unreadItems) {
-      await queueAction("markRead", {
-        feedId: feedItem.feedId,
-        guid: feedItem.guid,
-        readAt: now,
-      });
+      try {
+        await queueAction("markRead", {
+          feedId: feedItem.feedId,
+          guid: feedItem.guid,
+          readAt: now,
+        });
+      } catch {
+        feedItem.unread = true;
+        showToast(SYNC_ERROR_MESSAGE);
+      }
     }
   }
 
@@ -234,12 +254,18 @@ export const useFeedStore = defineStore("feed", () => {
       return;
     }
 
+    const { showToast } = useToast();
     const { queueAction } = useSyncQueue();
-    await queueAction("markRead", {
-      feedId: item.feedId,
-      guid: item.guid,
-      readAt: new Date().toISOString(),
-    });
+    try {
+      await queueAction("markRead", {
+        feedId: item.feedId,
+        guid: item.guid,
+        readAt: new Date().toISOString(),
+      });
+    } catch {
+      item.unread = true;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
   function closeDetail() {

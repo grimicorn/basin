@@ -14,11 +14,17 @@ function handleMouseEnter() {
 }
 
 function handleMouseLeave() {
-  if (!videoRef.value) {
+  if (!appearanceStore.state.autoplay || !videoRef.value) {
     return;
   }
   videoRef.value.pause();
   videoRef.value.currentTime = 0;
+}
+
+function handleVideoClick(event) {
+  if (!appearanceStore.state.autoplay) {
+    event.stopPropagation();
+  }
 }
 </script>
 
@@ -31,16 +37,18 @@ function handleMouseLeave() {
   >
     <div class="thumb ph ratio-16x9" :data-label="item.thumb">
       <video
-        v-if="item.videoUrl && appearanceStore.state.autoplay"
+        v-if="item.videoUrl"
         ref="videoRef"
         class="thumb-video"
         :src="item.videoUrl"
+        :controls="!appearanceStore.state.autoplay"
+        :tabindex="appearanceStore.state.autoplay ? -1 : 0"
+        :aria-hidden="appearanceStore.state.autoplay ? 'true' : undefined"
         muted
         playsinline
         loop
         preload="none"
-        tabindex="-1"
-        aria-hidden="true"
+        @click="handleVideoClick"
       ></video>
       <span class="thumb-play"><RIcon name="play" :size="22" /></span>
       <span class="thumb-dur">{{ item.meta }}</span>

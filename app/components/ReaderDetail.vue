@@ -32,7 +32,8 @@ function openOriginal() {
 }
 
 function openPodcastEpisode() {
-  const episodeUrl = item.value?.mediaUrl || item.value?.url;
+  const episodeUrl =
+    safeHref(item.value?.mediaUrl) || safeHref(item.value?.url);
   openUrl(episodeUrl);
 }
 </script>

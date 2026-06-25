@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import ReaderDetail from "~/components/ReaderDetail.vue";
 import { useFeedStore } from "~/stores/feed";
@@ -13,6 +13,10 @@ describe("ReaderDetail", () => {
     state = useFeedStore().state;
     state.activeItem = null;
     vi.stubGlobal("open", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders nothing when there is no active item", () => {
@@ -163,6 +167,24 @@ describe("ReaderDetail", () => {
     it("falls back to url when mediaUrl is absent", async () => {
       state.activeItem = makePodcast({
         mediaUrl: null,
+        url: "https://podcast.example.com/episode-1",
+      }) as never;
+      const wrapper = shallowMount(ReaderDetail);
+      await wrapper.vm.$nextTick();
+
+      const playButton = wrapper.find(".pod-play");
+      await playButton.trigger("click");
+
+      expect(window.open).toHaveBeenCalledWith(
+        "https://podcast.example.com/episode-1",
+        "_blank",
+        "noopener,noreferrer",
+      );
+    });
+
+    it("falls back to url when mediaUrl is unsafe", async () => {
+      state.activeItem = makePodcast({
+        mediaUrl: "javascript:alert(1)",
         url: "https://podcast.example.com/episode-1",
       }) as never;
       const wrapper = shallowMount(ReaderDetail);

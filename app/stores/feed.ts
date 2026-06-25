@@ -170,29 +170,73 @@ export const useFeedStore = defineStore("feed", () => {
       .length;
   }
 
-  function toggleSave(item: Record<string, unknown>) {
+  async function toggleSave(item: Record<string, unknown>) {
     const { showToast } = useToast();
     item.saved = !item.saved;
     showToast(item.saved ? "Saved for later" : "Removed from saved");
+
+    const { queueAction } = useSyncQueue();
+    await queueAction("save", {
+      feedId: item.feedId,
+      guid: item.guid,
+      savedAt: item.saved ? new Date().toISOString() : null,
+    });
   }
 
-  function markAllRead() {
+  async function toggleStar(item: Record<string, unknown>) {
+    item.starred = !item.starred;
+
+    const { queueAction } = useSyncQueue();
+    await queueAction("star", {
+      feedId: item.feedId,
+      guid: item.guid,
+      starred: item.starred,
+    });
+  }
+
+  async function markAllRead() {
     const { showToast } = useToast();
     state.items.forEach((i: Record<string, unknown>) => {
       i.unread = false;
     });
     showToast("Marked all as read");
+
+    const { queueAction } = useSyncQueue();
+    const now = new Date().toISOString();
+    for (const feedItem of state.items) {
+      await queueAction("markRead", {
+        feedId: feedItem.feedId,
+        guid: feedItem.guid,
+        readAt: now,
+      });
+    }
   }
 
-  function openItem(item: Record<string, unknown>) {
+  async function openItem(item: Record<string, unknown>) {
+    const wasUnread = item.unread === true;
     item.unread = false;
     state.activeItem = item;
     state.detailLoading = true;
-    if (timers.detail) clearTimeout(timers.detail);
+    if (timers.detail) {
+      clearTimeout(timers.detail);
+    }
     timers.detail = setTimeout(() => {
       state.detailLoading = false;
     }, 520);
-    if (import.meta.client) document.body.style.overflow = "hidden";
+    if (import.meta.client) {
+      document.body.style.overflow = "hidden";
+    }
+
+    if (!wasUnread) {
+      return;
+    }
+
+    const { queueAction } = useSyncQueue();
+    await queueAction("markRead", {
+      feedId: item.feedId,
+      guid: item.guid,
+      readAt: new Date().toISOString(),
+    });
   }
 
   function closeDetail() {
@@ -302,6 +346,7 @@ export const useFeedStore = defineStore("feed", () => {
     runFeedLoad,
     refresh,
     toggleSave,
+    toggleStar,
     markAllRead,
     openItem,
     closeDetail,

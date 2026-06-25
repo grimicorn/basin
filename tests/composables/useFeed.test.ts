@@ -5,6 +5,8 @@ import { makeFeed, makeConnection } from "../fixtures";
 
 const item = (overrides: Record<string, unknown> = {}) => ({
   id: Math.floor(Math.random() * 1e9),
+  feedId: 10,
+  guid: "test-guid-1",
   type: "article",
   source: "Test",
   handle: "test.com",
@@ -15,6 +17,7 @@ const item = (overrides: Record<string, unknown> = {}) => ({
   tags: [],
   unread: true,
   saved: false,
+  starred: false,
   ...overrides,
 });
 
@@ -332,6 +335,139 @@ describe("useFeedStore", () => {
       state.items = pageOne as never;
       await feed.loadItems({ offset: 1 });
       expect(state.items.map((i) => i.id)).toEqual([101, 102, 103]);
+    });
+  });
+
+  describe("sync queue integration", () => {
+    let queueAction: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      queueAction = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal(
+        "useSyncQueue",
+        vi.fn(() => ({ queueAction })),
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    describe("toggleSave", () => {
+      it("enqueues a save action with savedAt when saving", async () => {
+        const feedItem = state.items[0];
+        feedItem.saved = false;
+        feedItem.feedId = 10;
+        feedItem.guid = "guid-save";
+
+        await feed.toggleSave(feedItem);
+
+        expect(queueAction).toHaveBeenCalledOnce();
+        const [action, payload] = queueAction.mock.calls[0];
+        expect(action).toBe("save");
+        expect(payload.feedId).toBe(10);
+        expect(payload.guid).toBe("guid-save");
+        expect(typeof payload.savedAt).toBe("string");
+      });
+
+      it("enqueues a save action with savedAt=null when unsaving", async () => {
+        const feedItem = state.items[0];
+        feedItem.saved = true;
+        feedItem.feedId = 10;
+        feedItem.guid = "guid-unsave";
+
+        await feed.toggleSave(feedItem);
+
+        expect(queueAction).toHaveBeenCalledOnce();
+        const [action, payload] = queueAction.mock.calls[0];
+        expect(action).toBe("save");
+        expect(payload.feedId).toBe(10);
+        expect(payload.guid).toBe("guid-unsave");
+        expect(payload.savedAt).toBeNull();
+      });
+    });
+
+    describe("toggleStar", () => {
+      it("enqueues a star action with starred=true when starring", async () => {
+        const feedItem = state.items[0];
+        feedItem.starred = false;
+        feedItem.feedId = 20;
+        feedItem.guid = "guid-star";
+
+        await feed.toggleStar(feedItem);
+
+        expect(queueAction).toHaveBeenCalledOnce();
+        const [action, payload] = queueAction.mock.calls[0];
+        expect(action).toBe("star");
+        expect(payload.feedId).toBe(20);
+        expect(payload.guid).toBe("guid-star");
+        expect(payload.starred).toBe(true);
+      });
+
+      it("enqueues a star action with starred=false when unstarring", async () => {
+        const feedItem = state.items[0];
+        feedItem.starred = true;
+        feedItem.feedId = 20;
+        feedItem.guid = "guid-unstar";
+
+        await feed.toggleStar(feedItem);
+
+        const [action, payload] = queueAction.mock.calls[0];
+        expect(action).toBe("star");
+        expect(payload.starred).toBe(false);
+      });
+    });
+
+    describe("markAllRead", () => {
+      it("enqueues a markRead action for each item", async () => {
+        state.items = [
+          item({ feedId: 1, guid: "g1", unread: true }),
+          item({ feedId: 2, guid: "g2", unread: false }),
+          item({ feedId: 3, guid: "g3", unread: true }),
+        ];
+
+        await feed.markAllRead();
+
+        expect(queueAction).toHaveBeenCalledTimes(3);
+
+        const calls = queueAction.mock.calls;
+        expect(calls[0][0]).toBe("markRead");
+        expect(calls[0][1].feedId).toBe(1);
+        expect(calls[0][1].guid).toBe("g1");
+        expect(typeof calls[0][1].readAt).toBe("string");
+
+        expect(calls[1][1].feedId).toBe(2);
+        expect(calls[2][1].feedId).toBe(3);
+      });
+    });
+
+    describe("openItem", () => {
+      it("enqueues a markRead action when item was unread", async () => {
+        const feedItem = state.items[0];
+        feedItem.unread = true;
+        feedItem.feedId = 42;
+        feedItem.guid = "guid-open";
+
+        await feed.openItem(feedItem);
+
+        expect(queueAction).toHaveBeenCalledOnce();
+        const [action, payload] = queueAction.mock.calls[0];
+        expect(action).toBe("markRead");
+        expect(payload.feedId).toBe(42);
+        expect(payload.guid).toBe("guid-open");
+        expect(typeof payload.readAt).toBe("string");
+      });
+
+      it("does not enqueue a markRead action when item was already read", async () => {
+        const feedItem = state.items[0];
+        feedItem.unread = false;
+        feedItem.feedId = 42;
+        feedItem.guid = "guid-already-read";
+
+        await feed.openItem(feedItem);
+
+        expect(queueAction).not.toHaveBeenCalled();
+      });
     });
   });
 });

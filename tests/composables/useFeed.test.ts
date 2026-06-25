@@ -419,7 +419,7 @@ describe("useFeedStore", () => {
     });
 
     describe("markAllRead", () => {
-      it("enqueues a markRead action for each item", async () => {
+      it("enqueues a markRead action only for items that were unread", async () => {
         state.items = [
           item({ feedId: 1, guid: "g1", unread: true }),
           item({ feedId: 2, guid: "g2", unread: false }),
@@ -428,7 +428,7 @@ describe("useFeedStore", () => {
 
         await feed.markAllRead();
 
-        expect(queueAction).toHaveBeenCalledTimes(3);
+        expect(queueAction).toHaveBeenCalledTimes(2);
 
         const calls = queueAction.mock.calls;
         expect(calls[0][0]).toBe("markRead");
@@ -436,8 +436,19 @@ describe("useFeedStore", () => {
         expect(calls[0][1].guid).toBe("g1");
         expect(typeof calls[0][1].readAt).toBe("string");
 
-        expect(calls[1][1].feedId).toBe(2);
-        expect(calls[2][1].feedId).toBe(3);
+        expect(calls[1][1].feedId).toBe(3);
+        expect(calls[1][1].guid).toBe("g3");
+      });
+
+      it("does not enqueue any markRead actions when all items are already read", async () => {
+        state.items = [
+          item({ feedId: 1, guid: "g1", unread: false }),
+          item({ feedId: 2, guid: "g2", unread: false }),
+        ];
+
+        await feed.markAllRead();
+
+        expect(queueAction).not.toHaveBeenCalled();
       });
     });
 

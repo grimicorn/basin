@@ -196,14 +196,17 @@ export const useFeedStore = defineStore("feed", () => {
 
   async function markAllRead() {
     const { showToast } = useToast();
-    state.items.forEach((i: Record<string, unknown>) => {
+    const unreadItems = state.items.filter(
+      (i: Record<string, unknown>) => i.unread === true,
+    );
+    unreadItems.forEach((i: Record<string, unknown>) => {
       i.unread = false;
     });
     showToast("Marked all as read");
 
     const { queueAction } = useSyncQueue();
     const now = new Date().toISOString();
-    for (const feedItem of state.items) {
+    for (const feedItem of unreadItems) {
       await queueAction("markRead", {
         feedId: feedItem.feedId,
         guid: feedItem.guid,

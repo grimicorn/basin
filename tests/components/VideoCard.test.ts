@@ -127,8 +127,10 @@ describe("VideoCard", () => {
       });
       const video = wrapper.find("video").element as HTMLVideoElement;
       const pauseSpy = vi.spyOn(video, "pause");
+      video.currentTime = 12;
       await wrapper.find("article").trigger("mouseleave");
       expect(pauseSpy).toHaveBeenCalled();
+      expect(video.currentTime).toBe(0);
     });
 
     it("video is not aria-hidden when autoplay is off", () => {

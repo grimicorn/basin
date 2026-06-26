@@ -13,6 +13,7 @@ export const makeArticle = (overrides: Record<string, unknown> = {}) => ({
   tags: ["design", "web"],
   unread: true,
   saved: false,
+  url: "https://test.example.com/article-1",
   body: ["First paragraph.", "Second paragraph."],
   ...overrides,
 });
@@ -31,6 +32,7 @@ export const makeVideo = (overrides: Record<string, unknown> = {}) => ({
   views: "10K views",
   thumb: "https://example.com/thumb.jpg",
   desc: "Full video description here.",
+  url: "https://www.youtube.com/watch?v=test123",
   ...overrides,
 });
 
@@ -60,6 +62,8 @@ export const makePodcast = (overrides: Record<string, unknown> = {}) => ({
   saved: false,
   thumb: "https://example.com/cover.jpg",
   progress: 0.3,
+  url: "https://podcast.example.com/episode-1",
+  mediaUrl: "https://podcast.example.com/episode-1.mp3",
   notes: ["Show note one.", "Show note two."],
   ...overrides,
 });

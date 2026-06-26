@@ -2,9 +2,40 @@
 import { computed } from "vue";
 
 const feedStore = useFeedStore();
-const { showToast } = useToast();
 
 const item = computed(() => feedStore.state.activeItem);
+
+const ALLOWED_URL_PROTOCOLS = ["https:", "http:"];
+
+function isSafeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_URL_PROTOCOLS.includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function openUrl(url) {
+  if (!url || !isSafeUrl(url)) {
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function safeHref(url) {
+  return isSafeUrl(url) ? url : null;
+}
+
+function openOriginal() {
+  openUrl(item.value?.url);
+}
+
+function openPodcastEpisode() {
+  const episodeUrl =
+    safeHref(item.value?.mediaUrl) || safeHref(item.value?.url);
+  openUrl(episodeUrl);
+}
 </script>
 
 <template>
@@ -43,11 +74,7 @@ const item = computed(() => feedStore.state.activeItem);
               :size="16"
             />
           </button>
-          <button
-            class="icon-btn"
-            title="Open original"
-            @click="showToast('Opening original · ' + item.source)"
-          >
+          <button class="icon-btn" title="Open original" @click="openOriginal">
             <RIcon name="external" :size="16" />
           </button>
           <button
@@ -92,12 +119,15 @@ const item = computed(() => feedStore.state.activeItem);
                 {{ p }}
               </p>
             </div>
-            <button
+            <a
+              v-if="safeHref(item.url)"
+              :href="safeHref(item.url)"
+              target="_blank"
+              rel="noopener noreferrer"
               class="btn mt-8"
-              @click="showToast('Opening original · ' + item.source)"
             >
               <RIcon name="external" :size="15" /> Open original
-            </button>
+            </a>
           </article>
 
           <!-- VIDEO -->
@@ -130,12 +160,15 @@ const item = computed(() => feedStore.state.activeItem);
               <div class="detail-prose">
                 <p>{{ feedStore.videoDesc(item) }}</p>
               </div>
-              <button
+              <a
+                v-if="safeHref(item.url)"
+                :href="safeHref(item.url)"
+                target="_blank"
+                rel="noopener noreferrer"
                 class="btn btn-primary mt-7"
-                @click="showToast('Opening on YouTube')"
               >
                 <RIcon name="play" :size="15" /> Watch on YouTube
-              </button>
+              </a>
             </div>
           </div>
 
@@ -171,7 +204,7 @@ const item = computed(() => feedStore.state.activeItem);
                 <button
                   class="pod-play"
                   style="width: 44px; height: 44px"
-                  @click="showToast('Playing · ' + item.source)"
+                  @click="openPodcastEpisode"
                 >
                   <RIcon name="play" :size="18" />
                 </button>

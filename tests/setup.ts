@@ -28,6 +28,12 @@ globalThis.useUserSettings = vi.fn(() => ({
 // Nuxt $fetch stub — returns null by default; individual tests override as needed.
 globalThis.$fetch = vi.fn().mockResolvedValue(null);
 
+// useSyncQueue stub — no-op by default. Override with vi.stubGlobal in tests that need to assert on queueAction.
+globalThis.useSyncQueue = vi.fn(() => ({
+  queueAction: vi.fn().mockResolvedValue(undefined),
+  flushSyncQueue: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Nuxt router / navigation globals
 globalThis.navigateTo = vi.fn();
 globalThis.useRoute = vi.fn(() => ({ path: "/", params: {}, query: {} }));

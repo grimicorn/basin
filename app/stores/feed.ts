@@ -170,29 +170,102 @@ export const useFeedStore = defineStore("feed", () => {
       .length;
   }
 
-  function toggleSave(item: Record<string, unknown>) {
+  const SYNC_ERROR_MESSAGE = "Could not queue change for sync";
+
+  async function toggleSave(item: Record<string, unknown>) {
     const { showToast } = useToast();
+    const previousSaved = item.saved;
     item.saved = !item.saved;
     showToast(item.saved ? "Saved for later" : "Removed from saved");
+
+    const { queueAction } = useSyncQueue();
+    try {
+      await queueAction("save", {
+        feedId: item.feedId,
+        guid: item.guid,
+        savedAt: item.saved ? new Date().toISOString() : null,
+      });
+    } catch {
+      item.saved = previousSaved;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
-  function markAllRead() {
+  async function toggleStar(item: Record<string, unknown>) {
     const { showToast } = useToast();
-    state.items.forEach((i: Record<string, unknown>) => {
+    const previousStarred = item.starred;
+    item.starred = !item.starred;
+
+    const { queueAction } = useSyncQueue();
+    try {
+      await queueAction("star", {
+        feedId: item.feedId,
+        guid: item.guid,
+        starred: item.starred,
+      });
+    } catch {
+      item.starred = previousStarred;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
+  }
+
+  async function markAllRead() {
+    const { showToast } = useToast();
+    const unreadItems = state.items.filter(
+      (i: Record<string, unknown>) => i.unread === true,
+    );
+    unreadItems.forEach((i: Record<string, unknown>) => {
       i.unread = false;
     });
     showToast("Marked all as read");
+
+    const { queueAction } = useSyncQueue();
+    const now = new Date().toISOString();
+    for (const feedItem of unreadItems) {
+      try {
+        await queueAction("markRead", {
+          feedId: feedItem.feedId,
+          guid: feedItem.guid,
+          readAt: now,
+        });
+      } catch {
+        feedItem.unread = true;
+        showToast(SYNC_ERROR_MESSAGE);
+      }
+    }
   }
 
-  function openItem(item: Record<string, unknown>) {
+  async function openItem(item: Record<string, unknown>) {
+    const wasUnread = item.unread === true;
     item.unread = false;
     state.activeItem = item;
     state.detailLoading = true;
-    if (timers.detail) clearTimeout(timers.detail);
+    if (timers.detail) {
+      clearTimeout(timers.detail);
+    }
     timers.detail = setTimeout(() => {
       state.detailLoading = false;
     }, 520);
-    if (import.meta.client) document.body.style.overflow = "hidden";
+    if (import.meta.client) {
+      document.body.style.overflow = "hidden";
+    }
+
+    if (!wasUnread) {
+      return;
+    }
+
+    const { showToast } = useToast();
+    const { queueAction } = useSyncQueue();
+    try {
+      await queueAction("markRead", {
+        feedId: item.feedId,
+        guid: item.guid,
+        readAt: new Date().toISOString(),
+      });
+    } catch {
+      item.unread = true;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
   function closeDetail() {
@@ -302,6 +375,7 @@ export const useFeedStore = defineStore("feed", () => {
     runFeedLoad,
     refresh,
     toggleSave,
+    toggleStar,
     markAllRead,
     openItem,
     closeDetail,

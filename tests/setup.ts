@@ -70,6 +70,9 @@ globalThis.watch = watch;
 globalThis.onMounted = onMounted;
 globalThis.onUnmounted = onUnmounted;
 
+// Stub useInfiniteScroll — tests that need the real behavior import it directly.
+globalThis.useInfiniteScroll = vi.fn();
+
 // Nuxt's $fetch global — tests override per-suite as needed.
 globalThis.$fetch = vi.fn().mockResolvedValue([]);
 

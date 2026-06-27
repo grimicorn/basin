@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   advisoryIdFromUrl,
+  assertUsableReport,
   collectBlockingAdvisories,
+  isAllowlistExpired,
+  parseAuditReport,
   partitionByAllowlist,
 } from "../../scripts/audit-gate.js";
-import { ALLOWED_ADVISORY_IDS } from "../../scripts/audit-allowlist.js";
+import {
+  ALLOWED_ADVISORY_IDS,
+  ALLOWLIST_REVIEW_BY,
+} from "../../scripts/audit-allowlist.js";
 
 const ALLOWED_ID = [...ALLOWED_ADVISORY_IDS][0];
 
@@ -101,5 +107,53 @@ describe("partitionByAllowlist", () => {
     const { suppressed, blocking } = partitionByAllowlist(advisories);
     expect(suppressed).toEqual([]);
     expect(blocking).toHaveLength(2);
+  });
+});
+
+describe("assertUsableReport", () => {
+  it("throws when npm audit returned an error object", () => {
+    expect(() =>
+      assertUsableReport({
+        error: { code: "ENOLOCK", summary: "requires a lockfile" },
+      }),
+    ).toThrow(/requires a lockfile/);
+  });
+
+  it("throws when the vulnerabilities map is missing", () => {
+    expect(() => assertUsableReport({ metadata: {} })).toThrow(
+      /Unrecognized npm audit JSON shape/,
+    );
+  });
+
+  it("accepts a report with a vulnerabilities map", () => {
+    expect(() => assertUsableReport({ vulnerabilities: {} })).not.toThrow();
+  });
+});
+
+describe("parseAuditReport", () => {
+  it("throws on empty stdin rather than passing the gate", () => {
+    expect(() => parseAuditReport("   ")).toThrow(/No npm audit JSON/);
+  });
+
+  it("throws on malformed JSON", () => {
+    expect(() => parseAuditReport("{not json")).toThrow();
+  });
+
+  it("rejects an error report instead of treating it as clean", () => {
+    const raw = JSON.stringify({ error: { code: "ENOLOCK" } });
+    expect(() => parseAuditReport(raw)).toThrow(/npm audit failed/);
+  });
+});
+
+describe("isAllowlistExpired", () => {
+  it("is false before the review date", () => {
+    const dayBefore = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+    dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+    expect(isAllowlistExpired(dayBefore)).toBe(false);
+  });
+
+  it("is true on or after the review date", () => {
+    const onDate = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+    expect(isAllowlistExpired(onDate)).toBe(true);
   });
 });

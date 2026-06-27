@@ -28,11 +28,33 @@ function readStdin() {
   });
 }
 
-function parseAuditReport(rawJson) {
+// npm emits an error object (not a vulnerability report) when the audit itself
+// fails — no lockfile, registry unreachable, auth error. That JSON parses fine
+// but has no `vulnerabilities`, so without this guard the gate would treat a
+// broken audit as clean and pass. Fail loud instead.
+export function assertUsableReport(auditReport) {
+  if (auditReport.error) {
+    const detail =
+      auditReport.error.summary || auditReport.error.code || "unknown error";
+    throw new Error(`npm audit failed: ${detail}`);
+  }
+  if (
+    typeof auditReport.vulnerabilities !== "object" ||
+    auditReport.vulnerabilities === null
+  ) {
+    throw new Error(
+      "Unrecognized npm audit JSON shape (no `vulnerabilities` map) — refusing to pass the gate.",
+    );
+  }
+}
+
+export function parseAuditReport(rawJson) {
   if (!rawJson.trim()) {
     throw new Error("No npm audit JSON received on stdin.");
   }
-  return JSON.parse(rawJson);
+  const auditReport = JSON.parse(rawJson);
+  assertUsableReport(auditReport);
+  return auditReport;
 }
 
 export function advisoryIdFromUrl(url) {
@@ -68,22 +90,33 @@ function blockingAdvisoriesFromVia(viaList) {
   return advisories;
 }
 
-export function collectBlockingAdvisories(auditReport) {
-  const vulnerabilities = auditReport.vulnerabilities || {};
+function dedupeById(advisories) {
   const byId = new Map();
-  for (const vulnerability of Object.values(vulnerabilities)) {
-    for (const advisory of blockingAdvisoriesFromVia(vulnerability.via)) {
-      if (byId.has(advisory.id)) {
-        continue;
-      }
-      byId.set(advisory.id, advisory);
+  for (const advisory of advisories) {
+    if (byId.has(advisory.id)) {
+      continue;
     }
+    byId.set(advisory.id, advisory);
   }
   return [...byId.values()];
 }
 
-function isAllowlistExpired() {
-  return new Date() >= new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+export function collectBlockingAdvisories(auditReport) {
+  const vulnerabilities = auditReport.vulnerabilities || {};
+  const allAdvisories = Object.values(vulnerabilities).flatMap(
+    (vulnerability) => blockingAdvisoriesFromVia(vulnerability.via),
+  );
+  return dedupeById(allAdvisories);
+}
+
+export function isAllowlistExpired(now = new Date()) {
+  const reviewDate = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+  if (Number.isNaN(reviewDate.getTime())) {
+    throw new Error(
+      `Invalid ALLOWLIST_REVIEW_BY (${ALLOWLIST_REVIEW_BY}); expected YYYY-MM-DD.`,
+    );
+  }
+  return now >= reviewDate;
 }
 
 function reportAllowlistExpired() {

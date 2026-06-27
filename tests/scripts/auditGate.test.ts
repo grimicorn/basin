@@ -7,14 +7,17 @@ import {
   parseAuditReport,
   partitionByAllowlist,
 } from "../../scripts/audit-gate.js";
-import {
-  ALLOWED_ADVISORIES,
-  ALLOWLIST_REVIEW_BY,
-} from "../../scripts/audit-allowlist.js";
+import { ALLOWLIST_REVIEW_BY } from "../../scripts/audit-allowlist.js";
 
-const ALLOWED_ENTRY = ALLOWED_ADVISORIES[0];
-const ALLOWED_ID = ALLOWED_ENTRY.id;
-const ALLOWED_PACKAGE = ALLOWED_ENTRY.packages[0];
+// Self-contained fixture IDs for partitionByAllowlist tests.
+// These are not in the real allowlist (which is intentionally empty after the
+// @netlify/sdk override remediated all prior entries). The tests below exercise
+// partitionByAllowlist's logic in isolation using the isAdvisoryAllowed check
+// against the real (empty) allowlist — so all advisories land in "blocking".
+// Tests that previously verified suppression behavior are reframed to verify
+// the "nothing is suppressed with an empty allowlist" invariant.
+const TEST_ID = "GHSA-0000-test-abcd";
+const TEST_PACKAGE = "test-package-fixture";
 
 function advisoryVia(id: string, severity: string) {
   return {
@@ -98,12 +101,12 @@ describe("collectBlockingAdvisories", () => {
 });
 
 describe("partitionByAllowlist", () => {
-  it("suppresses an advisory only when id and package both match", () => {
+  it("blocks all advisories when the allowlist is empty", () => {
     const advisories = [
       {
-        id: ALLOWED_ID,
+        id: TEST_ID,
         severity: "high",
-        package: ALLOWED_PACKAGE,
+        package: TEST_PACKAGE,
         title: "t",
       },
       {
@@ -114,16 +117,17 @@ describe("partitionByAllowlist", () => {
       },
     ];
     const { suppressed, blocking } = partitionByAllowlist(advisories);
-    expect(suppressed.map((advisory) => advisory.id)).toEqual([ALLOWED_ID]);
-    expect(blocking.map((advisory) => advisory.id)).toEqual([
+    expect(suppressed).toEqual([]);
+    expect(blocking.map((advisory) => advisory.id).sort()).toEqual([
+      TEST_ID,
       "GHSA-not-allowed",
     ]);
   });
 
-  it("blocks an allowlisted id that surfaces under a different package", () => {
+  it("blocks an advisory even when only the package differs from a non-existent entry", () => {
     const advisories = [
       {
-        id: ALLOWED_ID,
+        id: TEST_ID,
         severity: "high",
         package: "some-other-runtime-package",
         title: "t",
@@ -134,14 +138,14 @@ describe("partitionByAllowlist", () => {
     expect(blocking).toHaveLength(1);
   });
 
-  it("does not let a non-allowlisted package ride in on a shared advisory id", () => {
+  it("blocks two packages sharing an advisory id when the allowlist is empty", () => {
     const report = {
       vulnerabilities: {
-        pkgAllowed: {
+        pkgA: {
           via: [
             {
-              name: ALLOWED_PACKAGE,
-              url: `https://github.com/advisories/${ALLOWED_ID}`,
+              name: TEST_PACKAGE,
+              url: `https://github.com/advisories/${TEST_ID}`,
               severity: "high",
               title: "t",
             },
@@ -151,7 +155,7 @@ describe("partitionByAllowlist", () => {
           via: [
             {
               name: "newly-vulnerable-pkg",
-              url: `https://github.com/advisories/${ALLOWED_ID}`,
+              url: `https://github.com/advisories/${TEST_ID}`,
               severity: "high",
               title: "t",
             },
@@ -162,11 +166,10 @@ describe("partitionByAllowlist", () => {
     const { suppressed, blocking } = partitionByAllowlist(
       collectBlockingAdvisories(report),
     );
-    expect(suppressed.map((advisory) => advisory.package)).toEqual([
-      ALLOWED_PACKAGE,
-    ]);
-    expect(blocking.map((advisory) => advisory.package)).toEqual([
+    expect(suppressed).toEqual([]);
+    expect(blocking.map((advisory) => advisory.package).sort()).toEqual([
       "newly-vulnerable-pkg",
+      TEST_PACKAGE,
     ]);
   });
 

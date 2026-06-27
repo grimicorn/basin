@@ -29,10 +29,150 @@ exports[`ReaderDetail > matches snapshot (with active article) 1`] = `
         <div class="detail-prose">
           <p>First paragraph.</p>
           <p>Second paragraph.</p>
-        </div><button class="btn mt-8">
+        </div><a href="https://test.example.com/article-1" target="_blank" rel="noopener noreferrer" class="btn mt-8">
           <r-icon-stub name="external" size="15"></r-icon-stub> Open original
-        </button>
+        </a>
       </article>
+    </div>
+  </div>
+</div>"
+`;
+
+exports[`ReaderDetail > matches snapshot (with active podcast) 1`] = `
+"<div class="detail-scrim">
+  <div class="detail-sheet">
+    <div class="detail-head">
+      <source-tag-stub item="[object Object]"></source-tag-stub>
+      <div class="ml-auto flex items-center gap-0.5"><button class="icon-btn" title="Previous (←)">
+          <r-icon-stub name="chevRight" size="16" style="transform: rotate(180deg);"></r-icon-stub>
+        </button><button class="icon-btn" title="Next (→)">
+          <r-icon-stub name="chevRight" size="16"></r-icon-stub>
+        </button><span class="bg-border mx-1 h-5 w-px"></span><button class="icon-btn" title="Save for later">
+          <r-icon-stub name="bookmark" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Open original">
+          <r-icon-stub name="external" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Close (esc)">
+          <r-icon-stub name="x" size="18"></r-icon-stub>
+        </button></div>
+    </div>
+    <div class="detail-body">
+      <!-- loading shimmer -->
+      <!-- ARTICLE -->
+      <!-- PODCAST -->
+      <div class="p-7 sm:p-8">
+        <div class="mb-6 flex gap-4">
+          <div class="ph ratio-1x1" data-label="cover" style="width: 96px; height: 96px; color: var(--src-podcast); flex-grow: 0; flex-shrink: 0; flex-basis: auto;">
+            <r-icon-stub name="mic" size="24"></r-icon-stub>
+          </div>
+          <div class="min-w-0 self-center">
+            <div class="text-muted mb-1.5 text-[12px]">Test Podcast</div>
+            <h2 class="detail-title" style="font-size: 20px;">Test Episode Title</h2>
+          </div>
+        </div>
+        <div class="mb-7 rounded-sm p-4" style="background: var(--surface-2);">
+          <div class="mb-3 flex items-center gap-3"><button class="pod-play" style="width: 44px; height: 44px;">
+              <r-icon-stub name="play" size="18"></r-icon-stub>
+            </button>
+            <div class="flex-1">
+              <div class="scrubber"><i style="width: 30%;"></i></div>
+            </div>
+          </div>
+          <div class="text-muted flex items-center justify-between text-[11px]"><span>19:00</span>
+            <div class="flex gap-1.5"><span class="kbd">1.0×</span><span class="kbd">+15s</span></div><span>45:00</span>
+          </div>
+        </div>
+        <div class="text-faint mb-3 text-[10px] tracking-[.14em] uppercase"> Show notes </div>
+        <div class="detail-prose">
+          <p>Show note one.</p>
+          <p>Show note two.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>"
+`;
+
+exports[`ReaderDetail > matches snapshot (with active tweet) 1`] = `
+"<div class="detail-scrim">
+  <div class="detail-sheet">
+    <div class="detail-head">
+      <source-tag-stub item="[object Object]"></source-tag-stub>
+      <div class="ml-auto flex items-center gap-0.5"><button class="icon-btn" title="Previous (←)">
+          <r-icon-stub name="chevRight" size="16" style="transform: rotate(180deg);"></r-icon-stub>
+        </button><button class="icon-btn" title="Next (→)">
+          <r-icon-stub name="chevRight" size="16"></r-icon-stub>
+        </button><span class="bg-border mx-1 h-5 w-px"></span><button class="icon-btn" title="Save for later">
+          <r-icon-stub name="bookmark" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Open original">
+          <r-icon-stub name="external" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Close (esc)">
+          <r-icon-stub name="x" size="18"></r-icon-stub>
+        </button></div>
+    </div>
+    <div class="detail-body">
+      <!-- loading shimmer -->
+      <!-- ARTICLE -->
+      <!-- TWEET -->
+      <div class="p-7 sm:p-8">
+        <div class="mb-5 flex items-center gap-3"><span class="avatar src-tweet" style="width: 48px; height: 48px; font-size: 16px;">TU</span>
+          <div class="min-w-0"><b class="text-ink block text-[15px] font-semibold">Test User</b><span class="text-muted text-[13px]">@testuser</span></div><span class="src-tweet ml-auto"><r-icon-stub name="chat" size="20"></r-icon-stub></span>
+        </div>
+        <p class="detail-tweet mb-5">This is a test tweet body text.</p>
+        <div class="text-muted mb-5 pb-5 text-[12px]" style="border-bottom-width: var(--border); border-bottom-style: var(--border); border-bottom-color: var(--border);">3h ago · 42 likes · 12 reposts </div>
+        <div class="text-faint mb-3 text-[10px] tracking-[.14em] uppercase"> Replies </div>
+        <div class="flex flex-col gap-4">
+          <div class="flex gap-3"><span class="avatar src-tweet" style="width: 36px; height: 36px; font-size: 11px;">RE</span>
+            <div class="min-w-0">
+              <div class="mb-0.5 text-[12.5px]"><b class="text-ink font-semibold">replyguy</b><span class="text-muted">@in_the_replies</span></div>
+              <p class="text-ink-2 m-0 text-[14px] leading-snug">this is going straight into my notes app, thank you</p>
+            </div>
+          </div>
+          <div class="flex gap-3"><span class="avatar src-tweet" style="width: 36px; height: 36px; font-size: 11px;">BU</span>
+            <div class="min-w-0">
+              <div class="mb-0.5 text-[12.5px]"><b class="text-ink font-semibold">Builder</b><span class="text-muted">@ships_daily</span></div>
+              <p class="text-ink-2 m-0 text-[14px] leading-snug">needed to read this today honestly</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>"
+`;
+
+exports[`ReaderDetail > matches snapshot (with active video) 1`] = `
+"<div class="detail-scrim">
+  <div class="detail-sheet">
+    <div class="detail-head">
+      <source-tag-stub item="[object Object]"></source-tag-stub>
+      <div class="ml-auto flex items-center gap-0.5"><button class="icon-btn" title="Previous (←)">
+          <r-icon-stub name="chevRight" size="16" style="transform: rotate(180deg);"></r-icon-stub>
+        </button><button class="icon-btn" title="Next (→)">
+          <r-icon-stub name="chevRight" size="16"></r-icon-stub>
+        </button><span class="bg-border mx-1 h-5 w-px"></span><button class="icon-btn" title="Save for later">
+          <r-icon-stub name="bookmark" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Open original">
+          <r-icon-stub name="external" size="16"></r-icon-stub>
+        </button><button class="icon-btn" title="Close (esc)">
+          <r-icon-stub name="x" size="18"></r-icon-stub>
+        </button></div>
+    </div>
+    <div class="detail-body">
+      <!-- loading shimmer -->
+      <!-- ARTICLE -->
+      <!-- VIDEO -->
+      <div>
+        <div class="ph ratio-16x9" data-label="https://example.com/thumb.jpg" style="border-radius: 0px;"><span class="thumb-play" style="width: 64px; height: 64px;"><r-icon-stub name="play" size="28"></r-icon-stub></span><span class="thumb-dur">12:34</span></div>
+        <div class="p-7 sm:p-8">
+          <h2 class="detail-title mb-3" style="font-size: 22px;">Test Video Title</h2>
+          <div class="text-muted mb-6 flex flex-wrap items-center gap-2.5 pb-6 text-[12.5px]" style="border-bottom-width: var(--border); border-bottom-style: var(--border); border-bottom-color: var(--border);"><span class="src-ic src-video" style="--c: var(--src-video);"><r-icon-stub name="video" size="13"></r-icon-stub></span><b class="text-ink-2 font-medium">Test Channel</b><span>·</span><span>10K views</span><span>·</span><span>12:34</span></div>
+          <div class="detail-prose">
+            <p>Full video description here.</p>
+          </div><a href="https://www.youtube.com/watch?v=test123" target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-7">
+            <r-icon-stub name="play" size="15"></r-icon-stub> Watch on YouTube
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </div>"

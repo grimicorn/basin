@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { shallowMount } from "@vue/test-utils";
+import { shallowMount, flushPromises } from "@vue/test-utils";
 import IndexPage from "~/pages/dashboard.vue";
 import { useFeedStore } from "~/stores/feed";
 
-const mockLoadFeeds = vi.fn();
+const mockLoadFeeds = vi.fn().mockResolvedValue(undefined);
 
 function stubEmptyFeeds() {
   vi.stubGlobal("useFeeds", () => ({
@@ -44,6 +44,7 @@ function stubWithFeed() {
 describe("dashboard page", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockLoadFeeds.mockResolvedValue(undefined);
     stubEmptyFeeds();
     const state = useFeedStore().state;
     state.items = [];
@@ -74,9 +75,14 @@ describe("dashboard page", () => {
     expect(wrapper.find(".page-sub").text()).toContain("no sources yet");
   });
 
-  it("hides onboarding and shows feed when real feeds exist", () => {
+  it("hides onboarding and shows feed when real feeds exist", async () => {
     stubWithFeed();
+    vi.stubGlobal(
+      "$fetch",
+      vi.fn().mockResolvedValue({ items: [], total: 0, nextOffset: null }),
+    );
     const wrapper = shallowMount(IndexPage);
+    await flushPromises();
     expect(wrapper.find("dashboard-onboarding-stub").exists()).toBe(false);
     expect(wrapper.find(".feed").exists()).toBe(true);
   });
@@ -84,6 +90,43 @@ describe("dashboard page", () => {
   it("calls loadFeeds on mount", () => {
     shallowMount(IndexPage);
     expect(mockLoadFeeds).toHaveBeenCalledOnce();
+  });
+
+  it("shows the real feed source count in the subtitle when feeds exist", async () => {
+    stubWithFeed();
+    vi.stubGlobal(
+      "$fetch",
+      vi.fn().mockResolvedValue({ items: [], total: 0, nextOffset: null }),
+    );
+    const wrapper = shallowMount(IndexPage);
+    await flushPromises();
+    expect(wrapper.find(".page-sub").text()).toContain("1 sources");
+  });
+
+  it("calls $fetch for feed items after loadFeeds resolves when feeds exist", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ items: [], total: 0, nextOffset: null });
+    vi.stubGlobal("$fetch", mockFetch);
+    stubWithFeed();
+    shallowMount(IndexPage);
+    await flushPromises();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/feed-items",
+      expect.any(Object),
+    );
+  });
+
+  it("does not fetch feed items when there are no feeds", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(null);
+    vi.stubGlobal("$fetch", mockFetch);
+    stubEmptyFeeds();
+    shallowMount(IndexPage);
+    await flushPromises();
+    expect(mockFetch).not.toHaveBeenCalledWith(
+      "/api/feed-items",
+      expect.any(Object),
+    );
   });
 
   it("matches snapshot (onboarding state)", () => {

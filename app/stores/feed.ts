@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, computed } from "vue";
 import {
-  items as seedItems,
   feeds as seedFeeds,
   connections as seedConnections,
 } from "~/data/mock";
@@ -10,8 +9,10 @@ import { SOURCES } from "~/lib/icons";
 const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 
 export const useFeedStore = defineStore("feed", () => {
+  const { getToken } = useAuth();
+
   const state = reactive({
-    items: clone(seedItems),
+    items: [] as Record<string, unknown>[],
     feeds: clone(seedFeeds),
     connections: clone(seedConnections),
     filter: "all",
@@ -77,6 +78,42 @@ export const useFeedStore = defineStore("feed", () => {
     state.unreadOnly = settings.showUnreadOnly ?? false;
   }
 
+  async function loadItems(params: { limit?: number; offset?: number } = {}) {
+    const { showToast } = useToast();
+    const token = await getToken.value();
+    const headers: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    const query: Record<string, string> = {};
+    if (params.limit !== undefined) {
+      query.limit = String(params.limit);
+    }
+    if (params.offset !== undefined) {
+      query.offset = String(params.offset);
+    }
+
+    try {
+      const response = await $fetch<{
+        items: Record<string, unknown>[];
+        total: number;
+        nextOffset: number | null;
+      }>("/api/feed-items", { headers, query });
+
+      if ((params.offset ?? 0) > 0) {
+        const seen = new Set(state.items.map((i) => i.id));
+        state.items = [
+          ...state.items,
+          ...response.items.filter((i) => !seen.has(i.id)),
+        ];
+      } else {
+        state.items = response.items;
+      }
+    } catch {
+      showToast("Failed to load feed items — please try again");
+    }
+  }
+
   async function setupWatchers() {
     if (initialized || !import.meta.client) return;
     initialized = true;
@@ -133,29 +170,102 @@ export const useFeedStore = defineStore("feed", () => {
       .length;
   }
 
-  function toggleSave(item: Record<string, unknown>) {
+  const SYNC_ERROR_MESSAGE = "Could not queue change for sync";
+
+  async function toggleSave(item: Record<string, unknown>) {
     const { showToast } = useToast();
+    const previousSaved = item.saved;
     item.saved = !item.saved;
     showToast(item.saved ? "Saved for later" : "Removed from saved");
+
+    const { queueAction } = useSyncQueue();
+    try {
+      await queueAction("save", {
+        feedId: item.feedId,
+        guid: item.guid,
+        savedAt: item.saved ? new Date().toISOString() : null,
+      });
+    } catch {
+      item.saved = previousSaved;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
-  function markAllRead() {
+  async function toggleStar(item: Record<string, unknown>) {
     const { showToast } = useToast();
-    state.items.forEach((i: Record<string, unknown>) => {
+    const previousStarred = item.starred;
+    item.starred = !item.starred;
+
+    const { queueAction } = useSyncQueue();
+    try {
+      await queueAction("star", {
+        feedId: item.feedId,
+        guid: item.guid,
+        starred: item.starred,
+      });
+    } catch {
+      item.starred = previousStarred;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
+  }
+
+  async function markAllRead() {
+    const { showToast } = useToast();
+    const unreadItems = state.items.filter(
+      (i: Record<string, unknown>) => i.unread === true,
+    );
+    unreadItems.forEach((i: Record<string, unknown>) => {
       i.unread = false;
     });
     showToast("Marked all as read");
+
+    const { queueAction } = useSyncQueue();
+    const now = new Date().toISOString();
+    for (const feedItem of unreadItems) {
+      try {
+        await queueAction("markRead", {
+          feedId: feedItem.feedId,
+          guid: feedItem.guid,
+          readAt: now,
+        });
+      } catch {
+        feedItem.unread = true;
+        showToast(SYNC_ERROR_MESSAGE);
+      }
+    }
   }
 
-  function openItem(item: Record<string, unknown>) {
+  async function openItem(item: Record<string, unknown>) {
+    const wasUnread = item.unread === true;
     item.unread = false;
     state.activeItem = item;
     state.detailLoading = true;
-    if (timers.detail) clearTimeout(timers.detail);
+    if (timers.detail) {
+      clearTimeout(timers.detail);
+    }
     timers.detail = setTimeout(() => {
       state.detailLoading = false;
     }, 520);
-    if (import.meta.client) document.body.style.overflow = "hidden";
+    if (import.meta.client) {
+      document.body.style.overflow = "hidden";
+    }
+
+    if (!wasUnread) {
+      return;
+    }
+
+    const { showToast } = useToast();
+    const { queueAction } = useSyncQueue();
+    try {
+      await queueAction("markRead", {
+        feedId: item.feedId,
+        guid: item.guid,
+        readAt: new Date().toISOString(),
+      });
+    } catch {
+      item.unread = true;
+      showToast(SYNC_ERROR_MESSAGE);
+    }
   }
 
   function closeDetail() {
@@ -260,10 +370,12 @@ export const useFeedStore = defineStore("feed", () => {
     visibleItems,
     decks,
     countFor,
+    loadItems,
     setupWatchers,
     runFeedLoad,
     refresh,
     toggleSave,
+    toggleStar,
     markAllRead,
     openItem,
     closeDetail,

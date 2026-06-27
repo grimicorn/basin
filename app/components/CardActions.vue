@@ -14,7 +14,7 @@ defineEmits(["save", "open"]);
       <RIcon :name="item.saved ? 'bookmarkFill' : 'bookmark'" :size="16" />
     </button>
     <button class="icon-btn" title="Open" @click.stop="$emit('open')">
-      <RIcon name="external" :size="16" />
+      <RIcon name="bookOpen" :size="16" />
     </button>
   </div>
 </template>

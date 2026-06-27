@@ -13,11 +13,11 @@ test.describe("Dashboard", () => {
   });
 
   test("shows feed items", async ({ page }) => {
-    // The dashboard currently renders items from the mock dataset in ~/data/mock.js.
-    // Update this assertion when the dashboard is wired to the real backend API.
-    await expect(page.getByText("The Quiet Death of the Homepage")).toBeVisible(
-      { timeout: 10_000 },
-    );
+    // The dashboard renders items from the real API. "E2E Article One" is seeded
+    // in e2e/seed.ts and must be visible when the feed-items API returns data.
+    await expect(page.getByText("E2E Article One")).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("filter chips are visible", async ({ page }) => {

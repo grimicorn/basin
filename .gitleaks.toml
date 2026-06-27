@@ -1,0 +1,42 @@
+# Gitleaks configuration for basin.
+#
+# Extends the bundled default ruleset (which already covers a broad range of
+# provider tokens) and layers on rules tuned to this project's stack: Clerk
+# secret keys and Postgres/Neon connection strings that embed credentials.
+#
+# Run locally:  gitleaks git --staged   (wired into .husky/pre-commit)
+# Run in CI:    see .github/workflows/ci.yml (secret-scan job)
+
+# Pull in every rule from gitleaks' built-in config, then append the rules below.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "clerk-secret-key"
+# The sk_live_/sk_test_ prefix is shared by Clerk and Stripe secret keys; this
+# rule catches either. Clerk publishable keys (pk_live_/pk_test_) are
+# intentionally NOT matched — they are safe to expose client-side.
+description = "Clerk/Stripe secret key (sk_live_ / sk_test_)"
+regex = '''sk_(?:live|test)_[A-Za-z0-9]{20,}'''
+keywords = ["sk_live_", "sk_test_"]
+
+[[rules]]
+id = "postgres-connection-string"
+description = "Postgres/Neon connection string with embedded credentials"
+# Matches postgres:// and postgresql:// URIs that carry a user:password
+# component (the credentials are the sensitive part). The password class allows
+# any non-space, non-'@' character so passwords with ':' or '/' still match. A
+# bare host with no credentials does not match.
+regex = '''postgres(?:ql)?:\/\/[^\s:@\/]+:[^\s@]+@[^\s\/]+'''
+keywords = ["postgres://", "postgresql://"]
+
+[allowlist]
+description = "Paths that are allowed to contain example/placeholder secrets"
+# Scoped to example env files and the dedicated fixture/mock directories — NOT
+# whole test trees. Real credentials can still leak in test/e2e source, so those
+# remain in scope for scanning; only known placeholder fixtures are excluded.
+paths = [
+  '''.*\.example$''',
+  '''^tests/fixtures\.ts$''',
+  '''^tests/__mocks__/.*''',
+]

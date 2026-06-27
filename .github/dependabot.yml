@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    # No target-branch is set: version-update PRs already open against the
+    # default branch (main), and omitting it keeps Dependabot security-update
+    # PRs enabled — setting target-branch would switch this ecosystem to
+    # version-updates-only and suppress security updates.
+    schedule:
+      interval: "weekly"
+    groups:
+      # Roll all minor and patch bumps into a single PR to cut review noise.
+      # Major bumps stay as individual PRs so breaking changes get focused review.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"

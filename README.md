@@ -214,6 +214,27 @@ The app deploys to Netlify automatically on push to `main` or `dev`. The build c
 npm run test:ci && npm run build
 ```
 
+## Security scanning
+
+The repo runs a deterministic security-scanner layer — secret detection and dependency vulnerability auditing — both locally and in CI.
+
+### Secret scanning (gitleaks)
+
+[gitleaks](https://github.com/gitleaks/gitleaks) scans for committed secrets using the rules in [`.gitleaks.toml`](.gitleaks.toml), which extend the bundled default ruleset with project-specific rules for Clerk secret keys (`sk_live_`/`sk_test_`) and Postgres/Neon connection strings that embed credentials.
+
+- **Locally:** the [`.husky/pre-commit`](.husky/pre-commit) hook runs `gitleaks git --staged` and blocks the commit on any finding. Install gitleaks first ([instructions](https://github.com/gitleaks/gitleaks#installing)); if it is not installed the hook prints a warning and skips the scan rather than failing.
+- **In CI:** the `secret-scan` job downloads the pinned gitleaks release and runs the binary directly — scanning the PR commit range on pull requests and the full history on pushes to `main`. Any finding fails the build.
+
+Run the staged scan manually:
+
+```bash
+gitleaks git --staged --config .gitleaks.toml --verbose
+```
+
+### Dependency auditing
+
+The `dependency-audit` CI job runs `npm audit` and **fails the build only on high or critical advisories**. Moderate and low advisories are printed as an informational summary without failing. [Dependabot](.github/dependabot.yml) opens grouped weekly PRs for minor and patch updates.
+
 ## Git Hooks
 
-A pre-push hook runs via Husky. To skip hooks in CI, set `HUSKY=0`.
+Husky runs two hooks. A **pre-commit** hook runs the gitleaks staged-secret scan (see [Security scanning](#security-scanning)). A **pre-push** hook runs lint and tests. To skip hooks in CI, set `HUSKY=0`.

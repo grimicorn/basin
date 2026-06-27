@@ -184,3 +184,88 @@ jobs:
           name: playwright-report-${{ matrix.spec }}
           path: e2e/report/
           retention-days: 7
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    # Pinned gitleaks release. The binary is downloaded and run directly rather
+    # than via the gitleaks-action marketplace wrapper, to keep the toolchain
+    # explicit and auditable.
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL "${base}/${archive}" -o "/tmp/${archive}"
+          curl -sSfL "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt" -o /tmp/gitleaks.checksums
+          # Verify the archive against the release checksums before executing it,
+          # so a tampered or MITM'd download fails the build instead of running.
+          ( cd /tmp && grep " ${archive}\$" gitleaks.checksums | sha256sum -c - )
+          tar -xzf "/tmp/${archive}" -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan pull request commit range
+        if: github.event_name == 'pull_request'
+        run: |
+          gitleaks git \
+            --config .gitleaks.toml \
+            --redact \
+            --verbose \
+            --exit-code 1 \
+            --log-opts "${BASE_SHA}..${HEAD_SHA}"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      - name: Scan full history
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          gitleaks git \
+            --config .gitleaks.toml \
+            --redact \
+            --verbose \
+            --exit-code 1
+
+      # Pushes to non-default branches: scan the full branch history (not just
+      # the working tree) so a secret added and later removed within the branch
+      # is still caught, and the job never reports a green no-op. Without this,
+      # a push to any branch other than main would run with no scan step.
+      - name: Scan branch history
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: |
+          gitleaks git \
+            --config .gitleaks.toml \
+            --redact \
+            --verbose \
+            --exit-code 1
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          HUSKY: 0
+
+      - name: Audit dependencies (fail on high/critical)
+        # Fails the build only on high or critical advisories.
+        run: npm audit --audit-level=high
+
+      - name: Audit summary (moderate/low — informational)
+        # Never fails the build; surfaces the full advisory breakdown for context.
+        if: always()
+        run: npm audit || true

@@ -233,7 +233,15 @@ gitleaks git --staged --config .gitleaks.toml --verbose
 
 ### Dependency auditing
 
-The `dependency-audit` CI job runs `npm audit` and **fails the build only on high or critical advisories**. Moderate and low advisories are printed as an informational summary without failing. [Dependabot](.github/dependabot.yml) opens grouped weekly PRs for minor and patch updates.
+The `dependency-audit` CI job runs `npm audit --json` and pipes it through [`scripts/audit-gate.js`](scripts/audit-gate.js), which **fails the build only on high or critical advisories**. Moderate and low advisories are printed as an informational summary without failing. [Dependabot](.github/dependabot.yml) opens grouped weekly PRs for minor and patch updates.
+
+A small set of high advisories live in deep transitive dependencies of the Stackbit visual-editor toolchain (`@stackbit/*` → `@netlify/content-engine`) and Google Cloud Storage, with no fix available short of a breaking major upgrade. Those specific advisories are suppressed via a documented allowlist in [`scripts/audit-allowlist.js`](scripts/audit-allowlist.js) — each entry names the advisory ID, the package, and the reason. The allowlist carries a `reviewBy` expiry: once it passes, the gate fails until the entries are re-checked for upstream fixes and the date is bumped. Any **new** high/critical advisory that is not on the allowlist still fails the build, so the gate keeps its teeth.
+
+Run the gate locally:
+
+```bash
+npm audit --json | node scripts/audit-gate.js
+```
 
 ## Git Hooks
 

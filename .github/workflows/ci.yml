@@ -262,8 +262,13 @@ jobs:
           HUSKY: 0
 
       - name: Audit dependencies (fail on high/critical)
-        # Fails the build only on high or critical advisories.
-        run: npm audit --audit-level=high
+        # Fails the build only on un-allowlisted high or critical advisories.
+        # `npm audit` exits non-zero whenever it finds advisories, so capture the
+        # JSON with `|| true` and let scripts/audit-gate.js decide pass/fail
+        # against the documented allowlist in scripts/audit-allowlist.js.
+        run: |
+          set -o pipefail
+          { npm audit --json || true; } | node scripts/audit-gate.js
 
       - name: Audit summary (moderate/low — informational)
         # Never fails the build; surfaces the full advisory breakdown for context.

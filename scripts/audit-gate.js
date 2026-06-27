@@ -98,15 +98,22 @@ function blockingAdvisoriesFromVia(viaList) {
   }));
 }
 
-function dedupeById(advisories) {
-  const byId = new Map();
+function advisoryKey(advisory) {
+  return `${advisory.id}::${advisory.package}`;
+}
+
+// Dedupe on id AND package: the allowlist is keyed on the same pair, so
+// collapsing two packages that share one advisory id would let an
+// un-allowlisted package ride in on an allowlisted one and slip past the gate.
+function dedupeByIdAndPackage(advisories) {
+  const byKey = new Map();
   for (const advisory of advisories) {
-    if (byId.has(advisory.id)) {
+    if (byKey.has(advisoryKey(advisory))) {
       continue;
     }
-    byId.set(advisory.id, advisory);
+    byKey.set(advisoryKey(advisory), advisory);
   }
-  return [...byId.values()];
+  return [...byKey.values()];
 }
 
 export function collectBlockingAdvisories(auditReport) {
@@ -114,7 +121,7 @@ export function collectBlockingAdvisories(auditReport) {
   const allAdvisories = Object.values(vulnerabilities).flatMap(
     (vulnerability) => blockingAdvisoriesFromVia(vulnerability.via),
   );
-  return dedupeById(allAdvisories);
+  return dedupeByIdAndPackage(allAdvisories);
 }
 
 export function isAllowlistExpired(now = new Date()) {

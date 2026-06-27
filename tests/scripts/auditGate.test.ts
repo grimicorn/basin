@@ -134,6 +134,42 @@ describe("partitionByAllowlist", () => {
     expect(blocking).toHaveLength(1);
   });
 
+  it("does not let a non-allowlisted package ride in on a shared advisory id", () => {
+    const report = {
+      vulnerabilities: {
+        pkgAllowed: {
+          via: [
+            {
+              name: ALLOWED_PACKAGE,
+              url: `https://github.com/advisories/${ALLOWED_ID}`,
+              severity: "high",
+              title: "t",
+            },
+          ],
+        },
+        pkgNew: {
+          via: [
+            {
+              name: "newly-vulnerable-pkg",
+              url: `https://github.com/advisories/${ALLOWED_ID}`,
+              severity: "high",
+              title: "t",
+            },
+          ],
+        },
+      },
+    };
+    const { suppressed, blocking } = partitionByAllowlist(
+      collectBlockingAdvisories(report),
+    );
+    expect(suppressed.map((advisory) => advisory.package)).toEqual([
+      ALLOWED_PACKAGE,
+    ]);
+    expect(blocking.map((advisory) => advisory.package)).toEqual([
+      "newly-vulnerable-pkg",
+    ]);
+  });
+
   it("blocks everything when nothing is allowlisted", () => {
     const advisories = [
       { id: "GHSA-x", severity: "high", package: "a", title: "t" },

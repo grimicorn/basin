@@ -178,7 +178,7 @@ jobs:
           BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
 
       - name: Upload test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report-${{ matrix.spec }}

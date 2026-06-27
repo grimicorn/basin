@@ -8,11 +8,13 @@ import {
   partitionByAllowlist,
 } from "../../scripts/audit-gate.js";
 import {
-  ALLOWED_ADVISORY_IDS,
+  ALLOWED_ADVISORIES,
   ALLOWLIST_REVIEW_BY,
 } from "../../scripts/audit-allowlist.js";
 
-const ALLOWED_ID = [...ALLOWED_ADVISORY_IDS][0];
+const ALLOWED_ENTRY = ALLOWED_ADVISORIES[0];
+const ALLOWED_ID = ALLOWED_ENTRY.id;
+const ALLOWED_PACKAGE = ALLOWED_ENTRY.packages[0];
 
 function advisoryVia(id: string, severity: string) {
   return {
@@ -79,12 +81,31 @@ describe("collectBlockingAdvisories", () => {
   it("returns an empty array when there are no vulnerabilities", () => {
     expect(collectBlockingAdvisories({})).toEqual([]);
   });
+
+  it("keeps a high advisory whose url cannot be parsed (fail closed)", () => {
+    const report = {
+      vulnerabilities: {
+        pkgA: {
+          via: [{ name: "pkgA", severity: "high", title: "no url here" }],
+        },
+      },
+    };
+    const advisories = collectBlockingAdvisories(report);
+    expect(advisories).toHaveLength(1);
+    expect(advisories[0].id).not.toBeNull();
+    expect(advisories[0].severity).toBe("high");
+  });
 });
 
 describe("partitionByAllowlist", () => {
-  it("suppresses allowlisted ids and blocks the rest", () => {
+  it("suppresses an advisory only when id and package both match", () => {
     const advisories = [
-      { id: ALLOWED_ID, severity: "high", package: "axios", title: "t" },
+      {
+        id: ALLOWED_ID,
+        severity: "high",
+        package: ALLOWED_PACKAGE,
+        title: "t",
+      },
       {
         id: "GHSA-not-allowed",
         severity: "critical",
@@ -97,6 +118,20 @@ describe("partitionByAllowlist", () => {
     expect(blocking.map((advisory) => advisory.id)).toEqual([
       "GHSA-not-allowed",
     ]);
+  });
+
+  it("blocks an allowlisted id that surfaces under a different package", () => {
+    const advisories = [
+      {
+        id: ALLOWED_ID,
+        severity: "high",
+        package: "some-other-runtime-package",
+        title: "t",
+      },
+    ];
+    const { suppressed, blocking } = partitionByAllowlist(advisories);
+    expect(suppressed).toEqual([]);
+    expect(blocking).toHaveLength(1);
   });
 
   it("blocks everything when nothing is allowlisted", () => {

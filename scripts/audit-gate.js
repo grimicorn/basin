@@ -9,13 +9,14 @@
 
 import { pathToFileURL } from "node:url";
 import {
-  ALLOWED_ADVISORY_IDS,
   ALLOWED_ADVISORIES,
   ALLOWLIST_REVIEW_BY,
+  isAdvisoryAllowed,
 } from "./audit-allowlist.js";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 const EXIT_FAILURE = 1;
+const UNIDENTIFIED_ADVISORY_ID = "UNIDENTIFIED";
 
 function readStdin() {
   return new Promise((resolve, reject) => {
@@ -65,29 +66,36 @@ export function advisoryIdFromUrl(url) {
   return segments[segments.length - 1] || null;
 }
 
-// `via` entries are either a string (name of another vulnerable dep) or an
-// object describing the advisory. We only care about the advisory objects.
-function blockingAdvisoriesFromVia(viaList) {
-  const advisories = [];
-  for (const via of viaList || []) {
-    if (typeof via !== "object" || via === null) {
-      continue;
-    }
-    if (!BLOCKING_SEVERITIES.has(via.severity)) {
-      continue;
-    }
-    const id = advisoryIdFromUrl(via.url);
-    if (!id) {
-      continue;
-    }
-    advisories.push({
-      id,
-      severity: via.severity,
-      package: via.name,
-      title: via.title,
-    });
+// A blocking-severity advisory we cannot identify must never be silently
+// dropped — it can't match the id-keyed allowlist, so a non-null fallback id
+// keeps it in the blocking set and fails the build (fail closed).
+function advisoryIdOrFallback(via) {
+  const id = advisoryIdFromUrl(via.url);
+  if (id) {
+    return id;
   }
-  return advisories;
+  if (via.source != null) {
+    return `source-${via.source}`;
+  }
+  return UNIDENTIFIED_ADVISORY_ID;
+}
+
+function isBlockingAdvisoryObject(via) {
+  if (typeof via !== "object" || via === null) {
+    return false;
+  }
+  return BLOCKING_SEVERITIES.has(via.severity);
+}
+
+// `via` entries are either a string (name of another vulnerable dep) or an
+// object describing the advisory. We only care about blocking advisory objects.
+function blockingAdvisoriesFromVia(viaList) {
+  return (viaList || []).filter(isBlockingAdvisoryObject).map((via) => ({
+    id: advisoryIdOrFallback(via),
+    severity: via.severity,
+    package: via.name,
+    title: via.title,
+  }));
 }
 
 function dedupeById(advisories) {
@@ -159,7 +167,7 @@ export function partitionByAllowlist(advisories) {
   const suppressed = [];
   const blocking = [];
   for (const advisory of advisories) {
-    const bucket = ALLOWED_ADVISORY_IDS.has(advisory.id)
+    const bucket = isAdvisoryAllowed(advisory.id, advisory.package)
       ? suppressed
       : blocking;
     bucket.push(advisory);
@@ -167,12 +175,16 @@ export function partitionByAllowlist(advisories) {
   return { suppressed, blocking };
 }
 
-function warnOnStaleAllowlistEntries(suppressedAdvisories) {
-  const triggeredIds = new Set(
-    suppressedAdvisories.map((advisory) => advisory.id),
+function entryMatchedAdvisory(entry, suppressedAdvisories) {
+  return suppressedAdvisories.some(
+    (advisory) =>
+      advisory.id === entry.id && entry.packages.includes(advisory.package),
   );
+}
+
+function warnOnStaleAllowlistEntries(suppressedAdvisories) {
   const staleEntries = ALLOWED_ADVISORIES.filter(
-    (entry) => !triggeredIds.has(entry.id),
+    (entry) => !entryMatchedAdvisory(entry, suppressedAdvisories),
   );
   if (!staleEntries.length) {
     return;
@@ -182,7 +194,7 @@ function warnOnStaleAllowlistEntries(suppressedAdvisories) {
       "and can be removed from scripts/audit-allowlist.js:",
   );
   for (const entry of staleEntries) {
-    console.log(`  - ${entry.id} (${entry.package})`);
+    console.log(`  - ${entry.id} (${entry.packages.join(", ")})`);
   }
 }
 

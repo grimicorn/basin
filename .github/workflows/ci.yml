@@ -274,3 +274,19 @@ jobs:
         # Never fails the build; surfaces the full advisory breakdown for context.
         if: always()
         run: npm audit || true
+
+  e2e-gate:
+    name: E2E Gate
+    needs: [e2e]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report status
+        run: |
+          result="${{ needs.e2e.result }}"
+          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+            echo "E2E: $result"
+          else
+            echo "E2E failed with result: $result"
+            exit 1
+          fi

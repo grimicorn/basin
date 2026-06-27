@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -48,7 +48,7 @@ jobs:
     outputs:
       src: ${{ steps.filter.outputs.src }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -67,7 +67,7 @@ jobs:
     outputs:
       specs: ${{ steps.list.outputs.specs }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: List e2e spec files
         id: list
         run: |
@@ -91,7 +91,7 @@ jobs:
     #   NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY, NUXT_CLERK_SECRET_KEY
     #   NUXT_GOOGLE_CLIENT_ID, NUXT_GOOGLE_CLIENT_SECRET
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -193,7 +193,7 @@ jobs:
     env:
       GITLEAKS_VERSION: "8.30.1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -248,7 +248,7 @@ jobs:
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6

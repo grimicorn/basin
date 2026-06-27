@@ -40,6 +40,11 @@
     "pinia": "^3.0.4",
     "rss-parser": "^3.13.0"
   },
+  "overrides": {
+    "@netlify/sdk": "^5.0.4",
+    "tmp": "^0.2.6",
+    "http-proxy-middleware": "^4.1.1"
+  },
   "devDependencies": {
     "@clerk/backend": "^3.5.0",
     "@clerk/testing": "^2.0.35",

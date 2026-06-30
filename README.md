@@ -17,21 +17,36 @@ npm install
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in the values before running the app:
+Secrets are managed with [dotenvx](https://dotenvx.com). The `.env*` files are
+committed to git **encrypted** — the only plaintext copy of the keys is
+`.env.keys`, which is gitignored. One private key per environment decrypts the
+matching file:
+
+| File              | Environment        | Private key (in `.env.keys`)    |
+| ----------------- | ------------------ | ------------------------------- |
+| `.env`            | local dev          | `DOTENV_PRIVATE_KEY`            |
+| `.env.dev`        | Netlify previews   | `DOTENV_PRIVATE_KEY_DEV`        |
+| `.env.e2e`        | e2e tests / CI     | `DOTENV_PRIVATE_KEY_E2E`        |
+| `.env.production` | Netlify production | `DOTENV_PRIVATE_KEY_PRODUCTION` |
+
+Only the database URL differs per environment; the Clerk, Google, and Sentry
+values are identical across all of them. See [`.env.example`](.env.example) for
+the full variable reference and where to obtain each value.
+
+**First-time setup:** restore `.env.keys` from your password manager, then point
+local dev at your own Neon branch so it never touches production data:
 
 ```bash
-cp .env.example .env
+dotenvx set DATABASE_URL "<your-neon-dev-branch-url>" -f .env
+dotenvx set NUXT_DATABASE_URL "<your-neon-dev-branch-url>" -f .env
 ```
 
-| Variable                            | Purpose                                                     |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `DATABASE_URL`                      | Neon connection string — used by `drizzle-kit` CLI commands |
-| `NUXT_DATABASE_URL`                 | Same Neon connection string — read by Nuxt at runtime       |
-| `NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (safe to expose to the browser)       |
-| `NUXT_CLERK_SECRET_KEY`             | Clerk secret key (server-only, never exposed to the client) |
+The npm scripts wrap commands in `dotenvx run`, so `npm run dev`, `npm run
+build`, and `npm run e2e` decrypt the right file automatically. To change any
+value later: `dotenvx set VAR "value" -f <file>`.
 
-Get your Clerk keys from the [Clerk dashboard](https://dashboard.clerk.com) → API Keys.
-Get your Neon connection string from the [Neon console](https://console.neon.tech) → your project → Connection Details.
+> **Losing `.env.keys` means the encrypted files can't be decrypted.** Keep it
+> backed up in your password manager.
 
 ## Database
 
@@ -222,7 +237,7 @@ The repo runs a deterministic security-scanner layer — secret detection and de
 
 [gitleaks](https://github.com/gitleaks/gitleaks) scans for committed secrets using the rules in [`.gitleaks.toml`](.gitleaks.toml), which extend the bundled default ruleset with project-specific rules for Clerk secret keys (`sk_live_`/`sk_test_`) and Postgres/Neon connection strings that embed credentials.
 
-- **Locally:** the [`.husky/pre-commit`](.husky/pre-commit) hook runs `gitleaks git --staged` and blocks the commit on any finding. Install gitleaks first ([instructions](https://github.com/gitleaks/gitleaks#installing)); if it is not installed the hook prints a warning and skips the scan rather than failing.
+- **Locally:** the [`.husky/pre-commit`](.husky/pre-commit) hook first runs `dotenvx ext precommit` (which blocks the commit if any tracked `.env*` file holds plaintext rather than encrypted values), then runs `gitleaks git --staged` and blocks the commit on any finding. Install gitleaks first ([instructions](https://github.com/gitleaks/gitleaks#installing)); if it is not installed the gitleaks step prints a warning and skips rather than failing.
 - **In CI:** the `secret-scan` job downloads the pinned gitleaks release and runs the binary directly — scanning the PR commit range on pull requests and the full history on pushes to `main`. Any finding fails the build.
 
 Run the staged scan manually:
@@ -245,4 +260,4 @@ npm audit --json | node scripts/audit-gate.js
 
 ## Git Hooks
 
-Husky runs two hooks. A **pre-commit** hook runs the gitleaks staged-secret scan (see [Security scanning](#security-scanning)). A **pre-push** hook runs lint and tests. To skip hooks in CI, set `HUSKY=0`.
+Husky runs two hooks. A **pre-commit** hook runs the dotenvx plaintext-env guard and the gitleaks staged-secret scan (see [Security scanning](#security-scanning)). A **pre-push** hook runs lint and tests. To skip hooks in CI, set `HUSKY=0`.

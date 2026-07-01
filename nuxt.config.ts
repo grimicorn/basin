@@ -22,12 +22,21 @@ export default defineNuxtConfig({
   clerk: {
     skipServerMiddleware: true,
   },
+  // These read process.env INLINE (not "") so dotenvx-decrypted values bake into
+  // the server bundle at build time. Nitro only serializes these defaults; it does
+  // NOT re-inject NUXT_* at function runtime on Netlify, so leaving them "" would
+  // resolve to empty in the deployed function unless the vars are set in Netlify.
   runtimeConfig: {
-    databaseUrl: "",
-    googleClientId: "",
-    googleClientSecret: "",
-    // Overridden by NUXT_DISABLE_SIGNUPS (set to "true" only in .env.production).
-    disableSignups: "",
+    databaseUrl: process.env.NUXT_DATABASE_URL || "",
+    googleClientId: process.env.NUXT_GOOGLE_CLIENT_ID || "",
+    googleClientSecret: process.env.NUXT_GOOGLE_CLIENT_SECRET || "",
+    disableSignups: process.env.NUXT_DISABLE_SIGNUPS || "",
+    clerk: { secretKey: process.env.NUXT_CLERK_SECRET_KEY || "" },
+    public: {
+      clerk: {
+        publishableKey: process.env.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",
+      },
+    },
   },
   devtools: { enabled: true },
   future: { compatibilityVersion: 4 },

@@ -10,6 +10,10 @@ declare module "h3" {
   }
 }
 
+export function signupsDisabled(): boolean {
+  return process.env.NUXT_DISABLE_SIGNUPS === "true";
+}
+
 export async function getOrCreateUser(providerId: string): Promise<DbUser> {
   const db = useDb();
 
@@ -17,6 +21,13 @@ export async function getOrCreateUser(providerId: string): Promise<DbUser> {
     where: eq(users.providerId, providerId),
   });
   if (existing) return existing;
+
+  if (signupsDisabled()) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "Sign-ups are currently disabled",
+    });
+  }
 
   const [created] = await db.insert(users).values({ providerId }).returning();
   return created;

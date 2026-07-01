@@ -1,14 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const mockFindFirst = vi.fn();
 const mockReturning = vi.fn();
 const mockValues = vi.fn();
 const mockInsert = vi.fn();
 
+const runtimeConfig = { disableSignups: "" };
+
 vi.stubGlobal("useDb", () => ({
   query: { users: { findFirst: mockFindFirst } },
   insert: mockInsert,
 }));
+vi.stubGlobal("useRuntimeConfig", () => runtimeConfig);
 
 import { getOrCreateUser } from "../../../server/utils/auth";
 
@@ -22,6 +25,7 @@ const mockUser = {
 describe("getOrCreateUser", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    runtimeConfig.disableSignups = "";
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockReturnValue({ returning: mockReturning });
   });
@@ -54,13 +58,9 @@ describe("getOrCreateUser", () => {
     expect(mockValues).toHaveBeenCalledWith({ providerId: "clerk_xyz" });
   });
 
-  describe("when NUXT_DISABLE_SIGNUPS is true", () => {
+  describe("when sign-ups are disabled", () => {
     beforeEach(() => {
-      vi.stubEnv("NUXT_DISABLE_SIGNUPS", "true");
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
+      runtimeConfig.disableSignups = "true";
     });
 
     it("still returns an existing user", async () => {

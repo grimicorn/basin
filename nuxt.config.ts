@@ -26,6 +26,8 @@ export default defineNuxtConfig({
     databaseUrl: "",
     googleClientId: "",
     googleClientSecret: "",
+    // Overridden by NUXT_DISABLE_SIGNUPS (set to "true" only in .env.production).
+    disableSignups: "",
   },
   devtools: { enabled: true },
   future: { compatibilityVersion: 4 },

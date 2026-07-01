@@ -87,9 +87,10 @@ jobs:
       matrix:
         spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
     # Required repository secrets (Settings → Secrets → Actions):
-    #   NEON_API_KEY, NEON_PROJECT_ID
-    #   NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY, NUXT_CLERK_SECRET_KEY
-    #   NUXT_GOOGLE_CLIENT_ID, NUXT_GOOGLE_CLIENT_SECRET
+    #   NEON_API_KEY, NEON_PROJECT_ID  — per-run Neon branch create/delete
+    #   DOTENV_PRIVATE_KEY_E2E         — decrypts .env.e2e (Clerk + Google keys
+    #                                    live inside it, so they need no
+    #                                    separate Actions secrets)
     steps:
       - uses: actions/checkout@v7
 
@@ -154,13 +155,14 @@ jobs:
           BRANCH_NAME: ${{ steps.branch.outputs.name }}
 
       - name: Run e2e tests
-        run: npx playwright test e2e/tests/${{ matrix.spec }}
+        # `npm run e2e` is `dotenvx run -f .env.e2e -- playwright test`; the spec
+        # path is appended after `--`. dotenvx decrypts Clerk/Google from
+        # .env.e2e, while E2E_DATABASE_URL below (the fresh Neon branch)
+        # overrides the file's value — a value already in the env wins.
+        run: npm run e2e -- e2e/tests/${{ matrix.spec }}
         env:
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
-          NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          NUXT_CLERK_SECRET_KEY: ${{ secrets.NUXT_CLERK_SECRET_KEY }}
-          NUXT_GOOGLE_CLIENT_ID: ${{ secrets.NUXT_GOOGLE_CLIENT_ID }}
-          NUXT_GOOGLE_CLIENT_SECRET: ${{ secrets.NUXT_GOOGLE_CLIENT_SECRET }}
           # Allow the mock server's loopback address through SSRF validation.
           # The port must match E2E_MOCK_SERVER_PORT (default 3099).
           NUXT_FEED_DISCOVERY_ALLOWED_HOSTS: "127.0.0.1:3099"

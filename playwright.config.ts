@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import { config as loadDotenv } from "dotenv";
 
-loadDotenv({ path: ".env" });
-loadDotenv({ path: ".env.e2e", override: true });
+// Env is injected by dotenvx before Playwright starts (see the "e2e" npm
+// scripts: `dotenvx run -f .env.e2e -- playwright test`). In CI the workflow
+// overrides E2E_DATABASE_URL with a fresh per-run Neon branch.
 
 // @clerk/testing requires standard CLERK_* names; map from Nuxt conventions
 if (!process.env.CLERK_SECRET_KEY && process.env.NUXT_CLERK_SECRET_KEY) {
@@ -68,13 +68,19 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "npm run dev",
+    // dev:test is a raw `nuxt dev` (no dotenvx) — env comes from the dotenvx
+    // run that started Playwright, merged with the overrides below.
+    command: "npm run dev:test",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     env: {
       NUXT_DATABASE_URL: process.env.E2E_DATABASE_URL ?? "",
       DATABASE_URL: process.env.E2E_DATABASE_URL ?? "",
+      // Set explicitly so Nuxt's built-in .env loader can't inject the
+      // encrypted (ciphertext) SENTRY_DSN from the committed .env file.
+      // Empty DSN cleanly disables Sentry for e2e runs.
+      SENTRY_DSN: "",
       NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
         process.env.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "",
       NUXT_CLERK_SECRET_KEY: process.env.NUXT_CLERK_SECRET_KEY ?? "",

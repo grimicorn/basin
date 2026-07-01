@@ -1,3 +1,7 @@
+# dotenvx: refuse the commit if any tracked .env* file holds plaintext
+# (unencrypted) values. Layered before gitleaks as a dedicated env-file guard.
+npx dotenvx ext precommit
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "gitleaks not found — install it to enable local secret scanning: https://github.com/gitleaks/gitleaks#installing"
   echo "Skipping pre-commit secret scan."

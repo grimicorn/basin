@@ -13,11 +13,11 @@ npm-debug.log*
 # OS
 .DS_Store
 
-# Local env
-.env
-.env.*
-!.env.example
-!.env.*.example
+# Local env (dotenvx). The encrypted .env* files ARE committed; the private
+# keys and any local-only plaintext overrides are NOT.
+.env.keys
+.env.local
+.env.*.local
 /_scratch.md
 .netlify
 

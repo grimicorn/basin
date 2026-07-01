@@ -1,6 +1,17 @@
+# Production deploys: `npm run build` is `dotenvx run -f .env.production --
+# nuxt build`, so it decrypts .env.production with DOTENV_PRIVATE_KEY_PRODUCTION
+# (set in Netlify env, Builds scope) and bakes NUXT_* values into the bundle.
 [build]
   command = "npm run test:ci && npm run build"
   publish = "dist"
+
+# Deploy previews and branch deploys decrypt .env.dev instead, via
+# DOTENV_PRIVATE_KEY_DEV, so they never build against the production database.
+[context.deploy-preview]
+  command = "npm run test:ci && npm run build:dev"
+
+[context.branch-deploy]
+  command = "npm run test:ci && npm run build:dev"
 
 [functions]
   directory = "netlify/functions"

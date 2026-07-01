@@ -11,7 +11,9 @@ declare module "h3" {
 }
 
 export function signupsDisabled(): boolean {
-  return process.env.NUXT_DISABLE_SIGNUPS === "true";
+  // Read via runtimeConfig (not process.env) so the value bakes into the server
+  // bundle at build time and survives into the deployed Netlify function.
+  return useRuntimeConfig().disableSignups === "true";
 }
 
 export async function getOrCreateUser(providerId: string): Promise<DbUser> {

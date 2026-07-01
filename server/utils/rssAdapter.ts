@@ -114,7 +114,7 @@ const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 // URL.hostname preserves brackets for IPv6, so we match the bracketed form.
 const IPV4_MAPPED_IPV6 = /^\[::ffff:/i;
 
-export function validateFeedUrl(url: string): void {
+export function assertSafeFeedUrl(url: string): void {
   let parsed: URL;
 
   try {
@@ -154,7 +154,7 @@ export async function parseRssFeed(
   url: string,
   feedId: number,
 ): Promise<NewFeedItem[]> {
-  validateFeedUrl(url);
+  assertSafeFeedUrl(url);
   const feed = await parser.parseURL(url);
   const feedImageUrl = feed.image?.url;
 

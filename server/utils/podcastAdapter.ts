@@ -1,13 +1,6 @@
 import RssParser from "rss-parser";
-import type { InferInsertModel } from "drizzle-orm";
-import { feedItems } from "../db/schema";
 import { MAX_ITEMS_PER_SYNC } from "../../netlify/functions/types";
-import { validateFeedUrl } from "./rssAdapter";
-
-export type NewFeedItem = Omit<
-  InferInsertModel<typeof feedItems>,
-  "id" | "createdAt" | "updatedAt"
->;
+import { assertSafeFeedUrl, type NewFeedItem } from "./rssAdapter";
 
 // iTunes namespace fields we pull from each item.
 interface ItunesItemFields {
@@ -197,7 +190,7 @@ export async function parsePodcastFeed(
   url: string,
   feedId: number,
 ): Promise<NewFeedItem[]> {
-  validateFeedUrl(url);
+  assertSafeFeedUrl(url);
   const feed = (await podcastParser.parseURL(url)) as PodcastFeed;
   const channelItunesImage = feed["itunes:image"];
 

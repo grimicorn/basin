@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const mockFindFirst = vi.fn();
 const mockReturning = vi.fn();
@@ -52,5 +52,33 @@ describe("getOrCreateUser", () => {
     await getOrCreateUser("clerk_xyz");
 
     expect(mockValues).toHaveBeenCalledWith({ providerId: "clerk_xyz" });
+  });
+
+  describe("when NUXT_DISABLE_SIGNUPS is true", () => {
+    beforeEach(() => {
+      vi.stubEnv("NUXT_DISABLE_SIGNUPS", "true");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("still returns an existing user", async () => {
+      mockFindFirst.mockResolvedValue(mockUser);
+
+      const result = await getOrCreateUser("clerk_abc");
+
+      expect(result).toEqual(mockUser);
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects a new user with a 403 instead of creating one", async () => {
+      mockFindFirst.mockResolvedValue(undefined);
+
+      await expect(getOrCreateUser("clerk_new")).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
   });
 });

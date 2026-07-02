@@ -1,7 +1,24 @@
 <script setup>
+import { FREE_ACCOUNT_PLAN } from "~/composables/useBilling";
+
 const feedStore = useFeedStore();
 const { user } = useUser();
 const clerk = useClerk();
+const { loadPlan } = useBilling();
+
+const plan = ref({ ...FREE_ACCOUNT_PLAN });
+onMounted(async () => {
+  plan.value = await loadPlan();
+});
+
+const planLabel = computed(() =>
+  plan.value.plan === "pro" ? "Pro plan" : "Free plan",
+);
+const trialEndsAt = computed(() =>
+  plan.value.status === "trialing" && plan.value.trialEnd
+    ? new Date(plan.value.trialEnd).toLocaleDateString()
+    : null,
+);
 
 function handleSignOut() {
   clerk.value?.signOut({ redirectUrl: "/login" });
@@ -20,13 +37,31 @@ function handleSignOut() {
           {{ user?.primaryEmailAddress?.emailAddress }}
         </div>
         <div class="conn-since">
-          Free plan · {{ feedStore.state.items.length }} items today
+          {{ planLabel }} · {{ feedStore.state.items.length }} items today
         </div>
       </div>
       <button class="btn" @click="handleSignOut">
         <RIcon name="logout" :size="16" /> Sign out
       </button>
     </div>
+  </section>
+
+  <section class="set-section">
+    <h2>Billing</h2>
+    <p class="desc billing-desc">
+      <template v-if="plan.plan === 'pro'">
+        You're on the Pro plan.
+        <template v-if="trialEndsAt"
+          >Your trial ends {{ trialEndsAt }}.</template
+        >
+      </template>
+      <template v-else>
+        You're on the Free plan. Upgrade to Pro for unlimited sources.
+      </template>
+    </p>
+    <NuxtLink v-if="plan.plan !== 'pro'" to="/pricing" class="btn btn-primary">
+      Upgrade to Pro
+    </NuxtLink>
   </section>
 
   <section class="set-section">

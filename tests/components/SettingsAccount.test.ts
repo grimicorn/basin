@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { shallowMount } from "@vue/test-utils";
+import { shallowMount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
 import SettingsAccount from "~/components/SettingsAccount.vue";
+import { FREE_ACCOUNT_PLAN } from "~/composables/useBilling";
 
 function stubFeed(itemCount = 12) {
   vi.stubGlobal("useFeedStore", () => ({
@@ -9,8 +10,20 @@ function stubFeed(itemCount = 12) {
   }));
 }
 
+function stubBilling(plan = { ...FREE_ACCOUNT_PLAN }) {
+  vi.stubGlobal("useBilling", () => ({
+    loading: ref(false),
+    error: ref(null),
+    loadPlan: vi.fn().mockResolvedValue(plan),
+    startCheckout: vi.fn(),
+  }));
+}
+
 describe("SettingsAccount", () => {
-  beforeEach(() => stubFeed());
+  beforeEach(() => {
+    stubFeed();
+    stubBilling();
+  });
 
   it("displays the user's full name", () => {
     const wrapper = shallowMount(SettingsAccount);
@@ -40,8 +53,62 @@ describe("SettingsAccount", () => {
     expect(wrapper.find("avatar-button-stub").exists()).toBe(true);
   });
 
-  it("matches snapshot", () => {
+  describe("billing", () => {
+    it("shows the Free plan by default before loadPlan resolves", () => {
+      const wrapper = shallowMount(SettingsAccount);
+      expect(wrapper.find(".conn-since").text()).toContain("Free plan");
+    });
+
+    it("shows an Upgrade to Pro link on the free plan", () => {
+      const wrapper = shallowMount(SettingsAccount);
+      const upgradeLink = wrapper.find('a[href="/pricing"]');
+      expect(upgradeLink.exists()).toBe(true);
+      expect(upgradeLink.text()).toContain("Upgrade to Pro");
+    });
+
+    it("shows the Pro plan once loadPlan resolves", async () => {
+      stubBilling({
+        plan: "pro",
+        status: "active",
+        trialEnd: null,
+        currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      });
+      const wrapper = shallowMount(SettingsAccount);
+      await flushPromises();
+      expect(wrapper.find(".conn-since").text()).toContain("Pro plan");
+    });
+
+    it("hides the Upgrade to Pro link on the pro plan", async () => {
+      stubBilling({
+        plan: "pro",
+        status: "active",
+        trialEnd: null,
+        currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      });
+      const wrapper = shallowMount(SettingsAccount);
+      await flushPromises();
+      expect(wrapper.find('a[href="/pricing"]').exists()).toBe(false);
+    });
+
+    it("shows the trial end date while trialing", async () => {
+      stubBilling({
+        plan: "pro",
+        status: "trialing",
+        trialEnd: "2026-08-15T00:00:00.000Z",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      });
+      const wrapper = shallowMount(SettingsAccount);
+      await flushPromises();
+      expect(wrapper.find(".billing-desc").text()).toContain("trial ends");
+    });
+  });
+
+  it("matches snapshot", async () => {
     const wrapper = shallowMount(SettingsAccount);
+    await flushPromises();
     expect(wrapper.html()).toMatchSnapshot();
   });
 });

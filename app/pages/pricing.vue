@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { BillingInterval } from "~/composables/useBilling";
+
 definePageMeta({ layout: "marketing" });
 
 useHead({
@@ -17,6 +19,45 @@ const YEARLY = { amt: "$6", bill: "billed $72/year · 14-day free trial" };
 
 const billing = ref<"month" | "year">("year");
 const price = computed(() => (billing.value === "year" ? YEARLY : MONTHLY));
+
+const { isSignedIn } = useAuth();
+const {
+  loading: checkoutLoading,
+  error: checkoutError,
+  startCheckout,
+} = useBilling();
+const route = useRoute();
+
+// Unauthenticated visitors go through /login first; the chosen interval is
+// preserved in the redirect target so checkout resumes automatically once
+// they're signed in (see the watcher below).
+function startProCheckout(interval: BillingInterval) {
+  if (!isSignedIn.value) {
+    const intent = encodeURIComponent(`/pricing?checkout=${interval}`);
+    return navigateTo(`/login?redirect_url=${intent}`);
+  }
+  return startCheckout(interval);
+}
+
+function isBillingInterval(value: unknown): value is BillingInterval {
+  return value === "month" || value === "year";
+}
+
+watch(
+  isSignedIn,
+  (signedIn) => {
+    // Client-only: startCheckout redirects via window.location, and we must not
+    // fire a checkout-session request during SSR.
+    if (typeof window === "undefined" || !signedIn) {
+      return;
+    }
+    const checkoutIntent = route.query.checkout;
+    if (isBillingInterval(checkoutIntent)) {
+      startCheckout(checkoutIntent);
+    }
+  },
+  { immediate: true },
+);
 
 const faqItems = ref([
   {
@@ -142,10 +183,21 @@ function toggleFaq(index: number) {
             <span class="plan-per">/ month</span>
           </div>
           <p class="plan-bill">{{ price.bill }}</p>
-          <NuxtLink to="/login" class="btn btn-primary">
+          <button
+            class="btn btn-primary"
+            :disabled="checkoutLoading"
+            @click="startProCheckout(billing)"
+          >
             Start 14-day trial
             <RIcon name="arrowRight" :size="16" />
-          </NuxtLink>
+          </button>
+          <p
+            v-if="checkoutError"
+            class="plan-error"
+            style="color: var(--danger); font-size: 12px; margin-top: 8px"
+          >
+            {{ checkoutError }}
+          </p>
           <ul class="plan-feats">
             <li>
               <RIcon name="check" :size="16" />
@@ -230,10 +282,14 @@ function toggleFaq(index: number) {
         <h2>Try Pro free for 14 days.</h2>
         <p>No card to start. Quiet by design, the moment you sign in.</p>
         <div class="hero-ctas">
-          <NuxtLink to="/login" class="btn btn-primary btn-lg">
+          <button
+            class="btn btn-primary btn-lg"
+            :disabled="checkoutLoading"
+            @click="startProCheckout(billing)"
+          >
             Start free trial
             <RIcon name="arrowRight" :size="17" />
-          </NuxtLink>
+          </button>
           <NuxtLink to="/" class="btn btn-lg">Back to home</NuxtLink>
         </div>
       </div>

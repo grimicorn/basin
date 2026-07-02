@@ -105,6 +105,27 @@ export const integrations = pgTable(
   ],
 );
 
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  stripeCustomerId: text("stripe_customer_id").notNull().unique(),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
+  stripePriceId: text("stripe_price_id"),
+  // "free" until a Pro subscription is active/trialing; "pro" otherwise.
+  plan: text("plan").notNull().default("free"),
+  // Mirrors the Stripe subscription status ("trialing", "active", "past_due",
+  // "canceled", etc.), or "none" before a subscription has ever been created.
+  status: text("status").notNull().default("none"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  trialEnd: timestamp("trial_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const userSettings = pgTable("user_settings", {
   userId: integer("user_id")
     .primaryKey()
@@ -133,6 +154,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     fields: [users.id],
     references: [userSettings.userId],
   }),
+  subscription: one(subscriptions, {
+    fields: [users.id],
+    references: [subscriptions.userId],
+  }),
 }));
 
 export const feedsRelations = relations(feeds, ({ one, many }) => ({
@@ -150,4 +175,8 @@ export const integrationsRelations = relations(integrations, ({ one }) => ({
 
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({
   user: one(users, { fields: [userSettings.userId], references: [users.id] }),
+}));
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+  user: one(users, { fields: [subscriptions.userId], references: [users.id] }),
 }));

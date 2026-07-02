@@ -86,11 +86,11 @@ jobs:
       max-parallel: 3
       matrix:
         spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
-    # Required repository secrets (Settings → Secrets → Actions):
-    #   NEON_API_KEY, NEON_PROJECT_ID  — per-run Neon branch create/delete
-    #   DOTENV_PRIVATE_KEY_E2E         — decrypts .env.e2e (Clerk + Google keys
-    #                                    live inside it, so they need no
-    #                                    separate Actions secrets)
+    # Required repository secret (Settings → Secrets → Actions):
+    #   DOTENV_PRIVATE_KEY_E2E — decrypts .env.e2e, which holds every e2e
+    #                            credential: Clerk, Google, and the Neon
+    #                            API key / project id used for per-run branch
+    #                            create/delete. No other Actions secrets needed.
     steps:
       - uses: actions/checkout@v7
 
@@ -119,6 +119,8 @@ jobs:
       - name: Create Neon branch
         id: neon
         run: |
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
           # Neon API can return 4xx/5xx under concurrent load from parallel spec
           # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
           max_attempts=4
@@ -150,8 +152,7 @@ jobs:
           echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
           echo "db_url=$db_url" >> $GITHUB_OUTPUT
         env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           BRANCH_NAME: ${{ steps.branch.outputs.name }}
 
       - name: Run e2e tests
@@ -170,13 +171,14 @@ jobs:
       - name: Delete Neon branch
         if: always()
         run: |
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
           curl -sf \
             --request DELETE \
             --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
             --header "Authorization: Bearer ${NEON_API_KEY}"
         env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
 
       - name: Upload test report

@@ -21,6 +21,13 @@ test.describe("Pricing → Stripe checkout", () => {
     });
 
     await page.goto("/pricing");
+    // .plan.featured is static SSR markup, so waiting for it alone doesn't
+    // guarantee Vue has hydrated and attached the CTA's click listener yet —
+    // clicking too early is a silent no-op (this page renders inside a
+    // <Suspense> boundary, so hydration resolves asynchronously after the
+    // initial paint). Wait for the network to settle first so the click
+    // lands on a fully interactive button.
+    await page.waitForLoadState("networkidle");
     await expect(page.locator(".plan.featured")).toBeVisible();
 
     await page.locator(".plan.featured button.btn-primary").click();

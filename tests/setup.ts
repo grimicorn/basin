@@ -58,6 +58,9 @@ globalThis.createError = ({
   statusCode: number;
   statusMessage: string;
 }) => Object.assign(new Error(statusMessage), { statusCode });
+globalThis.isError = (input: unknown): input is { statusCode: number } =>
+  input instanceof Error &&
+  typeof (input as { statusCode?: unknown }).statusCode === "number";
 globalThis.readBody = (event: any) => Promise.resolve(event.body ?? {});
 globalThis.getRouterParam = (event: any, name: string) => event.params?.[name];
 globalThis.getQuery = (event: any) => event.query ?? {};

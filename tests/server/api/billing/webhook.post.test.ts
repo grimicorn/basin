@@ -50,6 +50,25 @@ describe("POST /api/billing/webhook", () => {
     expect(error.message).toBe("Invalid Stripe webhook signature");
   });
 
+  it("propagates a 5xx from verifyWebhookSignature instead of masking it as a bad signature", async () => {
+    // A missing NUXT_STRIPE_WEBHOOK_SECRET surfaces as a 500 createError from
+    // verifyWebhookSignature; that's a server misconfiguration, not a bad
+    // signature, so it must not be reported to Stripe as a 400 (Stripe won't
+    // retry a 400, but will retry a 5xx once the secret is fixed).
+    mockVerifyWebhookSignature.mockImplementation(() => {
+      throw globalThis.createError({
+        statusCode: 500,
+        statusMessage:
+          "Stripe is not configured: missing NUXT_STRIPE_WEBHOOK_SECRET",
+      });
+    });
+    const error = await handler({}).catch((caught: Error) => caught);
+    expect(error).toMatchObject({ statusCode: 500 });
+    expect(error.message).toBe(
+      "Stripe is not configured: missing NUXT_STRIPE_WEBHOOK_SECRET",
+    );
+  });
+
   it("verifies the signature using the raw body and header", async () => {
     mockVerifyWebhookSignature.mockReturnValue({
       type: "invoice.paid",

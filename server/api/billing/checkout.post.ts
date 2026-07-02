@@ -18,15 +18,17 @@ function isValidInterval(value: unknown): value is BillingInterval {
 
 export default defineEventHandler(async (event) => {
   const user = event.context.user;
-  if (!user)
+  if (!user) {
     throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+  }
 
   const body = await readBody<CheckoutRequestBody>(event);
-  if (!isValidInterval(body.interval))
+  if (!body || !isValidInterval(body.interval)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid billing interval: must be "month" or "year"',
     });
+  }
 
   // Email is intentionally not taken from the client (it would be spoofable and
   // attach billing mail to an arbitrary address). Stripe Checkout collects and
@@ -42,11 +44,12 @@ export default defineEventHandler(async (event) => {
     cancelUrl: `${origin}/pricing?checkout=cancelled`,
   });
 
-  if (!session.url)
+  if (!session.url) {
     throw createError({
       statusCode: 502,
       statusMessage: "Stripe did not return a checkout URL",
     });
+  }
 
   return { url: session.url };
 });

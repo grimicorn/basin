@@ -14,23 +14,33 @@ const SUBSCRIPTION_EVENT_TYPES = new Set([
 
 export default defineEventHandler(async (event) => {
   const signature = getHeader(event, "stripe-signature");
-  if (!signature)
+  if (!signature) {
     throw createError({
       statusCode: 400,
       statusMessage: "Missing Stripe-Signature header",
     });
+  }
 
   const rawBody = await readRawBody(event);
-  if (!rawBody)
+  if (!rawBody) {
     throw createError({
       statusCode: 400,
       statusMessage: "Missing request body",
     });
+  }
 
   let stripeEvent: Stripe.Event;
   try {
     stripeEvent = verifyWebhookSignature(rawBody, signature);
-  } catch {
+  } catch (caughtError) {
+    // A missing Stripe secret is a server misconfiguration (verifyWebhookSignature
+    // throws a 500 for that), not a bad signature — let it propagate as a 5xx so
+    // it pages ops and Stripe retries, instead of masking it as a permanent 400
+    // "invalid signature" that Stripe won't retry. Only an actual signature
+    // mismatch (an unrecognized error) should be reported as a 400.
+    if (isError(caughtError) && caughtError.statusCode >= 500) {
+      throw caughtError;
+    }
     // Never trust an unverified payload: reject rather than parse it.
     throw createError({
       statusCode: 400,

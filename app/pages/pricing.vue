@@ -20,13 +20,19 @@ const YEARLY = { amt: "$6", bill: "billed $72/year · 14-day free trial" };
 const billing = ref<"month" | "year">("year");
 const price = computed(() => (billing.value === "year" ? YEARLY : MONTHLY));
 
-const { isSignedIn } = useAuth();
+const { isSignedIn, isLoaded } = useAuth();
 const {
   loading: checkoutLoading,
   error: checkoutError,
   startCheckout,
 } = useBilling();
 const route = useRoute();
+
+// isSignedIn is unreliable until Clerk finishes its async init (isLoaded
+// flips true) — before that it reads falsy even for a signed-in user. The
+// CTA buttons stay disabled until isLoaded so we never branch on a stale
+// value and misroute an authenticated user to /login.
+const ctaDisabled = computed(() => checkoutLoading.value || !isLoaded.value);
 
 // Unauthenticated visitors go through /login first; the chosen interval is
 // preserved in the redirect target so checkout resumes automatically once
@@ -185,7 +191,7 @@ function toggleFaq(index: number) {
           <p class="plan-bill">{{ price.bill }}</p>
           <button
             class="btn btn-primary"
-            :disabled="checkoutLoading"
+            :disabled="ctaDisabled"
             @click="startProCheckout(billing)"
           >
             Start 14-day trial
@@ -284,7 +290,7 @@ function toggleFaq(index: number) {
         <div class="hero-ctas">
           <button
             class="btn btn-primary btn-lg"
-            :disabled="checkoutLoading"
+            :disabled="ctaDisabled"
             @click="startProCheckout(billing)"
           >
             Start free trial

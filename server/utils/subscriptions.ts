@@ -37,7 +37,11 @@ export async function getAccountPlan(userId: number): Promise<AccountPlan> {
   const subscription = await db.query.subscriptions.findFirst({
     where: eq(subscriptions.userId, userId),
   });
-  if (!subscription) return FREE_PLAN;
+  if (!subscription) {
+    // Return a copy — FREE_PLAN is a shared module-level object and callers
+    // must not be able to mutate it for other requests.
+    return { ...FREE_PLAN };
+  }
 
   return {
     plan: subscription.plan as PlanName,
@@ -56,7 +60,9 @@ export async function getOrCreateStripeCustomerId(
   const existing = await db.query.subscriptions.findFirst({
     where: eq(subscriptions.userId, userId),
   });
-  if (existing) return existing.stripeCustomerId;
+  if (existing) {
+    return existing.stripeCustomerId;
+  }
 
   // check-then-act is not atomic: two near-simultaneous first checkouts could
   // both reach here. onConflictDoNothing lets the loser's insert be ignored,
@@ -75,8 +81,17 @@ export async function getOrCreateStripeCustomerId(
 
   // If we lost the race our freshly-created customer is now orphaned in Stripe
   // (no row references it); delete it so it can't accumulate a subscription.
+  // This is best-effort cleanup: the caller already has a valid
+  // winningCustomerId, so a transient Stripe failure here must not fail the
+  // checkout the user is waiting on. Log it loudly instead of swallowing it
+  // silently so the orphaned customer can be cleaned up manually.
   if (winningCustomerId !== customer.id) {
-    await deleteStripeCustomer(customer.id);
+    await deleteStripeCustomer(customer.id).catch((cleanupError) => {
+      console.error(
+        `Failed to delete orphaned Stripe customer ${customer.id}:`,
+        cleanupError,
+      );
+    });
   }
   return winningCustomerId;
 }
@@ -91,7 +106,9 @@ function resolveUserIdFromMetadata(
   subscription: Stripe.Subscription,
 ): number | null {
   const metadataUserId = subscription.metadata?.userId;
-  if (!metadataUserId) return null;
+  if (!metadataUserId) {
+    return null;
+  }
   const parsed = Number(metadataUserId);
   return Number.isInteger(parsed) ? parsed : null;
 }
@@ -104,7 +121,7 @@ function toDate(unixSeconds: number | null | undefined): Date | null {
 // pinned API version) and falls back to the legacy top-level field so an older
 // account default doesn't silently persist a null period end.
 function currentPeriodEnd(subscription: Stripe.Subscription): Date | null {
-  const item = subscription.items.data[0];
+  const item = subscription.items?.data?.[0];
   const legacyPeriodEnd = (
     subscription as unknown as { current_period_end?: number }
   ).current_period_end;
@@ -120,8 +137,12 @@ function isStaleEvent(
   existing: { stripeSubscriptionId: string | null; plan: string } | undefined,
   subscription: Stripe.Subscription,
 ): boolean {
-  if (!existing?.stripeSubscriptionId) return false;
-  if (existing.stripeSubscriptionId === subscription.id) return false;
+  if (!existing?.stripeSubscriptionId) {
+    return false;
+  }
+  if (existing.stripeSubscriptionId === subscription.id) {
+    return false;
+  }
   return existing.plan === "pro";
 }
 
@@ -148,7 +169,9 @@ export async function upsertSubscriptionFromStripe(
 
   const userId =
     existingByCustomer?.userId ?? resolveUserIdFromMetadata(subscription);
-  if (!userId) return;
+  if (!userId) {
+    return;
+  }
 
   // Resolve the row we write to by userId (the stable owner key) so the
   // metadata-fallback path updates an existing row rather than colliding on
@@ -159,9 +182,11 @@ export async function upsertSubscriptionFromStripe(
       where: eq(subscriptions.userId, userId),
     }));
 
-  if (isStaleEvent(existing, subscription)) return;
+  if (isStaleEvent(existing, subscription)) {
+    return;
+  }
 
-  const item = subscription.items.data[0];
+  const item = subscription.items?.data?.[0];
   const values = {
     userId,
     stripeCustomerId,

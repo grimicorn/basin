@@ -14,6 +14,11 @@ vi.mock("../../../../server/utils/stripe", () => ({
 
 const mockGetRequestURL = vi.fn();
 vi.stubGlobal("getRequestURL", mockGetRequestURL);
+// The shared readBody stub (tests/setup.ts) coerces a missing body to `{}`,
+// which can't exercise the real Nitro behavior of resolving to `undefined`
+// for a genuinely empty request body — override it per-test where needed.
+const mockReadBody = vi.fn((event: { body?: unknown }) => event.body ?? {});
+vi.stubGlobal("readBody", mockReadBody);
 
 import handler from "../../../../server/api/billing/checkout.post";
 
@@ -22,6 +27,9 @@ describe("POST /api/billing/checkout", () => {
     vi.resetAllMocks();
     mockGetRequestURL.mockReturnValue(
       new URL("https://example.com/api/billing/checkout"),
+    );
+    mockReadBody.mockImplementation((event: { body?: unknown }) =>
+      Promise.resolve(event.body ?? {}),
     );
     mockGetOrCreateStripeCustomerId.mockResolvedValue("cus_123");
     mockCreateCheckoutSession.mockResolvedValue({
@@ -35,6 +43,15 @@ describe("POST /api/billing/checkout", () => {
   });
 
   it("throws 400 for a missing interval", async () => {
+    const event = { context: { user: { id: 1 } }, body: {} };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("throws 400 (not a 500) when the request body is empty", async () => {
+    // A genuinely empty POST body resolves readBody to undefined in real
+    // Nitro, unlike the shared test stub which coerces a missing `event.body`
+    // to `{}` — reproduce that explicitly rather than relying on the stub.
+    mockReadBody.mockResolvedValue(undefined);
     const event = { context: { user: { id: 1 } }, body: {} };
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
   });

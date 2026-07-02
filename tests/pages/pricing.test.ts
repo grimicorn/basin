@@ -6,8 +6,11 @@ import PricingPage from "~/pages/pricing.vue";
 const mockNavigateTo = vi.fn();
 vi.stubGlobal("navigateTo", mockNavigateTo);
 
-function stubAuth(isSignedIn: boolean) {
-  vi.stubGlobal("useAuth", () => ({ isSignedIn: ref(isSignedIn) }));
+function stubAuth(isSignedIn: boolean, isLoaded = true) {
+  vi.stubGlobal("useAuth", () => ({
+    isSignedIn: ref(isSignedIn),
+    isLoaded: ref(isLoaded),
+  }));
 }
 
 function stubBilling(startCheckout = vi.fn(), error: string | null = null) {
@@ -176,6 +179,41 @@ describe("pricing page (/pricing)", () => {
       expect(wrapper.find(".plan-error").text()).toBe(
         "Failed to start checkout. Please try again.",
       );
+    });
+
+    it("disables the CTAs until Clerk finishes loading auth state", () => {
+      // isSignedIn reads falsy until isLoaded flips true, even for an
+      // authenticated user — the CTA must stay disabled during that window
+      // instead of racing ahead and misrouting to /login.
+      stubAuth(false, false);
+      const wrapper = shallowMount(PricingPage);
+      expect(
+        wrapper
+          .find(".plan.featured button.btn-primary")
+          .attributes("disabled"),
+      ).toBeDefined();
+      expect(
+        wrapper.find(".cta-band button.btn-primary").attributes("disabled"),
+      ).toBeDefined();
+    });
+
+    it("does not route to /login when clicked before Clerk has loaded", async () => {
+      stubAuth(false, false);
+      const startCheckout = stubBilling();
+      const wrapper = shallowMount(PricingPage);
+      await wrapper.find(".plan.featured button.btn-primary").trigger("click");
+      expect(mockNavigateTo).not.toHaveBeenCalled();
+      expect(startCheckout).not.toHaveBeenCalled();
+    });
+
+    it("enables the CTAs once Clerk has loaded", () => {
+      stubAuth(true, true);
+      const wrapper = shallowMount(PricingPage);
+      expect(
+        wrapper
+          .find(".plan.featured button.btn-primary")
+          .attributes("disabled"),
+      ).toBeUndefined();
     });
   });
 });

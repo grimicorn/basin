@@ -49,6 +49,7 @@ const nuxtGlobals = {
 const nitroGlobals = {
   defineEventHandler: "readonly",
   createError: "readonly",
+  isError: "readonly",
   readBody: "readonly",
   getHeader: "readonly",
   getRouterParam: "readonly",

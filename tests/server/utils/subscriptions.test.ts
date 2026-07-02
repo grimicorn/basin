@@ -123,9 +123,28 @@ describe("getOrCreateStripeCustomerId", () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ stripeCustomerId: "cus_winner" });
     mockCreateStripeCustomer.mockResolvedValue({ id: "cus_loser" });
+    mockDeleteStripeCustomer.mockResolvedValue(undefined);
     const customerId = await getOrCreateStripeCustomerId(1, "a@b.com");
     expect(customerId).toBe("cus_winner");
     expect(mockDeleteStripeCustomer).toHaveBeenCalledWith("cus_loser");
+  });
+
+  it("still returns the winning customer ID if deleting the orphan fails", async () => {
+    // Best-effort cleanup: a transient Stripe failure while deleting the
+    // orphaned loser customer must not fail the checkout the user is
+    // waiting on — the caller already has a valid winning customer ID.
+    mockFindFirst
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ stripeCustomerId: "cus_winner" });
+    mockCreateStripeCustomer.mockResolvedValue({ id: "cus_loser" });
+    mockDeleteStripeCustomer.mockRejectedValue(new Error("Stripe timeout"));
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const customerId = await getOrCreateStripeCustomerId(1, "a@b.com");
+    expect(customerId).toBe("cus_winner");
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });
 

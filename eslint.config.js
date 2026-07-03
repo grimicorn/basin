@@ -39,6 +39,7 @@ const nuxtGlobals = {
   useFeeds: "readonly",
   useConnections: "readonly",
   useUserSettings: "readonly",
+  useBilling: "readonly",
   useUserProfile: "readonly",
   useInputValidation: "readonly",
   useInfiniteScroll: "readonly",
@@ -48,6 +49,7 @@ const nuxtGlobals = {
 const nitroGlobals = {
   defineEventHandler: "readonly",
   createError: "readonly",
+  isError: "readonly",
   readBody: "readonly",
   getHeader: "readonly",
   getRouterParam: "readonly",
@@ -57,6 +59,7 @@ const nitroGlobals = {
   sendRedirect: "readonly",
   getQuery: "readonly",
   getRequestURL: "readonly",
+  readRawBody: "readonly",
   // server/utils auto-imports
   useDb: "readonly",
   getOrCreateUser: "readonly",

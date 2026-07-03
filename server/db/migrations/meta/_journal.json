@@ -57,6 +57,13 @@
       "when": 1748000007000,
       "tag": "0007_add_podcast_columns_to_feed_items",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782956840242,
+      "tag": "0008_add_subscriptions",
+      "breakpoints": true
     }
   ]
 }

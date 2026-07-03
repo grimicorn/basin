@@ -41,7 +41,8 @@ exports[`pricing page (/pricing) > matches snapshot 1`] = `
         <div class="plan-head"><span class="plan-name"><span class="dot" style="background:var(--accent);"></span> Pro </span><span class="plan-pop">Most popular</span></div>
         <p class="plan-tagline"> For people who follow everything, everywhere, and want it all in one stream. </p>
         <div class="plan-price"><span class="plan-amt">$6</span><span class="plan-per">/ month</span></div>
-        <p class="plan-bill">billed $72/year · 14-day free trial</p><a href="/login" class="btn btn-primary"> Start 14-day trial <r-icon-stub name="arrowRight" size="16"></r-icon-stub></a>
+        <p class="plan-bill">billed $72/year · 14-day free trial</p><button class="btn btn-primary"> Start 14-day trial <r-icon-stub name="arrowRight" size="16"></r-icon-stub></button>
+        <!--v-if-->
         <ul class="plan-feats">
           <li>
             <r-icon-stub name="check" size="16"></r-icon-stub><b>Unlimited</b> sources
@@ -113,7 +114,7 @@ exports[`pricing page (/pricing) > matches snapshot 1`] = `
     <div class="cta-band"><span class="eyebrow dot" style="justify-content: center;"> Still reading? </span>
       <h2>Try Pro free for 14 days.</h2>
       <p>No card to start. Quiet by design, the moment you sign in.</p>
-      <div class="hero-ctas"><a href="/login" class="btn btn-primary btn-lg"> Start free trial <r-icon-stub name="arrowRight" size="17"></r-icon-stub></a><a href="/" class="btn btn-lg">Back to home</a></div>
+      <div class="hero-ctas"><button class="btn btn-primary btn-lg"> Start free trial <r-icon-stub name="arrowRight" size="17"></r-icon-stub></button><a href="/" class="btn btn-lg">Back to home</a></div>
     </div>
   </div>
 </section>"

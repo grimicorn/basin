@@ -6,6 +6,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { useToast } from "../app/composables/useToast.js";
 import { useSearch } from "../app/composables/useSearch.js";
 import { USER_SETTINGS_DEFAULTS } from "../app/composables/useUserSettings.ts";
+import { FREE_ACCOUNT_PLAN } from "../app/composables/useBilling.ts";
 import { useAppearanceStore } from "../app/stores/appearance.ts";
 import { useFeedStore } from "../app/stores/feed.ts";
 import { useInputValidation } from "../app/composables/useInputValidation.ts";
@@ -57,6 +58,9 @@ globalThis.createError = ({
   statusCode: number;
   statusMessage: string;
 }) => Object.assign(new Error(statusMessage), { statusCode });
+globalThis.isError = (input: unknown): input is { statusCode: number } =>
+  input instanceof Error &&
+  typeof (input as { statusCode?: unknown }).statusCode === "number";
 globalThis.readBody = (event: any) => Promise.resolve(event.body ?? {});
 globalThis.getRouterParam = (event: any, name: string) => event.params?.[name];
 globalThis.getQuery = (event: any) => event.query ?? {};
@@ -97,6 +101,15 @@ globalThis.useConnections = vi.fn(() => ({
   connect: vi.fn(),
   connectBluesky: vi.fn(),
   disconnect: vi.fn(),
+}));
+
+// useBilling stub — resolves the free plan and no-ops on checkout by default.
+// Tests that need to assert on startCheckout or a paid plan override with vi.stubGlobal.
+globalThis.useBilling = vi.fn(() => ({
+  loading: ref(false),
+  error: ref(null),
+  loadPlan: vi.fn().mockResolvedValue({ ...FREE_ACCOUNT_PLAN }),
+  startCheckout: vi.fn(),
 }));
 
 // Clerk composable stubs

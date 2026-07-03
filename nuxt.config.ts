@@ -32,6 +32,10 @@ export default defineNuxtConfig({
     googleClientSecret: process.env.NUXT_GOOGLE_CLIENT_SECRET || "",
     disableSignups: process.env.NUXT_DISABLE_SIGNUPS || "",
     clerk: { secretKey: process.env.NUXT_CLERK_SECRET_KEY || "" },
+    stripeSecretKey: process.env.NUXT_STRIPE_SECRET_KEY || "",
+    stripeWebhookSecret: process.env.NUXT_STRIPE_WEBHOOK_SECRET || "",
+    stripePriceProMonthly: process.env.NUXT_STRIPE_PRICE_PRO_MONTHLY || "",
+    stripePriceProYearly: process.env.NUXT_STRIPE_PRICE_PRO_YEARLY || "",
     public: {
       clerk: {
         publishableKey: process.env.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",

@@ -40,7 +40,8 @@
     "drizzle-orm": "^0.45.2",
     "nuxt": "^4.0.0",
     "pinia": "^3.0.4",
-    "rss-parser": "^3.13.0"
+    "rss-parser": "^3.13.0",
+    "stripe": "^22.3.0"
   },
   "overrides": {
     "@netlify/sdk": "^5.0.4",

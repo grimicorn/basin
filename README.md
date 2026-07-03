@@ -56,13 +56,14 @@ The app uses [Drizzle ORM](https://orm.drizzle.team) with a [Neon](https://neon.
 
 The schema lives in [`server/db/schema.ts`](server/db/schema.ts). Tables:
 
-| Table           | Description                                               |
-| --------------- | --------------------------------------------------------- |
-| `users`         | One row per authenticated user, keyed by Clerk's `userId` |
-| `feeds`         | RSS and podcast feeds belonging to a user                 |
-| `feed_items`    | Individual items fetched from a feed                      |
-| `integrations`  | OAuth tokens for YouTube and Bluesky (encrypted at rest)  |
-| `user_settings` | Per-user reading preferences                              |
+| Table           | Description                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| `users`         | One row per authenticated user, keyed by Clerk's `userId`           |
+| `feeds`         | RSS and podcast feeds belonging to a user                           |
+| `feed_items`    | Individual items fetched from a feed                                |
+| `integrations`  | OAuth tokens for YouTube and Bluesky (encrypted at rest)            |
+| `user_settings` | Per-user reading preferences                                        |
+| `subscriptions` | Stripe billing state (customer, subscription, plan/status) per user |
 
 ### Database commands
 
@@ -130,6 +131,40 @@ const { isSignedIn } = useAuth(); // reactive auth state
 const clerk = useClerk();
 clerk.value?.signOut({ redirectUrl: "/login" });
 ```
+
+## Billing
+
+The paid Pro plan (monthly or yearly, both with a 14-day free trial) is handled by [Stripe](https://stripe.com) Checkout and Billing.
+
+### How it works
+
+1. `server/utils/stripe.ts` — the only file that imports the `stripe` package. Wraps Checkout Session creation, Stripe customer creation, and webhook signature verification behind small functions so nothing else in the app touches the Stripe SDK directly.
+2. `server/utils/subscriptions.ts` — reads/writes the `subscriptions` table and maps a Stripe subscription status (`trialing`, `active`, `past_due`, `canceled`, etc.) to our own `plan` (`"free" | "pro"`).
+3. `server/api/billing/checkout.post.ts` — authenticated route. Looks up (or creates) the user's Stripe customer, creates a Checkout Session for the requested interval with a 14-day trial, and returns the session URL.
+4. `server/api/billing/webhook.post.ts` — verifies the Stripe signature on every request, then persists subscription state on `customer.subscription.created` / `.updated` / `.deleted`. We listen to the subscription lifecycle events (not `checkout.session.completed`) so renewals and cancellations stay in sync with one handler.
+5. `server/api/billing/plan.get.ts` — authenticated route returning the caller's current plan/status, used by `SettingsAccount.vue`.
+6. `app/composables/useBilling.ts` — client composable wrapping the two routes above; `startCheckout()` redirects the browser to the returned Checkout Session URL.
+
+### Where to see it
+
+- [`/pricing`](http://localhost:3000/pricing) — the Pro plan CTAs start checkout. Signed-out visitors are routed through `/login?redirect_url=...` first and checkout resumes automatically after sign-in.
+- `/settings/account` — shows the caller's real plan (Free/Pro, trial end date) instead of a hardcoded label, with an "Upgrade to Pro" link back to `/pricing` when on the Free plan.
+
+### Setup required to use this
+
+1. Create a Stripe account (test mode is fine for development) and grab the secret key from **Developers → API keys**.
+2. Create one Product ("Pro") with two recurring Prices — monthly and yearly (yearly priced at a discount) — and copy each **Price ID** (not the Product ID).
+3. Add a webhook endpoint at **Developers → Webhooks** pointing at `<your-app-url>/api/billing/webhook`, subscribed to `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`. Copy its signing secret.
+4. Set the four values below (see [`.env.example`](.env.example)) via `dotenvx set VAR "value" -f <file>` for each environment that needs them:
+
+   | Variable                        | Purpose                                          |
+   | ------------------------------- | ------------------------------------------------ |
+   | `NUXT_STRIPE_SECRET_KEY`        | Server-side Stripe API key                       |
+   | `NUXT_STRIPE_WEBHOOK_SECRET`    | Verifies webhook requests are really from Stripe |
+   | `NUXT_STRIPE_PRICE_PRO_MONTHLY` | Price ID for the monthly Pro plan                |
+   | `NUXT_STRIPE_PRICE_PRO_YEARLY`  | Price ID for the yearly Pro plan                 |
+
+Local Stripe CLI users can forward webhooks during development with `stripe listen --forward-to localhost:3000/api/billing/webhook`, which prints a temporary signing secret to use for `NUXT_STRIPE_WEBHOOK_SECRET`.
 
 ## Offline / PGlite
 

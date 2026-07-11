@@ -40,12 +40,25 @@ export default defineNuxtConfig({
       clerk: {
         publishableKey: process.env.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",
       },
+      // Baked at build so sentry.client.config.ts can read it via
+      // useRuntimeConfig().public.sentry.dsn. The DSN is not secret (it ships to
+      // the browser). Single source of truth: SENTRY_DSN in the dotenvx files.
+      sentry: {
+        dsn: process.env.SENTRY_DSN || "",
+      },
     },
   },
   devtools: { enabled: true },
   future: { compatibilityVersion: 4 },
   nitro: {
     preset: "netlify",
+    // sentry.server.config.ts must read the DSN via process.env (Sentry loads
+    // before useRuntimeConfig() is available), and dotenvx does NOT run in the
+    // deployed function. Statically bake the build-time value into the server
+    // bundle so SENTRY_DSN stays sourced only from the dotenvx files.
+    replace: {
+      "process.env.SENTRY_DSN": JSON.stringify(process.env.SENTRY_DSN || ""),
+    },
   },
   css: [mainCss, marketingCss],
   vite: {

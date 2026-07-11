@@ -1,9 +1,9 @@
 import * as Sentry from "@sentry/nuxt";
 
 Sentry.init({
-  // The DSN is read from the SENTRY_DSN environment variable at runtime.
-  // Set SENTRY_DSN in your Netlify environment variables (or .env locally).
-  dsn: import.meta.env.SENTRY_DSN,
+  // DSN comes from runtimeConfig.public.sentry.dsn, baked at build from the
+  // SENTRY_DSN dotenvx var (see nuxt.config.ts). Single source of truth.
+  dsn: useRuntimeConfig().public.sentry.dsn,
 
   // Capture 10 % of traces in production; use 100 % locally for development.
   tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,

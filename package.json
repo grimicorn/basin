@@ -31,6 +31,7 @@
   "dependencies": {
     "@atproto/api": "^0.20.25",
     "@clerk/nuxt": "^2.6.11",
+    "@dotenvx/dotenvx": "^2.1.4",
     "@electric-sql/pglite": "^0.5.4",
     "@neondatabase/serverless": "^1.1.0",
     "@netlify/async-workloads": "^0.0.106",
@@ -51,7 +52,6 @@
   "devDependencies": {
     "@clerk/backend": "^3.5.0",
     "@clerk/testing": "^2.2.2",
-    "@dotenvx/dotenvx": "^2.1.4",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.3.2",

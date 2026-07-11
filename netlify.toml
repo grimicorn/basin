@@ -13,5 +13,10 @@
 [context.branch-deploy]
   command = "npm run test:ci && npm run build:dev"
 
+# Functions run at runtime as standalone Lambdas: they don't get the
+# dotenvx-decrypted values that `nuxt build` bakes into the app bundle. Ship the
+# encrypted env files so netlify/functions/env.ts can decrypt them at runtime
+# with DOTENV_PRIVATE_KEY_* (which must be scoped to Functions in Netlify env).
 [functions]
   directory = "netlify/functions"
+  included_files = [".env.production", ".env.dev"]

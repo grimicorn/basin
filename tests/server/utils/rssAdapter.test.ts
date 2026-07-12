@@ -201,6 +201,15 @@ describe("parseRssFeedFromXml", () => {
     expect(items.every((item) => item.feedId === FEED_ID)).toBe(true);
   });
 
+  it("leaves new items unsaved and unread by default", async () => {
+    mockParseString.mockResolvedValue(makeFeedOutput([makeRssItem()]));
+
+    const [item] = await parseRssFeedFromXml("<rss/>", FEED_ID);
+    expect(item.savedAt).toBeNull();
+    expect(item.readAt).toBeNull();
+    expect(item.starred).toBe(false);
+  });
+
   it("caps items at MAX_ITEMS_PER_SYNC (50)", async () => {
     const manyItems = Array.from({ length: 80 }, (_, index) =>
       makeRssItem({ guid: `urn:example:${index}` }),

@@ -146,7 +146,7 @@ function mapPostToFeedItem(
     content: text || null,
     imageUrl: resolvePostImageUrl(post),
     publishedAt,
-    savedAt: new Date(),
+    savedAt: null,
     readAt: null,
     starred: false,
     tags: null,

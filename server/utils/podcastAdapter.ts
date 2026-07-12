@@ -176,7 +176,7 @@ function mapItemToFeedItem(
     content: resolveContent(item),
     imageUrl,
     publishedAt,
-    savedAt: new Date(),
+    savedAt: null,
     readAt: null,
     starred: false,
     tags: null,

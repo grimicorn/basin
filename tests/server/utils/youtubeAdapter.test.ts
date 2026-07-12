@@ -32,7 +32,7 @@ function makeFeedItem(overrides: Partial<NewFeedItem> = {}): NewFeedItem {
     content: "Video description",
     imageUrl: "https://img.youtube.com/vi/abc123/hqdefault.jpg",
     publishedAt: new Date("2024-06-01T12:00:00Z"),
-    savedAt: new Date(),
+    savedAt: null,
     readAt: null,
     starred: false,
     tags: null,

@@ -120,6 +120,15 @@ describe("parsePodcastFeedFromXml", () => {
     expect(item.guid).toBe("urn:custom:guid");
   });
 
+  it("leaves new episodes unsaved and unread by default", async () => {
+    mockParseString.mockResolvedValue(makeFeedOutput([makePodcastItem()]));
+
+    const [item] = await parsePodcastFeedFromXml("<rss/>", FEED_ID);
+    expect(item.savedAt).toBeNull();
+    expect(item.readAt).toBeNull();
+    expect(item.starred).toBe(false);
+  });
+
   it("falls back to hash of enclosure URL when guid is absent", async () => {
     mockParseString.mockResolvedValue(
       makeFeedOutput([

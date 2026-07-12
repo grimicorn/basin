@@ -627,6 +627,26 @@ describe("fetchNewBlueskyPosts", () => {
     expect(item.guid).toBe("at://did:plc:abc123/app.bsky.feed.post/3kp123");
   });
 
+  it("leaves new posts unsaved and unread by default", async () => {
+    const watermark = new Date("2024-05-31T00:00:00.000Z");
+
+    mockDeps.getTimeline.mockResolvedValueOnce({
+      feed: [makePost()],
+    });
+
+    const [item] = await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      watermark,
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+    );
+
+    expect(item.savedAt).toBeNull();
+    expect(item.readAt).toBeNull();
+    expect(item.starred).toBe(false);
+  });
+
   it("returns an empty array when the timeline is empty", async () => {
     mockDeps.getTimeline.mockResolvedValueOnce({ feed: [] });
 

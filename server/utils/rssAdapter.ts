@@ -91,7 +91,7 @@ function mapItemToFeedItem(
     content,
     imageUrl,
     publishedAt,
-    savedAt: new Date(),
+    savedAt: null,
     readAt: null,
     starred: false,
     tags: null,

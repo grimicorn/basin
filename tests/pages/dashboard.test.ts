@@ -59,23 +59,25 @@ describe("dashboard page", () => {
     expect(wrapper.find("main.wrap").exists()).toBe(true);
   });
 
-  it("renders the page title", () => {
+  it("always renders the sub-bar", () => {
     const wrapper = shallowMount(IndexPage);
-    expect(wrapper.find(".page-title").text()).toBe("Your Feed");
+    expect(wrapper.find("dashboard-subbar-stub").exists()).toBe(true);
   });
 
-  it("shows onboarding when there are no real feeds", () => {
+  it("passes onboarding state and a zero source count to the sub-bar during onboarding", () => {
+    const wrapper = shallowMount(IndexPage);
+    const subbar = wrapper.find("dashboard-subbar-stub");
+    expect(subbar.attributes("is-onboarding")).toBe("true");
+    expect(subbar.attributes("source-count")).toBe("0");
+  });
+
+  it("shows onboarding and hides the feed when there are no real feeds", () => {
     const wrapper = shallowMount(IndexPage);
     expect(wrapper.find("dashboard-onboarding-stub").exists()).toBe(true);
-    expect(wrapper.find(".feed").exists()).toBe(false);
+    expect(wrapper.find("dashboard-feed-stub").exists()).toBe(false);
   });
 
-  it("shows 'no sources yet' subtitle during onboarding", () => {
-    const wrapper = shallowMount(IndexPage);
-    expect(wrapper.find(".page-sub").text()).toContain("no sources yet");
-  });
-
-  it("hides onboarding and shows feed when real feeds exist", async () => {
+  it("hides onboarding and shows the feed when real feeds exist", async () => {
     stubWithFeed();
     vi.stubGlobal(
       "$fetch",
@@ -84,7 +86,7 @@ describe("dashboard page", () => {
     const wrapper = shallowMount(IndexPage);
     await flushPromises();
     expect(wrapper.find("dashboard-onboarding-stub").exists()).toBe(false);
-    expect(wrapper.find(".feed").exists()).toBe(true);
+    expect(wrapper.find("dashboard-feed-stub").exists()).toBe(true);
   });
 
   it("calls loadFeeds on mount", () => {
@@ -92,7 +94,7 @@ describe("dashboard page", () => {
     expect(mockLoadFeeds).toHaveBeenCalledOnce();
   });
 
-  it("shows the real feed source count in the subtitle when feeds exist", async () => {
+  it("passes the real feed source count to the sub-bar when feeds exist", async () => {
     stubWithFeed();
     vi.stubGlobal(
       "$fetch",
@@ -100,7 +102,9 @@ describe("dashboard page", () => {
     );
     const wrapper = shallowMount(IndexPage);
     await flushPromises();
-    expect(wrapper.find(".page-sub").text()).toContain("1 sources");
+    expect(
+      wrapper.find("dashboard-subbar-stub").attributes("source-count"),
+    ).toBe("1");
   });
 
   it("calls $fetch for feed items after loadFeeds resolves when feeds exist", async () => {

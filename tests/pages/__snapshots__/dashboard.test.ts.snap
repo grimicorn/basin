@@ -2,26 +2,7 @@
 
 exports[`dashboard page > matches snapshot (onboarding state) 1`] = `
 "<main class="wrap">
-  <div class="subbar">
-    <div class="subbar-top">
-      <div>
-        <h1 class="page-title">Your Feed</h1>
-        <p class="page-sub"><b style="color: var(--ink-2);">0</b> unread · no sources yet · let's change that </p>
-      </div>
-      <div class="subbar-tools"><button class="fchip" title="Show unread only"><span class="dot" style="--c: var(--accent);"></span>Unread only </button><button class="btn btn-ghost">
-          <r-icon-stub name="checkAll" size="16"></r-icon-stub> Mark all read
-        </button>
-        <div class="seg"><button class="active" title="Timeline">
-            <r-icon-stub name="list" size="16"></r-icon-stub>
-          </button><button class="" title="Grid">
-            <r-icon-stub name="grid" size="16"></r-icon-stub>
-          </button><button class="" title="Columns">
-            <r-icon-stub name="columns" size="16"></r-icon-stub>
-          </button></div>
-      </div>
-    </div>
-    <div class="filters"><button class="fchip active"><span class="dot" style="--c: var(--accent);"></span>All<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-rss);"></span>RSS<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-podcast);"></span>Podcasts<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-video);"></span>YouTube<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--src-tweet);"></span>Bluesky<span class="count">0</span></button><button class="fchip"><span class="dot" style="--c: var(--accent);"></span>Saved<span class="count">0</span></button></div>
-  </div><!-- onboarding empty state -->
+  <dashboard-subbar-stub is-onboarding="true" source-count="0"></dashboard-subbar-stub><!-- onboarding empty state -->
   <dashboard-onboarding-stub></dashboard-onboarding-stub>
 </main>"
 `;

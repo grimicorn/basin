@@ -165,7 +165,10 @@ useInfiniteScroll(sentinelEl, loadNextPage);
 
       <!-- loaded -->
       <template v-else>
-        <div v-if="!feedStore.visibleItems.length" class="empty">
+        <div
+          v-if="!feedStore.visibleItems.length"
+          class="empty flex flex-col items-center"
+        >
           <RIcon name="inbox" :size="40" />
           <h3>You're all caught up</h3>
           <p>

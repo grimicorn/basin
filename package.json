@@ -41,7 +41,7 @@
     "@sentry/nuxt": "^10.65.0",
     "drizzle-orm": "^0.45.2",
     "nuxt": "^4.4.8",
-    "pinia": "^3.0.4",
+    "pinia": "^4.0.2",
     "rss-parser": "^3.13.0",
     "stripe": "^22.3.1"
   },

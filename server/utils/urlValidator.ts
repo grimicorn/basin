@@ -9,7 +9,11 @@ const ALLOWED_SCHEMES = ["http:", "https:"];
 const LOOPBACK_HOSTNAME = "localhost";
 
 function isLoopbackHostname(hostname: string): boolean {
-  return hostname.toLowerCase() === LOOPBACK_HOSTNAME;
+  // Strip a trailing dot (the FQDN root label, e.g. "localhost.") before
+  // comparing, since that's still the loopback name as far as DNS is
+  // concerned.
+  const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  return normalized === LOOPBACK_HOSTNAME;
 }
 
 // Thrown by the framework-agnostic validation core below. Callers in an H3
@@ -173,9 +177,21 @@ async function resolveAllAddresses(hostname: string): Promise<string[]> {
 // Has no dependency on H3/Nitro, so it is safe to call from Nuxt server API
 // routes (server/api/**) AND from standalone Netlify Functions
 // (netlify/functions/**), which do not get Nitro's auto-imports (createError
-// included). Call this at every point a feed URL is about to be fetched —
-// not just once at add time — since a hostname that resolved to a public IP
-// earlier can be re-pointed at a private IP later (DNS rebinding).
+// included). Call this immediately before every fetch of a feed URL — not
+// just once at add time — so a hostname that resolved to a public IP earlier
+// but has since been re-pointed at a private IP (DNS rebinding) is caught on
+// the next add/sync attempt rather than being fetched indefinitely.
+//
+// Known limitation: this validates the hostname's DNS answer at check time,
+// it does not pin the connection to the resolved address. A resolver that
+// answers differently between this check and the caller's own fetch (a
+// classic TOCTOU DNS-rebinding attack within a single request) is not
+// defended against here — that would require the caller to fetch against
+// the specific IP this function resolved (e.g. a custom dispatcher/lookup),
+// which callers in this codebase do not currently do. What this function
+// does guarantee is that a feed is never fetched using a hostname whose DNS
+// answer, at validation time, points at a private/loopback/link-local
+// address.
 export async function resolvePublicFeedUrl(rawUrl: string): Promise<string> {
   let parsed: URL;
   try {

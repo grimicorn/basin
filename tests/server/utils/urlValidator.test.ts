@@ -125,6 +125,13 @@ describe("validateFeedUrl", () => {
         validateFeedUrl("http://localhost:8080/feed"),
       ).rejects.toThrow("URL resolves to a disallowed address");
     });
+
+    it("rejects the FQDN root-label form localhost.", async () => {
+      await expect(validateFeedUrl("http://localhost./feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+      expect(mockResolve4).not.toHaveBeenCalled();
+    });
   });
 
   describe("blocked IPv6 addresses (direct IP in URL)", () => {

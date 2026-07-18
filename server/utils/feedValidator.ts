@@ -26,9 +26,12 @@ function resolveTargetUrl(url: string): string {
 }
 
 // DNS-resolving SSRF guard, shared with feed discovery and the sync-time
-// adapters (see server/utils/urlValidator.ts). Re-checked at every fetch —
-// not just when the feed is first added — so a hostname that DNS-rebinds to
-// a private address after add time is still caught on subsequent syncs.
+// adapters (see resolvePublicFeedUrl in server/utils/urlValidator.ts for the
+// exact guarantee and its known TOCTOU limitation). Re-checked immediately
+// before every fetch — not just when the feed is first added — so a
+// hostname that DNS-rebinds to a private address after add time is caught
+// on the next add/sync attempt rather than accepted once and fetched
+// indefinitely.
 async function isAllowedUrl(url: string): Promise<boolean> {
   try {
     await resolvePublicFeedUrl(url);

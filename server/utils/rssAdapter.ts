@@ -101,10 +101,11 @@ function mapItemToFeedItem(
 }
 
 // DNS-resolving SSRF guard, shared with feed discovery and feed creation
-// (see server/utils/urlValidator.ts). This runs at fetch time on every sync
-// — not just when the feed was first added — so a hostname that DNS-rebinds
-// to a private address after add time is caught on the next scheduled sync
-// rather than being fetched indefinitely.
+// (see resolvePublicFeedUrl in server/utils/urlValidator.ts for the exact
+// guarantee and its known TOCTOU limitation). This runs immediately before
+// parser.parseURL on every sync — not just when the feed was first added —
+// so a hostname that DNS-rebinds to a private address after add time is
+// caught on the next scheduled sync rather than being fetched indefinitely.
 export async function assertSafeFeedUrl(url: string): Promise<void> {
   await resolvePublicFeedUrl(url);
 }

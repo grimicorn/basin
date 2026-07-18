@@ -462,6 +462,22 @@ describe("validateFeedContent", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("returns false for a plain http:// URL (feed add/validation requires https)", async () => {
+    // Pins pre-existing behavior: unlike discovery and sync (which also
+    // accept http via resolvePublicFeedUrl directly), feed content fetches
+    // require https. Consolidating onto the shared DNS-resolving validator
+    // must not silently loosen this.
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedContent(
+      "http://example.com/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("re-throws AbortError so the caller can emit a 504 timeout response", async () => {
     const abortError = new DOMException(
       "The operation was aborted",

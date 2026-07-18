@@ -1,4 +1,7 @@
-import { resolvePublicFeedUrl } from "./urlValidator";
+import {
+  resolvePublicFeedUrl,
+  isAllowlistedFeedTestHost,
+} from "./urlValidator";
 
 // Configurable so tests can point feed fetches at a local mock server.
 // When FEED_FETCH_PROXY_URL is set the original URL is forwarded as the
@@ -25,6 +28,14 @@ function resolveTargetUrl(url: string): string {
   return proxyUrl.toString();
 }
 
+// Feed content fetches (add-time validation and type detection) are
+// restricted to https, unlike discovery and sync which also accept http via
+// resolvePublicFeedUrl directly. Preserved from the pre-existing behavior
+// here; scoped to this file rather than urlValidator.ts so it doesn't affect
+// the other two callers. The e2e mock-host allowlist still bypasses this,
+// since local/e2e mock servers are plain http.
+const REQUIRED_SCHEME = "https:";
+
 // DNS-resolving SSRF guard, shared with feed discovery and the sync-time
 // adapters (see resolvePublicFeedUrl in server/utils/urlValidator.ts for the
 // exact guarantee and its known TOCTOU limitation). Re-checked immediately
@@ -33,6 +44,17 @@ function resolveTargetUrl(url: string): string {
 // on the next add/sync attempt rather than accepted once and fetched
 // indefinitely.
 async function isAllowedUrl(url: string): Promise<boolean> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+
+  const isHttpsOrAllowlisted =
+    parsed.protocol === REQUIRED_SCHEME || isAllowlistedFeedTestHost(url);
+  if (!isHttpsOrAllowlisted) return false;
+
   try {
     await resolvePublicFeedUrl(url);
     return true;

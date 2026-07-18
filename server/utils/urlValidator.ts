@@ -192,6 +192,24 @@ async function resolveAllAddresses(hostname: string): Promise<string[]> {
 // does guarantee is that a feed is never fetched using a hostname whose DNS
 // answer, at validation time, points at a private/loopback/link-local
 // address.
+// Exposes the local dev / e2e test-host bypass on its own so callers that
+// need an additional check before delegating to resolvePublicFeedUrl (e.g.
+// feedValidator.ts restricting feed-add to https only) can still let an
+// allowlisted mock host through regardless of scheme, without duplicating
+// the NUXT_FEED_DISCOVERY_ALLOWED_HOSTS parsing logic.
+export function isAllowlistedFeedTestHost(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  const { hostname, port } = parsed;
+  const hostWithPort = port ? `${hostname}:${port}` : hostname;
+  return allowedTestHosts().has(hostWithPort);
+}
+
 export async function resolvePublicFeedUrl(rawUrl: string): Promise<string> {
   let parsed: URL;
   try {
@@ -204,13 +222,12 @@ export async function resolvePublicFeedUrl(rawUrl: string): Promise<string> {
     throw new FeedUrlValidationError(400, "URL must use http or https");
   }
 
-  const { hostname, port } = parsed;
-  const hostWithPort = port ? `${hostname}:${port}` : hostname;
-
   // Allow explicitly allowlisted hosts (for local dev and e2e testing only).
-  if (allowedTestHosts().has(hostWithPort)) {
+  if (isAllowlistedFeedTestHost(rawUrl)) {
     return parsed.href;
   }
+
+  const { hostname } = parsed;
 
   if (isBlockedAddress(hostname) || isLoopbackHostname(hostname)) {
     throw new FeedUrlValidationError(

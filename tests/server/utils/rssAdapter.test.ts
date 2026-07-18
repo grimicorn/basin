@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as dnsModule from "dns";
 
 const { mockParseString, mockParseURL } = vi.hoisted(() => ({
   mockParseString: vi.fn(),
@@ -17,6 +18,12 @@ import {
   parseRssFeedFromXml,
   parseRssFeed,
 } from "../../../server/utils/rssAdapter";
+
+// assertSafeFeedUrl now delegates to the DNS-resolving urlValidator (see
+// server/utils/urlValidator.ts), so a URL-based parse needs a mocked DNS
+// resolution to a public address to reach parser.parseURL.
+const mockResolve4 = vi.spyOn(dnsModule.promises, "resolve4");
+const mockResolve6 = vi.spyOn(dnsModule.promises, "resolve6");
 
 const FEED_ID = 42;
 
@@ -239,6 +246,11 @@ describe("parseRssFeedFromXml", () => {
 describe("parseRssFeed", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Default: resolve any hostname to a public IPv4 address so the URL
+    // reaches parser.parseURL. Tests below override with literal IPs/hostnames
+    // that are blocked before DNS resolution is even attempted.
+    mockResolve4.mockResolvedValue(["93.184.216.34"]);
+    mockResolve6.mockRejectedValue(new Error("ENODATA"));
   });
 
   it("uses parseURL and returns mapped items", async () => {
@@ -271,66 +283,82 @@ describe("parseRssFeed", () => {
   it("rejects localhost", async () => {
     await expect(
       parseRssFeed("http://localhost/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects 127.0.0.1", async () => {
     await expect(
       parseRssFeed("http://127.0.0.1/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects private 10.x.x.x range", async () => {
     await expect(
       parseRssFeed("http://10.0.0.1/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects private 192.168.x.x range", async () => {
     await expect(
       parseRssFeed("http://192.168.1.1/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects private 172.16.x.x range", async () => {
     await expect(
       parseRssFeed("http://172.16.0.1/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects link-local 169.254.x.x range (cloud metadata)", async () => {
     await expect(
       parseRssFeed("http://169.254.169.254/latest/meta-data/", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects 0.0.0.0", async () => {
     await expect(
       parseRssFeed("http://0.0.0.0/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects IPv6 loopback ::1", async () => {
     await expect(
       parseRssFeed("http://[::1]/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects IPv4-mapped IPv6 ::ffff:127.0.0.1", async () => {
     await expect(
       parseRssFeed("http://[::ffff:127.0.0.1]/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects IPv4-mapped IPv6 hex form ::ffff:7f00:1", async () => {
     await expect(
       parseRssFeed("http://[::ffff:7f00:1]/feed.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
+  });
+
+  it("rejects a hostname that resolves to a private IP (e.g. DNS rebinding on sync)", async () => {
+    // This is the case a literal-hostname regex check can never catch: the
+    // domain itself is not a blocked literal, but DNS resolves it to an
+    // internal address. Since parseRssFeed re-validates on every sync (not
+    // just when the feed was added), a feed that rebinds after add time is
+    // still rejected on its next scheduled sync rather than being fetched
+    // indefinitely.
+    mockResolve4.mockResolvedValueOnce(["10.0.0.5"]);
+    mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
+
+    await expect(
+      parseRssFeed("http://rebound.example.com/feed.xml", FEED_ID),
+    ).rejects.toThrow("disallowed address");
+    expect(mockParseURL).not.toHaveBeenCalled();
   });
 
   it("rejects invalid URLs", async () => {
     await expect(parseRssFeed("not-a-url", FEED_ID)).rejects.toThrow(
-      "Invalid feed URL",
+      "Invalid URL",
     );
   });
 });

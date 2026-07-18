@@ -2,6 +2,7 @@ import RssParser from "rss-parser";
 import type { InferInsertModel } from "drizzle-orm";
 import { feedItems } from "../db/schema";
 import { MAX_ITEMS_PER_SYNC } from "../../netlify/functions/types";
+import { resolvePublicFeedUrl } from "./urlValidator";
 
 export type NewFeedItem = Omit<
   InferInsertModel<typeof feedItems>,
@@ -99,62 +100,20 @@ function mapItemToFeedItem(
   };
 }
 
-const PRIVATE_IP_RANGES = [
-  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
-  /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/,
-  /^192\.168\.\d{1,3}\.\d{1,3}$/,
-  // Link-local — used by AWS/GCP cloud metadata services
-  /^169\.254\.\d{1,3}\.\d{1,3}$/,
-];
-
-// URL.hostname wraps IPv6 addresses in brackets, so include both forms.
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-
-// Matches IPv4-mapped IPv6 addresses (e.g. [::ffff:127.0.0.1] or [::ffff:7f00:1]).
-// URL.hostname preserves brackets for IPv6, so we match the bracketed form.
-const IPV4_MAPPED_IPV6 = /^\[::ffff:/i;
-
-export function assertSafeFeedUrl(url: string): void {
-  let parsed: URL;
-
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(`Invalid feed URL: ${url}`);
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(
-      `Feed URL must use http or https protocol, got: ${parsed.protocol}`,
-    );
-  }
-
-  const hostname = parsed.hostname;
-
-  if (LOOPBACK_HOSTNAMES.has(hostname)) {
-    throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
-  }
-
-  if (hostname === "0.0.0.0") {
-    throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
-  }
-
-  if (IPV4_MAPPED_IPV6.test(hostname)) {
-    throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
-  }
-
-  for (const range of PRIVATE_IP_RANGES) {
-    if (range.test(hostname)) {
-      throw new Error(`Feed URL hostname is not allowed: ${hostname}`);
-    }
-  }
+// DNS-resolving SSRF guard, shared with feed discovery and feed creation
+// (see server/utils/urlValidator.ts). This runs at fetch time on every sync
+// — not just when the feed was first added — so a hostname that DNS-rebinds
+// to a private address after add time is caught on the next scheduled sync
+// rather than being fetched indefinitely.
+export async function assertSafeFeedUrl(url: string): Promise<void> {
+  await resolvePublicFeedUrl(url);
 }
 
 export async function parseRssFeed(
   url: string,
   feedId: number,
 ): Promise<NewFeedItem[]> {
-  assertSafeFeedUrl(url);
+  await assertSafeFeedUrl(url);
   const feed = await parser.parseURL(url);
   const feedImageUrl = feed.image?.url;
 

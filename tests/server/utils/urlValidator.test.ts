@@ -13,7 +13,11 @@ vi.stubGlobal(
   },
 );
 
-import { validateFeedUrl } from "../../../server/utils/urlValidator";
+import {
+  validateFeedUrl,
+  resolvePublicFeedUrl,
+  FeedUrlValidationError,
+} from "../../../server/utils/urlValidator";
 
 const mockResolve4 = vi.spyOn(dnsModule.promises, "resolve4");
 const mockResolve6 = vi.spyOn(dnsModule.promises, "resolve6");
@@ -97,6 +101,28 @@ describe("validateFeedUrl", () => {
     it("rejects link-local 169.254.x.x", async () => {
       await expect(
         validateFeedUrl("http://169.254.169.254/latest/meta-data/"),
+      ).rejects.toThrow("URL resolves to a disallowed address");
+    });
+  });
+
+  describe("blocked loopback hostname", () => {
+    it("rejects the literal hostname localhost without a DNS lookup", async () => {
+      await expect(validateFeedUrl("http://localhost/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+      expect(mockResolve4).not.toHaveBeenCalled();
+      expect(mockResolve6).not.toHaveBeenCalled();
+    });
+
+    it("rejects localhost case-insensitively", async () => {
+      await expect(validateFeedUrl("http://LOCALHOST/feed")).rejects.toThrow(
+        "URL resolves to a disallowed address",
+      );
+    });
+
+    it("rejects localhost with a port", async () => {
+      await expect(
+        validateFeedUrl("http://localhost:8080/feed"),
       ).rejects.toThrow("URL resolves to a disallowed address");
     });
   });
@@ -203,6 +229,16 @@ describe("validateFeedUrl", () => {
       expect(result).toBe("https://example.com/");
     });
 
+    it("does not block legitimate domains that start with fc or fd", async () => {
+      // Regression test: isBlockedIpv6's ULA (fc00::/7) check must only match
+      // actual IPv6 notation, not the first two characters of an arbitrary
+      // hostname — otherwise domains like fdroid.org get falsely blocked.
+      mockResolve4.mockResolvedValueOnce(["93.184.216.34"]);
+      mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
+      const result = await validateFeedUrl("https://fdroid.org/feed.xml");
+      expect(result).toBe("https://fdroid.org/feed.xml");
+    });
+
     it("allows a host that resolves to public IPv4 even when AAAA lookup fails", async () => {
       mockResolve4.mockResolvedValueOnce(["93.184.216.34"]);
       mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
@@ -231,5 +267,51 @@ describe("validateFeedUrl", () => {
         "URL resolves to a disallowed address",
       );
     });
+  });
+});
+
+// resolvePublicFeedUrl is the framework-agnostic core validateFeedUrl wraps.
+// It has no dependency on H3's createError, so callers outside an H3 request
+// context (e.g. Netlify Functions) can use it directly — see rssAdapter.ts
+// and podcastAdapter.ts, which call it from netlify/functions/sync-feed.ts.
+describe("resolvePublicFeedUrl", () => {
+  beforeEach(() => {
+    mockResolve4.mockReset();
+    mockResolve6.mockReset();
+    mockResolve4.mockResolvedValue(["93.184.216.34"]);
+    mockResolve6.mockRejectedValue(new Error("ENODATA"));
+    delete process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS;
+  });
+
+  it("resolves to the normalized URL for a public host", async () => {
+    const result = await resolvePublicFeedUrl("https://example.com/feed.xml");
+    expect(result).toBe("https://example.com/feed.xml");
+  });
+
+  it("throws a FeedUrlValidationError (not an H3 error) for a blocked address", async () => {
+    await expect(
+      resolvePublicFeedUrl("http://127.0.0.1/feed"),
+    ).rejects.toBeInstanceOf(FeedUrlValidationError);
+  });
+
+  it("carries a 400 statusCode on the thrown error for later H3 translation", async () => {
+    try {
+      await resolvePublicFeedUrl("http://192.168.1.1/feed");
+      expect.unreachable("expected resolvePublicFeedUrl to throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(FeedUrlValidationError);
+      expect((err as FeedUrlValidationError).statusCode).toBe(400);
+      expect((err as FeedUrlValidationError).message).toBe(
+        "URL resolves to a disallowed address",
+      );
+    }
+  });
+
+  it("rejects a hostname that resolves to a private IP, e.g. via DNS rebinding", async () => {
+    mockResolve4.mockResolvedValueOnce(["10.0.0.5"]);
+    mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
+    await expect(
+      resolvePublicFeedUrl("http://rebound.example.com/feed"),
+    ).rejects.toThrow("URL resolves to a disallowed address");
   });
 });

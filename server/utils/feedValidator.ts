@@ -1,3 +1,5 @@
+import { resolvePublicFeedUrl } from "./urlValidator";
+
 // Configurable so tests can point feed fetches at a local mock server.
 // When FEED_FETCH_PROXY_URL is set the original URL is forwarded as the
 // `url` query parameter so the mock can return a canned response without
@@ -12,25 +14,6 @@ const MAX_REDIRECTS = 5;
 // these tags in its body does not pass as a valid feed.
 const RSS_ATOM_PATTERN = /^(\s*<\?xml[^?]*\?>\s*)?<(rss|feed|rdf:RDF)[^>]*>/i;
 
-// IPv6 hostnames from the URL API are always bracket-wrapped: [::1], [fc00::1], etc.
-const PRIVATE_IP_PATTERN =
-  /^(localhost$|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.|\[::1\]|\[::ffff:|\[fc[\da-f]{2}:|\[fd[\da-f]{2}:)/i;
-
-const ALLOWED_PROTOCOLS = new Set(["https:"]);
-
-// Hosts explicitly allowed for local development and e2e testing only.
-// Set NUXT_FEED_DISCOVERY_ALLOWED_HOSTS to a comma-separated list of
-// host:port strings (e.g. "127.0.0.1:3099") to bypass the protocol and
-// private-IP checks so mock servers can be used during e2e tests.
-function allowedTestHosts(): Set<string> {
-  const raw = process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS ?? "";
-  const hosts = raw
-    .split(",")
-    .map((host) => host.trim())
-    .filter(Boolean);
-  return new Set(hosts);
-}
-
 export function looksLikeValidFeed(body: string): boolean {
   return RSS_ATOM_PATTERN.test(body);
 }
@@ -42,24 +25,17 @@ function resolveTargetUrl(url: string): string {
   return proxyUrl.toString();
 }
 
-function isAllowedUrl(url: string): boolean {
-  let parsed: URL;
+// DNS-resolving SSRF guard, shared with feed discovery and the sync-time
+// adapters (see server/utils/urlValidator.ts). Re-checked at every fetch —
+// not just when the feed is first added — so a hostname that DNS-rebinds to
+// a private address after add time is still caught on subsequent syncs.
+async function isAllowedUrl(url: string): Promise<boolean> {
   try {
-    parsed = new URL(url);
+    await resolvePublicFeedUrl(url);
+    return true;
   } catch {
     return false;
   }
-
-  const hostWithPort = parsed.port
-    ? `${parsed.hostname}:${parsed.port}`
-    : parsed.hostname;
-
-  if (allowedTestHosts().has(hostWithPort)) return true;
-
-  if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) return false;
-  if (PRIVATE_IP_PATTERN.test(parsed.hostname)) return false;
-
-  return true;
 }
 
 function resolveRedirectUrl(
@@ -72,11 +48,11 @@ function resolveRedirectUrl(
   return new URL(location, targetUrl).toString();
 }
 
-function assertRedirectAllowed(
+async function assertRedirectAllowed(
   redirectUrl: string,
   redirectsRemaining: number,
-): void {
-  if (!isAllowedUrl(redirectUrl)) {
+): Promise<void> {
+  if (!(await isAllowedUrl(redirectUrl))) {
     throw new Error("Feed redirect target is not allowed");
   }
   if (redirectsRemaining <= 0) {
@@ -131,7 +107,7 @@ export async function fetchFeedBody(
   fetchImpl: typeof fetch = fetch,
   redirectsRemaining: number = MAX_REDIRECTS,
 ): Promise<string> {
-  if (!isAllowedUrl(url)) {
+  if (!(await isAllowedUrl(url))) {
     throw new Error("Feed URL is not allowed");
   }
 
@@ -150,7 +126,7 @@ export async function fetchFeedBody(
         response.headers.get("location"),
         targetUrl,
       );
-      assertRedirectAllowed(redirectUrl, redirectsRemaining);
+      await assertRedirectAllowed(redirectUrl, redirectsRemaining);
       clearTimeout(timeoutId);
       return await fetchFeedBody(
         redirectUrl,
@@ -173,7 +149,7 @@ export async function validateFeedContent(
   url: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<boolean> {
-  if (!isAllowedUrl(url)) return false;
+  if (!(await isAllowedUrl(url))) return false;
 
   try {
     const body = await fetchFeedBody(url, fetchImpl);

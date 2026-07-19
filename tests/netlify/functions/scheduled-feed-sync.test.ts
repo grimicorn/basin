@@ -45,22 +45,33 @@ function makeDueFeed(overrides: Partial<DueFeed> = {}): DueFeed {
 function createDeferred<T>() {
   let resolve!: (_value: T) => void;
   let reject!: (_reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
+  const promise = new Promise<T>((resolveExecutor, rejectExecutor) => {
+    resolve = resolveExecutor;
+    reject = rejectExecutor;
   });
   return { promise, resolve, reject };
+}
+
+// The production code logs structured JSON via console.log/console.error, but
+// parses defensively in case any call ever logs a plain string instead — a
+// malformed log line should not masquerade as an assertion failure elsewhere.
+function parseLoggedEvents(
+  spy: ReturnType<typeof vi.spyOn>,
+): Record<string, unknown>[] {
+  return spy.mock.calls.flatMap((entry) => {
+    try {
+      return [JSON.parse(entry[0] as string)];
+    } catch {
+      return [];
+    }
+  });
 }
 
 function findLoggedEvent(
   spy: ReturnType<typeof vi.spyOn>,
   eventName: string,
 ): Record<string, unknown> | undefined {
-  const call = spy.mock.calls.find((entry) => {
-    const parsed = JSON.parse(entry[0] as string);
-    return parsed.event === eventName;
-  });
-  return call ? JSON.parse(call[0] as string) : undefined;
+  return parseLoggedEvents(spy).find((entry) => entry.event === eventName);
 }
 
 describe("scheduled-feed-sync", () => {
@@ -101,6 +112,15 @@ describe("scheduled-feed-sync", () => {
     expect(
       findLoggedEvent(consoleLogSpy, "scheduled-feed-sync.no-due-feeds"),
     ).toBeDefined();
+  });
+
+  it("propagates a fetchDueFeeds failure without emitting any sync events", async () => {
+    mockFindMany.mockRejectedValue(new Error("db unreachable"));
+
+    await expect(scheduledFeedSync()).rejects.toThrow("db unreachable");
+
+    expect(mockAsyncWorkloadsClient).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("selects only id, userId, and source columns for due feeds", async () => {
@@ -186,9 +206,10 @@ describe("scheduled-feed-sync", () => {
     );
     expect(completeEvent).toMatchObject({ emitted: 2, failed: 1 });
 
-    const failedLog = consoleErrorSpy.mock.calls
-      .map((entry) => JSON.parse(entry[0] as string))
-      .find((entry) => entry.event === "scheduled-feed-sync.emit-failed");
+    const failedLog = findLoggedEvent(
+      consoleErrorSpy,
+      "scheduled-feed-sync.emit-failed",
+    );
     expect(failedLog).toMatchObject({ feedId: 2 });
   });
 
@@ -208,9 +229,10 @@ describe("scheduled-feed-sync", () => {
     );
     expect(completeEvent).toMatchObject({ emitted: 1, failed: 1 });
 
-    const failedLog = consoleErrorSpy.mock.calls
-      .map((entry) => JSON.parse(entry[0] as string))
-      .find((entry) => entry.event === "scheduled-feed-sync.emit-failed");
+    const failedLog = findLoggedEvent(
+      consoleErrorSpy,
+      "scheduled-feed-sync.emit-failed",
+    );
     expect(failedLog).toMatchObject({
       feedId: 1,
       error: "network unreachable",

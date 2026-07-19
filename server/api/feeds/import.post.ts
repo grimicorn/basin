@@ -8,6 +8,13 @@ import { parseOpml, OpmlParseError } from "../../utils/opml";
 // budget is spent — it cannot preempt an add already in flight.
 const IMPORT_TIME_BUDGET_MS = 8_000;
 
+// parseOpml only caps the number of *parsed* entries, so an oversized body
+// would still be fully read into memory and regex-scanned before that cap
+// applies. Reject the payload outright first — generous enough for a
+// legitimate feed list (a few thousand outlines) while bounding worst-case
+// memory/CPU for a hostile upload.
+const MAX_OPML_BODY_LENGTH = 2 * 1024 * 1024; // 2 MB
+
 interface SkippedEntry {
   url: string;
   title: string | null;
@@ -77,6 +84,13 @@ export default defineEventHandler(async (event): Promise<ImportResult> => {
     throw createError({
       statusCode: 400,
       statusMessage: "OPML file content is required",
+    });
+  }
+
+  if (body.opml.length > MAX_OPML_BODY_LENGTH) {
+    throw createError({
+      statusCode: 413,
+      statusMessage: "OPML file is too large",
     });
   }
 

@@ -48,6 +48,14 @@ describe("POST /api/feeds/import", () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it("throws 413 when the opml body exceeds the size cap, without parsing it", async () => {
+    const oversized = "a".repeat(2 * 1024 * 1024 + 1);
+    await expect(
+      handler(makeEvent({ id: 1 }, { opml: oversized })),
+    ).rejects.toMatchObject({ statusCode: 413 });
+    expect(mockCreateFeedForUser).not.toHaveBeenCalled();
+  });
+
   it("throws 400 when the document is not valid OPML", async () => {
     await expect(
       handler(makeEvent({ id: 1 }, { opml: "not opml at all" })),

@@ -62,6 +62,15 @@ async function validateWithTimeout(url: string): Promise<FeedSource> {
  * validation and dedupe rules the single-feed add form uses. Throws an h3
  * error (with statusCode) on validation/timeout failure — callers that need
  * to continue past a single bad URL (e.g. OPML import) must catch per call.
+ *
+ * Note on re-adding an already-subscribed URL: the upsert re-detects the
+ * source and, when `sourceOverride` isn't passed, resets any existing
+ * `sourceOverride` back to null (see the `onConflictDoUpdate` below) — this
+ * is pre-existing single-add behavior, not something OPML import
+ * introduces, but OPML import calls this without a sourceOverride for every
+ * entry, so re-importing a file that includes a feed the user manually
+ * overrode (e.g. forced to "podcast") will reset it to auto-detected. See
+ * feedCreation.test.ts for the locked-in behavior.
  */
 export async function createFeedForUser(
   userId: number,

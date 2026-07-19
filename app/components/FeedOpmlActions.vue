@@ -24,7 +24,9 @@ function onOpmlFileSelected(fileChangeEvent) {
 
 const skippedTitles = computed(
   () =>
-    props.importSummary?.skipped.map((s) => s.title ?? s.url).join(", ") ?? "",
+    props.importSummary?.skipped
+      .map((skippedFeed) => skippedFeed.title ?? skippedFeed.url)
+      .join(", ") ?? "",
 );
 </script>
 

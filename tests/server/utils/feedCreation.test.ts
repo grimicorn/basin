@@ -104,4 +104,20 @@ describe("createFeedForUser", () => {
       }),
     );
   });
+
+  // Documents pre-existing single-add upsert behavior (unchanged by the OPML
+  // work): re-adding a URL without a sourceOverride resets any existing
+  // override to auto-detected. OPML import calls createFeedForUser without a
+  // sourceOverride for every entry, so re-importing a file containing a feed
+  // the user manually overrode elsewhere will reset that override — this
+  // test locks the behavior in so a future change to it is intentional, not
+  // silent. See the note on createFeedForUser for the full explanation.
+  it("resets an existing sourceOverride to null when re-adding without one", async () => {
+    await createFeedForUser(1, "https://example.com/feed.xml");
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ sourceOverride: null }),
+      }),
+    );
+  });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import {
   SYNC_FEED_EVENT_NAME,
@@ -83,6 +83,13 @@ describe("scheduled-feed-sync", () => {
     mockFindMany.mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    // Guards against a fake-timer test throwing before it restores real
+    // timers itself, which would otherwise leak fake timers into later tests
+    // (e.g. the batching test's `vi.waitFor`, which relies on real timers).
+    vi.useRealTimers();
+  });
+
   it("returns 200 and logs no-due-feeds without creating an emit client when nothing is due", async () => {
     mockFindMany.mockResolvedValue([]);
 
@@ -126,8 +133,6 @@ describe("scheduled-feed-sync", () => {
     expect(params[4]).toBe(
       new Date(Date.now() - DEBOUNCE_WINDOW_MS).toISOString(),
     );
-
-    vi.useRealTimers();
   });
 
   it("emits a sync event with the correct payload for every due feed and counts them as emitted", async () => {

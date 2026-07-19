@@ -508,6 +508,28 @@ describe("sync-feed workload — YouTube source", () => {
     ).rejects.toMatchObject({ name: "IntegrationAuthError" });
   });
 
+  it("throws ServerConfigError (not persisted) when the Google OAuth client env vars are missing", async () => {
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "");
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "ServerConfigError" });
+
+    // A missing server-side OAuth secret is not the user's fault — nothing
+    // should be written to the feed or the integration for it.
+    expect(mockUpdateWhere).not.toHaveBeenCalled();
+  });
+
   it("throws ErrorRetryAfterDelay when the channel RSS fetch fails on early attempts", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeYouTubeFeed())

@@ -35,6 +35,20 @@ export class IntegrationAuthError extends ErrorDoNotRetry {
   }
 }
 
+// Thrown for a permanent failure that is neither the feed's nor the
+// connected account's fault — a server-side misconfiguration (e.g. a
+// missing OAuth client secret). persistPermanentSyncFailure skips this
+// entirely: it is not something the user did or can fix, so it must not be
+// persisted as a feed/integration failure and shown to them as a "needs
+// attention" tooltip. It still needs to reach an operator, so the caller is
+// expected to log it before/instead of persisting.
+export class ServerConfigError extends ErrorDoNotRetry {
+  constructor(message: string) {
+    super(message);
+    this.name = "ServerConfigError";
+  }
+}
+
 async function recordFeedSyncFailure(
   feedId: number,
   message: string,
@@ -102,15 +116,20 @@ async function recordIntegrationSyncSuccess(
 // account too, so SettingsConnections can surface a "needs reconnect"
 // indicator. A feed-only failure (source mismatch, feed deleted, retries
 // exhausted on a transient error) must not touch the integration: the
-// connection itself may be perfectly healthy. Looking the integration up by
-// (userId, provider) rather than an id means this still works even when the
-// error was raised before an integration row was ever loaded (e.g. "no
-// integration found" failures).
+// connection itself may be perfectly healthy. A ServerConfigError touches
+// neither — it is not the user's fault, so nothing is persisted for the
+// user to see. Looking the integration up by (userId, provider) rather than
+// an id means this still works even when the error was raised before an
+// integration row was ever loaded (e.g. "no integration found" failures).
 export async function persistPermanentSyncFailure(
   userId: number,
   feedId: number,
   error: ErrorDoNotRetry,
 ): Promise<void> {
+  if (error instanceof ServerConfigError) {
+    return;
+  }
+
   await recordFeedSyncFailure(feedId, error.message);
 
   if (!(error instanceof IntegrationAuthError)) {

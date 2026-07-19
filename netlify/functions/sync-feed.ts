@@ -22,6 +22,7 @@ import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
 import {
   IntegrationAuthError,
+  ServerConfigError,
   persistPermanentSyncFailure,
   persistSyncSuccess,
 } from "./syncFailureTracking";
@@ -163,9 +164,11 @@ async function resolveValidAccessToken(
   const clientSecret = process.env.NUXT_GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    // Missing server config, not a broken user connection — the token itself
-    // may be fine. Leave the integration's sync status alone.
-    throw new ErrorDoNotRetry(
+    // Missing server config, not a broken feed or user connection — the
+    // token itself may be fine. persistPermanentSyncFailure skips
+    // ServerConfigError entirely so this internal detail is never shown to
+    // the user as a feed/integration failure.
+    throw new ServerConfigError(
       "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
     );
   }
@@ -409,6 +412,18 @@ async function recordPermanentFailure(
   feedId: number,
   error: ErrorDoNotRetry,
 ): Promise<void> {
+  // ServerConfigError is intentionally never persisted (see
+  // syncFailureTracking.ts) — it's an operator problem, not a user-facing
+  // one — but it still needs to reach the logs so someone notices.
+  if (error instanceof ServerConfigError) {
+    logSyncEvent(
+      "sync-feed.server-config-error",
+      { feedId, userId, error: error.message },
+      "error",
+    );
+    return;
+  }
+
   try {
     await persistPermanentSyncFailure(userId, feedId, error);
   } catch (persistError) {

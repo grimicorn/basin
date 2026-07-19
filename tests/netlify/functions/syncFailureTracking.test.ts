@@ -14,6 +14,7 @@ vi.mock("../../../netlify/functions/db", () => ({
 import {
   providerForSourceType,
   IntegrationAuthError,
+  ServerConfigError,
   persistPermanentSyncFailure,
   persistSyncSuccess,
 } from "../../../netlify/functions/syncFailureTracking";
@@ -100,6 +101,20 @@ describe("syncFailureTracking", () => {
     it("IntegrationAuthError is an instance of ErrorDoNotRetry", () => {
       const error = new IntegrationAuthError("youtube", "expired");
       expect(error).toBeInstanceOf(ErrorDoNotRetry);
+    });
+
+    it("does not touch the feed or the integration for a ServerConfigError", async () => {
+      await persistPermanentSyncFailure(
+        1,
+        42,
+        new ServerConfigError(
+          "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
+        ),
+      );
+
+      // A server misconfiguration is not the user's fault and must never be
+      // persisted as a feed/integration failure for them to see.
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 

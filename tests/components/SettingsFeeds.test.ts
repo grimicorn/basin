@@ -30,6 +30,12 @@ function makeStub(
     error?: string | null;
     detectedSource?: "rss" | "podcast" | null;
     pendingFeedUrl?: string | null;
+    importing?: boolean;
+    exporting?: boolean;
+    importSummary?: {
+      importedCount: number;
+      skipped: { url: string; title: string | null; reason: string }[];
+    } | null;
   } = {},
 ) {
   return {
@@ -43,10 +49,15 @@ function makeStub(
     detectedSource: ref(overrides.detectedSource ?? null),
     sourceOverride: ref(null),
     pendingFeedUrl: ref(overrides.pendingFeedUrl ?? null),
+    importing: ref(overrides.importing ?? false),
+    exporting: ref(overrides.exporting ?? false),
+    importSummary: ref(overrides.importSummary ?? null),
     load: vi.fn(),
     add: vi.fn(),
     confirmAdd: vi.fn(),
     remove: vi.fn(),
+    importOpml: vi.fn(),
+    exportOpml: vi.fn(),
   };
 }
 
@@ -154,6 +165,45 @@ describe("SettingsFeeds", () => {
       });
       const wrapper = shallowMount(SettingsFeeds);
       expect(wrapper.html()).toMatchSnapshot();
+    });
+  });
+
+  describe("OPML import/export wiring", () => {
+    // The actual file-picker and summary-rendering behavior lives in
+    // FeedOpmlActions.vue (tests/components/FeedOpmlActions.test.ts) —
+    // shallowMount stubs it here, so these tests only cover that
+    // SettingsFeeds wires its useFeeds() state and actions to it correctly.
+    it("passes importing, exporting, and importSummary to FeedOpmlActions", () => {
+      stubFeeds({
+        importing: true,
+        exporting: true,
+        importSummary: { importedCount: 2, skipped: [] },
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      const opmlActions = wrapper.find("feed-opml-actions-stub");
+      expect(opmlActions.attributes("importing")).toBe("true");
+      expect(opmlActions.attributes("exporting")).toBe("true");
+    });
+
+    it("calls importOpml when FeedOpmlActions emits import-file", async () => {
+      const stub = stubFeeds();
+      const wrapper = shallowMount(SettingsFeeds);
+      const file = new File(["<opml></opml>"], "feeds.opml", {
+        type: "text/x-opml",
+      });
+      await wrapper
+        .findComponent({ name: "FeedOpmlActions" })
+        .vm.$emit("import-file", file);
+      expect(stub.importOpml).toHaveBeenCalledWith(file);
+    });
+
+    it("calls exportOpml when FeedOpmlActions emits export", async () => {
+      const stub = stubFeeds();
+      const wrapper = shallowMount(SettingsFeeds);
+      await wrapper
+        .findComponent({ name: "FeedOpmlActions" })
+        .vm.$emit("export");
+      expect(stub.exportOpml).toHaveBeenCalled();
     });
   });
 });

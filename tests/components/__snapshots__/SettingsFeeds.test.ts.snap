@@ -20,6 +20,7 @@ exports[`SettingsFeeds > detection confirmation UI > matches snapshot with detec
         <r-icon-stub name="plus" size="16"></r-icon-stub> Add as Podcast
       </button><button class="btn"> Cancel </button></div>
   </div>
+  <feed-opml-actions-stub importing="false" exporting="false"></feed-opml-actions-stub>
   <div class="feed-list">
     <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
       <div class="feed-info">
@@ -52,6 +53,7 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
     </button>
   </div>
   <!--v-if-->
+  <feed-opml-actions-stub importing="false" exporting="false"></feed-opml-actions-stub>
   <div class="feed-list">
     <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
       <div class="feed-info">
@@ -84,6 +86,7 @@ exports[`SettingsFeeds > shows empty state when there are no feeds 1`] = `
     </button>
   </div>
   <!--v-if-->
+  <feed-opml-actions-stub importing="false" exporting="false"></feed-opml-actions-stub>
   <div class="feed-list">
     <p class="desc">No feeds added yet.</p>
   </div>

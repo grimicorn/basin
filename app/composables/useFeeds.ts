@@ -16,9 +16,46 @@ export class DiscoveryError extends Error {
 }
 
 const STATUS_NO_FEED_FOUND = 422;
+const OPML_EXPORT_FILENAME = "feeds.opml";
+const OPML_EXPORT_MIME_TYPE = "text/x-opml";
+
+export interface OpmlSkippedFeed {
+  url: string;
+  title: string | null;
+  reason: string;
+}
+
+interface OpmlImportResult {
+  imported: Feed[];
+  skipped: OpmlSkippedFeed[];
+}
+
+export interface OpmlImportSummary {
+  importedCount: number;
+  skipped: OpmlSkippedFeed[];
+}
+
+// Isolated so the network/parse concerns above stay testable without a real
+// DOM download; this is the one part of export that touches browser APIs.
+function downloadTextFile(
+  filename: string,
+  content: string,
+  mimeType: string,
+): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export function useFeeds() {
   const { getToken } = useAuth();
+  const { showToast } = useToast();
 
   const items = ref<Feed[]>([]);
   const newUrl = ref("");
@@ -30,6 +67,9 @@ export function useFeeds() {
   const detectedSource = ref<"rss" | "podcast" | null>(null);
   const sourceOverride = ref<"rss" | "podcast" | null>(null);
   const pendingFeedUrl = ref<string | null>(null);
+  const importing = ref(false);
+  const exporting = ref(false);
+  const importSummary = ref<OpmlImportSummary | null>(null);
 
   async function authHeaders(): Promise<Record<string, string>> {
     const token = await getToken.value();
@@ -154,6 +194,52 @@ export function useFeeds() {
     }
   }
 
+  async function importOpml(file: File): Promise<void> {
+    importing.value = true;
+    error.value = null;
+    importSummary.value = null;
+
+    try {
+      const opmlText = await file.text();
+      const result = await $fetch<OpmlImportResult>("/api/feeds/import", {
+        method: "POST",
+        body: { opml: opmlText },
+        headers: await authHeaders(),
+      });
+
+      items.value.unshift(...result.imported);
+      importSummary.value = {
+        importedCount: result.imported.length,
+        skipped: result.skipped,
+      };
+      showToast(
+        `Imported ${result.imported.length} feed${result.imported.length === 1 ? "" : "s"}` +
+          (result.skipped.length ? `, ${result.skipped.length} skipped` : ""),
+      );
+    } catch {
+      error.value = "Failed to import OPML file — check the file and try again";
+    } finally {
+      importing.value = false;
+    }
+  }
+
+  async function exportOpml(): Promise<void> {
+    exporting.value = true;
+    error.value = null;
+
+    try {
+      const opmlText = await $fetch<string>("/api/feeds/export", {
+        headers: await authHeaders(),
+        responseType: "text",
+      });
+      downloadTextFile(OPML_EXPORT_FILENAME, opmlText, OPML_EXPORT_MIME_TYPE);
+    } catch {
+      error.value = "Failed to export feeds — try again";
+    } finally {
+      exporting.value = false;
+    }
+  }
+
   async function remove(id: number) {
     const index = items.value.findIndex((feed) => feed.id === id);
     if (index === -1) {
@@ -183,9 +269,14 @@ export function useFeeds() {
     detectedSource,
     sourceOverride,
     pendingFeedUrl,
+    importing,
+    exporting,
+    importSummary,
     load,
     add,
     confirmAdd,
     remove,
+    importOpml,
+    exportOpml,
   };
 }

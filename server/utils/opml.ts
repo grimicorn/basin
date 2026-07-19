@@ -39,7 +39,13 @@ export class OpmlParseError extends Error {
 }
 
 const OPML_ROOT_PATTERN = /<opml\b/i;
-const OUTLINE_TAG_PATTERN = /<outline\b([^>]*)>/gi;
+// Matches only well-formed name="value" (or name='value') attribute pairs
+// rather than stopping at the first raw `>`, so a quoted value containing an
+// unescaped `>` (e.g. title="a > b") doesn't truncate the tag early and drop
+// the feed. serializeOpml always escapes `>`, so this only matters for
+// third-party OPML files.
+const OUTLINE_TAG_PATTERN =
+  /<outline\b((?:\s+[a-zA-Z][\w:-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*\/?>/gi;
 
 const NAMED_ENTITIES: Record<string, string> = {
   "&lt;": "<",
@@ -77,8 +83,10 @@ function extractAttribute(
   tagAttributes: string,
   attributeName: string,
 ): string | null {
+  // Requires whitespace (or start-of-string) immediately before the name so
+  // e.g. extracting "text" doesn't also match a "subtext" attribute.
   const pattern = new RegExp(
-    `${attributeName}\\s*=\\s*"([^"]*)"|${attributeName}\\s*=\\s*'([^']*)'`,
+    `(?:^|\\s)${attributeName}\\s*=\\s*"([^"]*)"|(?:^|\\s)${attributeName}\\s*=\\s*'([^']*)'`,
     "i",
   );
   const match = pattern.exec(tagAttributes);

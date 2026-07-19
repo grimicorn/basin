@@ -113,6 +113,27 @@ describe("parseOpml", () => {
       { xmlUrl: "https://example.com/good.xml", title: "Good", htmlUrl: null },
     ]);
   });
+
+  it("does not let a name that is a suffix of another attribute hijack its value", () => {
+    // Extracting "text" must not match a "subtext" attribute, and extracting
+    // "xmlUrl" must not match a "dataXmlUrl" attribute.
+    const xml = `<opml><body><outline subtext="Wrong" dataXmlUrl="https://wrong.example.com/feed.xml" xmlUrl="https://example.com/feed.xml" title="Right"/></body></opml>`;
+    const { entries } = parseOpml(xml);
+    expect(entries[0].xmlUrl).toBe("https://example.com/feed.xml");
+    expect(entries[0].title).toBe("Right");
+  });
+
+  it("does not truncate the tag on an unescaped > inside a quoted attribute value", () => {
+    const xml = `<opml><body><outline title="a > b" xmlUrl="https://example.com/feed.xml"/></body></opml>`;
+    const { entries } = parseOpml(xml);
+    expect(entries).toEqual([
+      {
+        xmlUrl: "https://example.com/feed.xml",
+        title: "a > b",
+        htmlUrl: null,
+      },
+    ]);
+  });
 });
 
 describe("serializeOpml", () => {

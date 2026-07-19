@@ -38,7 +38,7 @@ describe("GET /api/feeds/export", () => {
     const opml = await handler(event);
     const parsed = parseOpml(opml);
 
-    expect(parsed).toEqual([
+    expect(parsed.entries).toEqual([
       {
         xmlUrl: "https://example.com/feed.xml",
         title: "Example Feed",
@@ -53,7 +53,7 @@ describe("GET /api/feeds/export", () => {
 
     const opml = await handler(event);
 
-    expect(parseOpml(opml)).toEqual([]);
+    expect(parseOpml(opml).entries).toEqual([]);
   });
 
   it("sets the content-type and content-disposition headers for a file download", async () => {

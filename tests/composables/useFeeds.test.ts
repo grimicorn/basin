@@ -241,7 +241,11 @@ describe("useFeeds", () => {
     );
 
     it("posts the file content to /api/feeds/import", async () => {
-      mockFetch.mockResolvedValueOnce({ imported: [], skipped: [] });
+      mockFetch.mockResolvedValueOnce({
+        imported: [],
+        skipped: [],
+        truncatedCount: 0,
+      });
       const { importOpml } = useFeeds();
       await importOpml(opmlFile);
       expect(mockFetch).toHaveBeenCalledWith(
@@ -261,6 +265,7 @@ describe("useFeeds", () => {
         skipped: [
           { url: "https://bad.com/feed.xml", title: "Bad", reason: "invalid" },
         ],
+        truncatedCount: 0,
       });
       const { items, importOpml, importSummary } = useFeeds();
       await importOpml(opmlFile);
@@ -270,7 +275,25 @@ describe("useFeeds", () => {
         skipped: [
           { url: "https://bad.com/feed.xml", title: "Bad", reason: "invalid" },
         ],
+        truncatedCount: 0,
       });
+    });
+
+    it("replaces the existing row instead of duplicating it when a re-imported feed was already subscribed", async () => {
+      mockFetch.mockResolvedValueOnce([feedA, feedB]); // load
+      mockFetch.mockResolvedValueOnce({
+        imported: [{ ...feedA, title: "Feed A (updated)" }],
+        skipped: [],
+        truncatedCount: 0,
+      });
+      const { items, load, importOpml } = useFeeds();
+      await load();
+      await importOpml(opmlFile);
+
+      const idOccurrences = items.value.filter((feed) => feed.id === feedA.id);
+      expect(idOccurrences).toHaveLength(1);
+      expect(idOccurrences[0].title).toBe("Feed A (updated)");
+      expect(items.value).toHaveLength(2);
     });
 
     it("sets error and leaves importSummary null when the request fails", async () => {
@@ -291,7 +314,7 @@ describe("useFeeds", () => {
       const { importing, importOpml } = useFeeds();
       const promise = importOpml(opmlFile);
       expect(importing.value).toBe(true);
-      resolveFetch({ imported: [], skipped: [] });
+      resolveFetch({ imported: [], skipped: [], truncatedCount: 0 });
       await promise;
       expect(importing.value).toBe(false);
     });

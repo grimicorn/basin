@@ -28,11 +28,13 @@ export interface OpmlSkippedFeed {
 interface OpmlImportResult {
   imported: Feed[];
   skipped: OpmlSkippedFeed[];
+  truncatedCount: number;
 }
 
 export interface OpmlImportSummary {
   importedCount: number;
   skipped: OpmlSkippedFeed[];
+  truncatedCount: number;
 }
 
 // Isolated so the network/parse concerns above stay testable without a real
@@ -194,6 +196,16 @@ export function useFeeds() {
     }
   }
 
+  // A feed already subscribed to comes back from the server as the existing
+  // row (createFeedForUser upserts on userId+url), so re-importing an OPML
+  // that includes it must replace that row in place rather than unshift a
+  // second copy with the same id — that would duplicate the :key in the list.
+  function mergeImportedFeeds(imported: Feed[]): void {
+    const importedById = new Map(imported.map((feed) => [feed.id, feed]));
+    items.value = items.value.filter((feed) => !importedById.has(feed.id));
+    items.value.unshift(...imported);
+  }
+
   async function importOpml(file: File): Promise<void> {
     importing.value = true;
     error.value = null;
@@ -207,14 +219,18 @@ export function useFeeds() {
         headers: await authHeaders(),
       });
 
-      items.value.unshift(...result.imported);
+      mergeImportedFeeds(result.imported);
       importSummary.value = {
         importedCount: result.imported.length,
         skipped: result.skipped,
+        truncatedCount: result.truncatedCount,
       };
       showToast(
         `Imported ${result.imported.length} feed${result.imported.length === 1 ? "" : "s"}` +
-          (result.skipped.length ? `, ${result.skipped.length} skipped` : ""),
+          (result.skipped.length ? `, ${result.skipped.length} skipped` : "") +
+          (result.truncatedCount
+            ? `, ${result.truncatedCount} not attempted (file too large)`
+            : ""),
       );
     } catch {
       error.value = "Failed to import OPML file — check the file and try again";

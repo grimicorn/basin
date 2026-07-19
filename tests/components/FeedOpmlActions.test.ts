@@ -154,6 +154,20 @@ describe("FeedOpmlActions", () => {
     expect(wrapper.find(".opml-summary").exists()).toBe(false);
   });
 
+  it("reports entries not attempted because the file exceeded the import limit", () => {
+    const wrapper = mountActions({
+      importSummary: { importedCount: 50, skipped: [], truncatedCount: 10 },
+    });
+    expect(wrapper.find(".opml-summary").text()).toContain("10 not attempted");
+  });
+
+  it("omits the truncated note when truncatedCount is 0", () => {
+    const wrapper = mountActions({
+      importSummary: { importedCount: 2, skipped: [], truncatedCount: 0 },
+    });
+    expect(wrapper.find(".opml-summary").text()).not.toContain("not attempted");
+  });
+
   it("matches snapshot in the default state", () => {
     const wrapper = mountActions();
     expect(wrapper.html()).toMatchSnapshot();

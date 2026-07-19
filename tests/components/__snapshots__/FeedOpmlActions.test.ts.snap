@@ -16,6 +16,8 @@ exports[`FeedOpmlActions > matches snapshot with an import summary 1`] = `
   </button><button class="btn">
     <r-icon-stub name="download" size="16"></r-icon-stub> Export OPML
   </button>
-  <p class="desc opml-summary"> Imported 2 feeds , skipped 1: Bad Feed</p>
+  <p class="desc opml-summary"> Imported 2 feeds , skipped 1: Bad Feed
+    <!--v-if-->
+  </p>
 </div>"
 `;

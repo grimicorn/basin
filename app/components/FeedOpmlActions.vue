@@ -50,7 +50,11 @@ const skippedTitles = computed(
       Imported {{ importSummary.importedCount }} feed{{
         importSummary.importedCount === 1 ? "" : "s"
       }}<template v-if="importSummary.skipped.length">
-        , skipped {{ importSummary.skipped.length }}: {{ skippedTitles }}
+        , skipped {{ importSummary.skipped.length }}:
+        {{ skippedTitles }} </template
+      ><template v-if="importSummary.truncatedCount">
+        , {{ importSummary.truncatedCount }} not attempted — file exceeded the
+        import limit
       </template>
     </p>
   </div>

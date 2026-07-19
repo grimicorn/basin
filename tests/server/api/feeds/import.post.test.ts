@@ -28,6 +28,7 @@ describe("POST /api/feeds/import", () => {
 
   afterEach(() => {
     globalThis.readBody = defaultReadBody;
+    vi.restoreAllMocks();
   });
 
   it("throws 401 when unauthenticated", async () => {
@@ -76,6 +77,7 @@ describe("POST /api/feeds/import", () => {
     );
     expect(result.imported).toHaveLength(2);
     expect(result.skipped).toEqual([]);
+    expect(result.truncatedCount).toBe(0);
   });
 
   it("skips feeds that fail validation instead of aborting the whole import", async () => {
@@ -107,6 +109,7 @@ describe("POST /api/feeds/import", () => {
         reason: "URL does not point to a valid feed",
       },
     ]);
+    expect(result.truncatedCount).toBe(0);
   });
 
   it("returns an empty result for OPML with no feed outlines", async () => {
@@ -117,7 +120,56 @@ describe("POST /api/feeds/import", () => {
       ),
     );
 
-    expect(result).toEqual({ imported: [], skipped: [] });
+    expect(result).toEqual({ imported: [], skipped: [], truncatedCount: 0 });
     expect(mockCreateFeedForUser).not.toHaveBeenCalled();
+  });
+
+  it("reports entries dropped by the MAX_OPML_ENTRIES cap as truncatedCount", async () => {
+    mockCreateFeedForUser.mockImplementation(async (userId, url) => ({
+      id: 1,
+      userId,
+      url,
+      title: null,
+      source: "rss",
+      sourceOverride: null,
+      detectedSource: "rss",
+    }));
+
+    const outlines = Array.from(
+      { length: 60 },
+      (_, index) => `<outline xmlUrl="https://example.com/${index}.xml"/>`,
+    ).join("\n");
+    const result = await handler(
+      makeEvent({ id: 1 }, { opml: `<opml><body>${outlines}</body></opml>` }),
+    );
+
+    expect(result.imported).toHaveLength(50);
+    expect(result.truncatedCount).toBe(10);
+  });
+
+  it("stops starting new adds once the import time budget is spent and reports the rest as truncated", async () => {
+    let simulatedNow = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => simulatedNow);
+    mockCreateFeedForUser.mockImplementation(async (userId, url) => {
+      // Exceed IMPORT_TIME_BUDGET_MS (8s) after the first entry completes so
+      // the loop's next-iteration budget check breaks before entry two.
+      simulatedNow += 9_000;
+      return {
+        id: 1,
+        userId,
+        url,
+        title: null,
+        source: "rss",
+        sourceOverride: null,
+        detectedSource: "rss",
+      };
+    });
+
+    const result = await handler(makeEvent({ id: 1 }, { opml: VALID_OPML }));
+
+    expect(mockCreateFeedForUser).toHaveBeenCalledTimes(1);
+    expect(result.imported).toHaveLength(1);
+    expect(result.skipped).toEqual([]);
+    expect(result.truncatedCount).toBe(1);
   });
 });

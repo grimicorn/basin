@@ -19,6 +19,14 @@ export interface OpmlExportFeed {
   title: string | null;
 }
 
+export interface OpmlParseResult {
+  entries: OpmlFeedEntry[];
+  // Count of feed outlines dropped solely because the document exceeded
+  // MAX_OPML_ENTRIES, so callers can tell the user their file was truncated
+  // rather than fully processed.
+  truncatedCount: number;
+}
+
 // Guards against a pathological OPML file turning an import into hundreds
 // of outbound feed-validation requests in a single request lifetime.
 export const MAX_OPML_ENTRIES = 50;
@@ -116,9 +124,10 @@ function dedupeByUrl(entries: OpmlFeedEntry[]): OpmlFeedEntry[] {
  * as containers and skipped rather than treated as errors — only the leaf
  * feed outlines are returned. Malformed individual outline tags are simply
  * skipped rather than aborting the whole parse; only a document missing the
- * `<opml>` root entirely is treated as invalid.
+ * `<opml>` root entirely is treated as invalid. `truncatedCount` reports how
+ * many deduped entries were cut solely by the MAX_OPML_ENTRIES cap.
  */
-export function parseOpml(xml: string): OpmlFeedEntry[] {
+export function parseOpml(xml: string): OpmlParseResult {
   if (!xml?.trim() || !OPML_ROOT_PATTERN.test(xml)) {
     throw new OpmlParseError("File is not a valid OPML document");
   }
@@ -134,7 +143,10 @@ export function parseOpml(xml: string): OpmlFeedEntry[] {
     }
   }
 
-  return dedupeByUrl(entries).slice(0, MAX_OPML_ENTRIES);
+  const deduped = dedupeByUrl(entries);
+  const capped = deduped.slice(0, MAX_OPML_ENTRIES);
+
+  return { entries: capped, truncatedCount: deduped.length - capped.length };
 }
 
 function serializeOutline(feed: OpmlExportFeed): string {

@@ -1,9 +1,24 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as dnsModule from "dns";
 import {
   looksLikeValidFeed,
   fetchFeedBody,
   validateFeedContent,
 } from "../../../server/utils/feedValidator";
+
+// isAllowedUrl (feedValidator's internal SSRF guard) now delegates to the
+// DNS-resolving urlValidator, so every "allowed" URL below needs a mocked DNS
+// resolution to a public address. Mirrors the mocking style in
+// urlValidator.test.ts.
+const mockResolve4 = vi.spyOn(dnsModule.promises, "resolve4");
+const mockResolve6 = vi.spyOn(dnsModule.promises, "resolve6");
+
+beforeEach(() => {
+  mockResolve4.mockReset();
+  mockResolve6.mockReset();
+  mockResolve4.mockResolvedValue(["93.184.216.34"]);
+  mockResolve6.mockRejectedValue(new Error("ENODATA"));
+});
 
 function makeMockFetch(body: string, status = 200) {
   const encoder = new TextEncoder();
@@ -90,7 +105,11 @@ describe("looksLikeValidFeed", () => {
 
 describe("fetchFeedBody", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    // clearAllMocks (not restoreAllMocks) here: restoreAllMocks would also
+    // un-spy the module-level dns.promises.resolve4/resolve6 mocks set up
+    // above, which the top-level beforeEach relies on staying spied for
+    // every test in this file (isAllowedUrl now resolves DNS).
+    vi.clearAllMocks();
   });
 
   it("fetches the URL and returns the response text", async () => {
@@ -311,6 +330,25 @@ describe("validateFeedContent", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("returns false for a hostname that DNS-resolves to a private IP", async () => {
+    // A regex over the literal hostname can never catch this: the domain
+    // itself isn't a blocked literal, but DNS resolves it to an internal
+    // address. isAllowedUrl now delegates to the DNS-resolving urlValidator
+    // (shared with feed discovery) instead of a hostname-only regex, so this
+    // is caught on add.
+    mockResolve4.mockResolvedValueOnce(["192.168.5.10"]);
+    mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedContent(
+      "https://internal.example.com/feed.xml",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("returns true for hosts in NUXT_FEED_DISCOVERY_ALLOWED_HOSTS (e2e override)", async () => {
     const originalAllowedHosts = process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS;
     process.env.NUXT_FEED_DISCOVERY_ALLOWED_HOSTS = "127.0.0.1:3099";
@@ -417,6 +455,22 @@ describe("validateFeedContent", () => {
 
     const result = await validateFeedContent(
       "file:///etc/passwd",
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(result).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for a plain http:// URL (feed add/validation requires https)", async () => {
+    // Pins pre-existing behavior: unlike discovery and sync (which also
+    // accept http via resolvePublicFeedUrl directly), feed content fetches
+    // require https. Consolidating onto the shared DNS-resolving validator
+    // must not silently loosen this.
+    const mockFetch = vi.fn();
+
+    const result = await validateFeedContent(
+      "http://example.com/feed.xml",
       mockFetch as unknown as typeof fetch,
     );
 

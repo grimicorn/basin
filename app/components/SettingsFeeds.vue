@@ -10,10 +10,15 @@ const {
   detectedSource,
   sourceOverride,
   pendingFeedUrl,
+  importing,
+  exporting,
+  importSummary,
   add,
   confirmAdd,
   remove,
   load,
+  importOpml,
+  exportOpml,
 } = useFeeds();
 onMounted(load);
 
@@ -125,6 +130,14 @@ function needsAttention(feed) {
         </button>
       </div>
     </div>
+
+    <FeedOpmlActions
+      :importing="importing"
+      :exporting="exporting"
+      :import-summary="importSummary"
+      @import-file="importOpml"
+      @export="exportOpml"
+    />
 
     <div class="feed-list">
       <div v-for="fd in items" :key="fd.id" class="feed-row">

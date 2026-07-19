@@ -25,6 +25,10 @@ export const ICONS = {
   columns:
     '<rect x="3.5" y="4.5" width="5" height="15" rx="1.3"/><rect x="9.5" y="4.5" width="5" height="15" rx="1.3"/><rect x="15.5" y="4.5" width="5" height="15" rx="1.3"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-1.8 6"/><path d="M20 4v6h-6"/>',
+  upload:
+    '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  download:
+    '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   external:
     '<path d="M14 5h5v5M19 5l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
   play: '<path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" stroke="none"/>',

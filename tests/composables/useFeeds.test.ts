@@ -244,6 +244,129 @@ describe("useFeeds", () => {
     });
   });
 
+  describe("importOpml()", () => {
+    const opmlFile = new File(
+      [
+        `<opml><body><outline title="Feed A" xmlUrl="https://a.com/feed.xml"/></body></opml>`,
+      ],
+      "feeds.opml",
+      { type: "text/x-opml" },
+    );
+
+    it("posts the file content to /api/feeds/import", async () => {
+      mockFetch.mockResolvedValueOnce({
+        imported: [],
+        skipped: [],
+        truncatedCount: 0,
+      });
+      const { importOpml } = useFeeds();
+      await importOpml(opmlFile);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds/import",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.objectContaining({
+            opml: expect.stringContaining("xmlUrl"),
+          }),
+        }),
+      );
+    });
+
+    it("prepends imported feeds to items and records the summary", async () => {
+      mockFetch.mockResolvedValueOnce({
+        imported: [feedA],
+        skipped: [
+          { url: "https://bad.com/feed.xml", title: "Bad", reason: "invalid" },
+        ],
+        truncatedCount: 0,
+      });
+      const { items, importOpml, importSummary } = useFeeds();
+      await importOpml(opmlFile);
+      expect(items.value).toEqual([feedA]);
+      expect(importSummary.value).toEqual({
+        importedCount: 1,
+        skipped: [
+          { url: "https://bad.com/feed.xml", title: "Bad", reason: "invalid" },
+        ],
+        truncatedCount: 0,
+      });
+    });
+
+    it("replaces the existing row instead of duplicating it when a re-imported feed was already subscribed", async () => {
+      mockFetch.mockResolvedValueOnce([feedA, feedB]); // load
+      mockFetch.mockResolvedValueOnce({
+        imported: [{ ...feedA, title: "Feed A (updated)" }],
+        skipped: [],
+        truncatedCount: 0,
+      });
+      const { items, load, importOpml } = useFeeds();
+      await load();
+      await importOpml(opmlFile);
+
+      const idOccurrences = items.value.filter((feed) => feed.id === feedA.id);
+      expect(idOccurrences).toHaveLength(1);
+      expect(idOccurrences[0].title).toBe("Feed A (updated)");
+      expect(items.value).toHaveLength(2);
+    });
+
+    it("sets error and leaves importSummary null when the request fails", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("server error"));
+      const { error, importSummary, importOpml } = useFeeds();
+      await importOpml(opmlFile);
+      expect(error.value).toBeTruthy();
+      expect(importSummary.value).toBeNull();
+    });
+
+    it("toggles importing to true during the request and false after", async () => {
+      let resolveFetch: (_value: unknown) => void = () => {};
+      mockFetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+      );
+      const { importing, importOpml } = useFeeds();
+      const promise = importOpml(opmlFile);
+      expect(importing.value).toBe(true);
+      resolveFetch({ imported: [], skipped: [], truncatedCount: 0 });
+      await promise;
+      expect(importing.value).toBe(false);
+    });
+  });
+
+  describe("exportOpml()", () => {
+    it("fetches /api/feeds/export as text", async () => {
+      mockFetch.mockResolvedValueOnce("<opml><body></body></opml>");
+      const { exportOpml } = useFeeds();
+      await exportOpml();
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/feeds/export",
+        expect.objectContaining({ responseType: "text" }),
+      );
+    });
+
+    it("sets error when the export request fails", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("server error"));
+      const { error, exportOpml } = useFeeds();
+      await exportOpml();
+      expect(error.value).toBeTruthy();
+    });
+
+    it("toggles exporting to true during the request and false after", async () => {
+      let resolveFetch: (_value: unknown) => void = () => {};
+      mockFetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+      );
+      const { exporting, exportOpml } = useFeeds();
+      const promise = exportOpml();
+      expect(exporting.value).toBe(true);
+      resolveFetch("<opml><body></body></opml>");
+      await promise;
+      expect(exporting.value).toBe(false);
+    });
+  });
+
   describe("remove()", () => {
     it("optimistically removes the feed from items", async () => {
       mockFetch.mockResolvedValueOnce([feedA, feedB]);

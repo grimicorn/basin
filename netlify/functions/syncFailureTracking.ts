@@ -49,8 +49,14 @@ export class ServerConfigError extends ErrorDoNotRetry {
   }
 }
 
+// Scoped by (id, userId) — matching fetchFeedRecord's read scope — so a
+// feedId belonging to a different user than the event claims can never be
+// written to. In practice this is a no-op guard: resolveFeedForSync already
+// verifies ownership before any sync runs, but the write should never rely
+// on that alone.
 async function recordFeedSyncFailure(
   feedId: number,
+  userId: number,
   message: string,
 ): Promise<void> {
   const db = createDb();
@@ -61,11 +67,12 @@ async function recordFeedSyncFailure(
       syncError: message,
       syncFailedAt: new Date(),
     })
-    .where(eq(feeds.id, feedId));
+    .where(and(eq(feeds.id, feedId), eq(feeds.userId, userId)));
 }
 
 async function recordFeedSyncSuccess(
   feedId: number,
+  userId: number,
   syncedAt: Date,
 ): Promise<void> {
   const db = createDb();
@@ -77,7 +84,7 @@ async function recordFeedSyncSuccess(
       syncError: null,
       syncFailedAt: null,
     })
-    .where(eq(feeds.id, feedId));
+    .where(and(eq(feeds.id, feedId), eq(feeds.userId, userId)));
 }
 
 async function recordIntegrationSyncFailure(
@@ -130,7 +137,7 @@ export async function persistPermanentSyncFailure(
     return;
   }
 
-  await recordFeedSyncFailure(feedId, error.message);
+  await recordFeedSyncFailure(feedId, userId, error.message);
 
   if (!(error instanceof IntegrationAuthError)) {
     return;
@@ -147,7 +154,7 @@ export async function persistSyncSuccess(
   sourceType: string,
   syncedAt: Date,
 ): Promise<void> {
-  await recordFeedSyncSuccess(feedId, syncedAt);
+  await recordFeedSyncSuccess(feedId, userId, syncedAt);
 
   const provider = providerForSourceType(sourceType);
   if (!provider) {

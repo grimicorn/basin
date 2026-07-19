@@ -1,4 +1,5 @@
 import { integrations } from "../../db/schema";
+import { clearFeedSyncFailures } from "../../utils/feedSyncStatus";
 import { SYNC_STATUS } from "../../utils/syncStatus";
 
 export default defineEventHandler(async (event) => {
@@ -58,6 +59,10 @@ export default defineEventHandler(async (event) => {
         updatedAt: new Date(),
       },
     });
+
+  // A working connection also clears any feed that previously failed
+  // against it, instead of leaving "Needs attention" up until the next sync.
+  await clearFeedSyncFailures(db, user.id, "bluesky");
 
   return { ok: true, handle: session.handle };
 });

@@ -12,6 +12,7 @@ import {
   isTokenExpired,
   refreshAccessToken,
   fetchNewUploadsForChannel,
+  TokenRefreshAuthError,
 } from "../../server/utils/youtubeAdapter";
 import {
   fetchNewBlueskyPosts,
@@ -146,6 +147,28 @@ async function persistRefreshedToken(
     .where(eq(integrations.id, integrationId));
 }
 
+// Translates a token-endpoint auth failure (revoked/expired refresh token)
+// into IntegrationAuthError so it is attributed to the connection, not the
+// feed. Any other failure (network, 5xx) passes through unchanged so it
+// still gets the normal transient-retry treatment.
+async function refreshYouTubeToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string,
+) {
+  try {
+    return await refreshAccessToken(refreshToken, clientId, clientSecret);
+  } catch (error) {
+    if (error instanceof TokenRefreshAuthError) {
+      throw new IntegrationAuthError(
+        "youtube",
+        "YouTube authorization expired or was revoked. Re-connect your YouTube account.",
+      );
+    }
+    throw error;
+  }
+}
+
 async function resolveValidAccessToken(
   integration: NonNullable<Awaited<ReturnType<typeof fetchYouTubeIntegration>>>,
 ): Promise<string> {
@@ -173,7 +196,7 @@ async function resolveValidAccessToken(
     );
   }
 
-  const refreshed = await refreshAccessToken(
+  const refreshed = await refreshYouTubeToken(
     integration.refreshToken,
     clientId,
     clientSecret,

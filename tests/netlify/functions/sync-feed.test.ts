@@ -53,6 +53,14 @@ vi.mock("../../../server/utils/youtubeAdapter", () => ({
   isTokenExpired: mockIsTokenExpired,
   refreshAccessToken: mockRefreshAccessToken,
   fetchNewUploadsForChannel: mockFetchNewUploadsForChannel,
+  TokenRefreshAuthError: class TokenRefreshAuthError extends Error {
+    status: number;
+    constructor(status: number, statusText: string) {
+      super(`Token refresh failed: ${status} ${statusText}`);
+      this.name = "TokenRefreshAuthError";
+      this.status = status;
+    }
+  },
 }));
 
 // Mock async-workloads — asyncWorkloadFn is an identity wrapper in tests
@@ -73,6 +81,7 @@ vi.mock("@netlify/async-workloads", () => ({
 }));
 
 import handler from "../../../netlify/functions/sync-feed";
+import { TokenRefreshAuthError } from "../../../server/utils/youtubeAdapter";
 
 function recentFetch() {
   return new Date(Date.now() - 60_000); // 1 minute ago
@@ -478,6 +487,54 @@ describe("sync-feed workload — YouTube source", () => {
       expect.objectContaining({ accessToken: "fresh-token" }),
     );
     expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
+  });
+
+  it("throws IntegrationAuthError when the refresh token was revoked (401/400 from Google)", async () => {
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    mockRefreshAccessToken.mockRejectedValue(
+      new TokenRefreshAuthError(400, "Bad Request"),
+    );
+
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "test-client-id");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "test-client-secret");
+
+    // A revoked/expired refresh token is attributed to the connection, not
+    // treated as a transient failure to retry.
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
+  });
+
+  it("treats a non-auth token refresh failure (e.g. 5xx) as transient, not an IntegrationAuthError", async () => {
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    mockRefreshAccessToken.mockRejectedValue(
+      new Error("Token refresh failed: 503 Service Unavailable"),
+    );
+
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "test-client-id");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "test-client-secret");
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent({ attempt: 1 })),
+    ).rejects.toMatchObject({ name: "ErrorRetryAfterDelay" });
   });
 
   it("throws ErrorDoNotRetry when no YouTube integration exists for the user", async () => {

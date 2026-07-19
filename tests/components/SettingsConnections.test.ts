@@ -16,6 +16,15 @@ const disconnected = makeConnection({
   connected: false,
   color: "var(--src-tweet)",
 });
+const needsReconnect = makeConnection({
+  id: "youtube",
+  name: "YouTube",
+  connected: true,
+  account: "@mychannel",
+  since: "Connected Jan 2024",
+  needsReconnect: true,
+  syncError: "YouTube access token expired. Re-connect your YouTube account.",
+});
 
 const mockConnect = vi.fn();
 const mockConnectBluesky = vi.fn();
@@ -139,5 +148,33 @@ describe("SettingsConnections", () => {
   it("matches snapshot", () => {
     const wrapper = shallowMount(SettingsConnections);
     expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  describe("needs-reconnect indicator", () => {
+    it("shows a needs-reconnect badge for a connection with a sync error", () => {
+      stubConnections([needsReconnect, disconnected]);
+      const wrapper = shallowMount(SettingsConnections);
+      expect(wrapper.findAll(".feed-stat.error")).toHaveLength(1);
+    });
+
+    it("does not show a needs-reconnect badge for a healthy connection", () => {
+      stubConnections([connected, disconnected]);
+      const wrapper = shallowMount(SettingsConnections);
+      expect(wrapper.find(".feed-stat.error").exists()).toBe(false);
+    });
+
+    it("surfaces the sync error message as the badge title", () => {
+      stubConnections([needsReconnect]);
+      const wrapper = shallowMount(SettingsConnections);
+      expect(wrapper.find(".feed-stat.error").attributes("title")).toBe(
+        needsReconnect.syncError,
+      );
+    });
+
+    it("matches snapshot with a connection needing reconnect", () => {
+      stubConnections([needsReconnect, disconnected]);
+      const wrapper = shallowMount(SettingsConnections);
+      expect(wrapper.html()).toMatchSnapshot();
+    });
   });
 });

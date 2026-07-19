@@ -37,14 +37,37 @@ const effectiveSource = computed(
   () => sourceOverride.value ?? detectedSource.value,
 );
 
+const showDetectConfirm = computed(
+  () => Boolean(pendingFeedUrl.value) && Boolean(detectedSource.value),
+);
+
+const confirmButtonLabel = computed(() => {
+  if (isAdding.value) {
+    return "Adding…";
+  }
+  const label = effectiveSource.value === "podcast" ? "Podcast" : "RSS";
+  return `Add as ${label}`;
+});
+
+const showLoadingState = computed(() => loading.value && !items.value.length);
+const showEmptyState = computed(() => !items.value.length);
+
 function sourceColor(source) {
   return source === "podcast" ? "var(--src-podcast)" : "var(--src-rss)";
+}
+
+function feedIcon(source) {
+  return source === "podcast" ? "mic" : "rss";
 }
 
 function cancelDetection() {
   sourceOverride.value = null;
   detectedSource.value = null;
   pendingFeedUrl.value = null;
+}
+
+function needsAttention(feed) {
+  return feed.syncStatus === "error";
 }
 </script>
 
@@ -73,7 +96,7 @@ function cancelDetection() {
       </button>
     </div>
 
-    <div v-if="pendingFeedUrl && detectedSource" class="detect-confirm">
+    <div v-if="showDetectConfirm" class="detect-confirm">
       <p class="detect-label">
         Detected:
         <strong>{{ detectedLabel }}</strong>
@@ -95,11 +118,7 @@ function cancelDetection() {
           @click="confirmAdd"
         >
           <RIcon name="plus" :size="16" />
-          {{
-            isAdding
-              ? "Adding…"
-              : `Add as ${effectiveSource === "podcast" ? "Podcast" : "RSS"}`
-          }}
+          {{ confirmButtonLabel }}
         </button>
         <button class="btn" :disabled="isAdding" @click="cancelDetection">
           Cancel
@@ -110,18 +129,26 @@ function cancelDetection() {
     <div class="feed-list">
       <div v-for="fd in items" :key="fd.id" class="feed-row">
         <span class="feed-ic" :style="{ '--c': sourceColor(fd.source) }">
-          <RIcon :name="fd.source === 'podcast' ? 'mic' : 'rss'" :size="16" />
+          <RIcon :name="feedIcon(fd.source)" :size="16" />
         </span>
         <div class="feed-info">
           <div class="feed-name">{{ fd.title ?? fd.url }}</div>
           <div class="feed-url">{{ fd.url }}</div>
         </div>
+        <span
+          v-if="needsAttention(fd)"
+          class="feed-stat error"
+          :title="fd.syncError ?? 'Needs attention'"
+        >
+          <RIcon name="alertTriangle" :size="12" />
+          Needs attention
+        </span>
         <button class="icon-btn" title="Remove" @click="remove(fd.id)">
           <RIcon name="trash" :size="16" />
         </button>
       </div>
-      <p v-if="loading && !items.length" class="desc">Loading…</p>
-      <p v-else-if="!items.length" class="desc">No feeds added yet.</p>
+      <p v-if="showLoadingState" class="desc">Loading…</p>
+      <p v-else-if="showEmptyState" class="desc">No feeds added yet.</p>
     </div>
   </section>
 </template>

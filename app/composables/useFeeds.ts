@@ -6,6 +6,8 @@ export interface Feed {
   sourceOverride: "rss" | "podcast" | null;
   detectedSource?: "rss" | "podcast";
   createdAt: string | null;
+  syncStatus?: "ok" | "error";
+  syncError?: string | null;
 }
 
 export class DiscoveryError extends Error {

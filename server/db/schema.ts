@@ -20,6 +20,7 @@ const tsvector = customType<{ data: string }>({
   },
 });
 import { relations } from "drizzle-orm";
+import { SYNC_STATUS } from "../utils/syncStatus";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -41,6 +42,13 @@ export const feeds = pgTable(
     lastFetched: timestamp("last_fetched"),
     source: text("source").notNull(),
     sourceOverride: text("source_override"),
+    // Sync health — set by netlify/functions/sync-feed.ts. "error" means the
+    // most recent sync hit a permanent (non-retryable) failure; syncError
+    // holds the message and syncFailedAt when it happened. Both are cleared
+    // back to "ok" / null on the next successful sync.
+    syncStatus: text("sync_status").notNull().default(SYNC_STATUS.OK),
+    syncError: text("sync_error"),
+    syncFailedAt: timestamp("sync_failed_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -94,6 +102,14 @@ export const integrations = pgTable(
     scopes: text("scopes").array(),
     providerAccountId: text("provider_account_id"),
     providerUsername: text("provider_username"),
+    // Sync health for this connection — set by netlify/functions/sync-feed.ts
+    // when a feed sync fails for a reason attributable to the integration
+    // itself (expired token with no refresh token, missing credentials).
+    // Cleared back to "ok" / null the next time a feed using this
+    // integration syncs successfully.
+    syncStatus: text("sync_status").notNull().default(SYNC_STATUS.OK),
+    syncError: text("sync_error"),
+    syncFailedAt: timestamp("sync_failed_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },

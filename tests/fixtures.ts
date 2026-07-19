@@ -87,5 +87,7 @@ export const makeConnection = (overrides: Record<string, unknown> = {}) => ({
   account: "",
   color: "var(--src-video)",
   since: "",
+  needsReconnect: false,
+  syncError: null,
   ...overrides,
 });

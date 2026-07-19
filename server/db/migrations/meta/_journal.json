@@ -64,6 +64,13 @@
       "when": 1782956840242,
       "tag": "0008_add_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784424611668,
+      "tag": "0009_certain_hercules",
+      "breakpoints": true
     }
   ]
 }

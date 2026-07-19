@@ -25,7 +25,8 @@ exports[`SettingsFeeds > detection confirmation UI > matches snapshot with detec
       <div class="feed-info">
         <div class="feed-name">Test Feed</div>
         <div class="feed-url">https://example.com/feed.xml</div>
-      </div><button class="icon-btn" title="Remove">
+      </div>
+      <!--v-if--><button class="icon-btn" title="Remove">
         <r-icon-stub name="trash" size="16"></r-icon-stub>
       </button>
     </div>
@@ -33,7 +34,8 @@ exports[`SettingsFeeds > detection confirmation UI > matches snapshot with detec
       <div class="feed-info">
         <div class="feed-name">https://podcast.example.com/feed</div>
         <div class="feed-url">https://podcast.example.com/feed</div>
-      </div><button class="icon-btn" title="Remove">
+      </div>
+      <!--v-if--><button class="icon-btn" title="Remove">
         <r-icon-stub name="trash" size="16"></r-icon-stub>
       </button>
     </div>
@@ -57,7 +59,8 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
       <div class="feed-info">
         <div class="feed-name">Test Feed</div>
         <div class="feed-url">https://example.com/feed.xml</div>
-      </div><button class="icon-btn" title="Remove">
+      </div>
+      <!--v-if--><button class="icon-btn" title="Remove">
         <r-icon-stub name="trash" size="16"></r-icon-stub>
       </button>
     </div>
@@ -65,7 +68,41 @@ exports[`SettingsFeeds > matches snapshot with feeds 1`] = `
       <div class="feed-info">
         <div class="feed-name">https://podcast.example.com/feed</div>
         <div class="feed-url">https://podcast.example.com/feed</div>
-      </div><button class="icon-btn" title="Remove">
+      </div>
+      <!--v-if--><button class="icon-btn" title="Remove">
+        <r-icon-stub name="trash" size="16"></r-icon-stub>
+      </button>
+    </div>
+    <!--v-if-->
+  </div>
+</section>"
+`;
+
+exports[`SettingsFeeds > needs-attention indicator > matches snapshot with a failing feed 1`] = `
+"<section class="set-section">
+  <h2>RSS &amp; Podcasts</h2>
+  <p class="desc"> Paste a feed URL or a plain website address — Reader will find the feed automatically. </p>
+  <div class="add-feed">
+    <input-text-stub modelvalue="" placeholder="https://example.com or https://example.com/feed.xml" disabled="false"></input-text-stub><button class="btn btn-primary">
+      <r-icon-stub name="plus" size="16"></r-icon-stub> Add feed
+    </button>
+  </div>
+  <!--v-if-->
+  <div class="feed-list">
+    <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
+      <div class="feed-info">
+        <div class="feed-name">Test Feed</div>
+        <div class="feed-url">https://example.com/feed.xml</div>
+      </div>
+      <!--v-if--><button class="icon-btn" title="Remove">
+        <r-icon-stub name="trash" size="16"></r-icon-stub>
+      </button>
+    </div>
+    <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
+      <div class="feed-info">
+        <div class="feed-name">Failing Feed</div>
+        <div class="feed-url">https://failing.example.com/feed.xml</div>
+      </div><span class="feed-stat error" title="Feed unreachable — check the URL"><r-icon-stub name="alertTriangle" size="12"></r-icon-stub> Needs attention </span><button class="icon-btn" title="Remove">
         <r-icon-stub name="trash" size="16"></r-icon-stub>
       </button>
     </div>

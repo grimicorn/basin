@@ -445,7 +445,8 @@ describe("sync-feed workload — YouTube source", () => {
       "Test Channel",
       expect.any(Date),
     );
-    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+    // Feed sync-status update + integration sync-status update.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
   });
 
   it("refreshes an expired token and persists it before fetching uploads", async () => {
@@ -543,7 +544,8 @@ describe("sync-feed workload — YouTube source", () => {
     await (handler as Function)(makeYouTubeEvent());
 
     expect(mockInsert).not.toHaveBeenCalled();
-    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+    // Feed sync-status update + integration sync-status update.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
   });
 
   it("debounces YouTube feeds within the debounce window in scheduled mode", async () => {
@@ -555,5 +557,122 @@ describe("sync-feed workload — YouTube source", () => {
 
     expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// --- Permanent failure persistence (issue #110) ---
+
+describe("sync-feed workload — permanent failure persistence", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockUpdate.mockReturnValue({ set: mockUpdateSet });
+    mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });
+    mockUpdateWhere.mockResolvedValue(undefined);
+
+    mockInsert.mockReturnValue({ values: mockInsertValues });
+    mockInsertValues.mockReturnValue({
+      onConflictDoNothing: mockInsertOnConflict,
+    });
+    mockInsertOnConflict.mockReturnValue({ returning: mockInsertReturning });
+    mockInsertReturning.mockResolvedValue([]);
+
+    mockParseRssFeed.mockResolvedValue([]);
+    mockFetchNewUploadsForChannel.mockResolvedValue([]);
+    mockIsTokenExpired.mockReturnValue(false);
+  });
+
+  it("persists the error state and message on the feed for a permanent failure", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ source: "podcast" }));
+
+    await expect(
+      (handler as Function)(
+        makeEvent({
+          eventData: {
+            userId: 1,
+            feedId: 1,
+            sourceType: "rss",
+            mode: "scheduled",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "error",
+        syncError: expect.stringContaining("Source mismatch"),
+        syncFailedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it("does not persist a failure state for a transient (retryable) error", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: null }));
+    mockParseRssFeed.mockRejectedValue(new Error("Network timeout"));
+
+    await expect(
+      (handler as Function)(makeEvent({ attempt: 1 })),
+    ).rejects.toMatchObject({ name: "ErrorRetryAfterDelay" });
+
+    expect(mockUpdateWhere).not.toHaveBeenCalled();
+  });
+
+  it("also marks the backing integration when a YouTube feed hits a permanent failure", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(undefined); // no YouTube integration found
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+
+    // One update for the feed, one for the integration (looked up by
+    // userId + provider, so it applies even without an integration row).
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "error",
+        syncError: expect.stringContaining("No YouTube integration found"),
+      }),
+    );
+  });
+
+  it("clears a previously-recorded failure on the next successful sync", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: null }));
+
+    await (handler as Function)(makeEvent());
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "ok",
+        syncError: null,
+        syncFailedAt: null,
+      }),
+    );
+  });
+
+  it("clears a previously-recorded integration failure on the next successful YouTube sync", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(makeIntegration());
+    mockIsTokenExpired.mockReturnValue(false);
+    mockFetchNewUploadsForChannel.mockResolvedValue([]);
+
+    await (handler as Function)(makeYouTubeEvent());
+
+    // Feed clear + integration clear.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
+    expect(mockUpdateSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        syncStatus: "ok",
+        syncError: null,
+        syncFailedAt: null,
+      }),
+    );
   });
 });

@@ -21,6 +21,7 @@ import {
 import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
 import {
+  IntegrationAuthError,
   persistPermanentSyncFailure,
   persistSyncSuccess,
 } from "./syncFailureTracking";
@@ -152,7 +153,8 @@ async function resolveValidAccessToken(
   }
 
   if (!integration.refreshToken) {
-    throw new ErrorDoNotRetry(
+    throw new IntegrationAuthError(
+      "youtube",
       "YouTube access token expired and no refresh token is stored. Re-connect your YouTube account.",
     );
   }
@@ -161,6 +163,8 @@ async function resolveValidAccessToken(
   const clientSecret = process.env.NUXT_GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
+    // Missing server config, not a broken user connection — the token itself
+    // may be fine. Leave the integration's sync status alone.
     throw new ErrorDoNotRetry(
       "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
     );
@@ -225,13 +229,15 @@ async function syncBlueskyFeed(
   }
 
   if (!integration.tokenSecret) {
-    throw new ErrorDoNotRetry(
+    throw new IntegrationAuthError(
+      "bluesky",
       `Bluesky integration for user ${userId} is missing the app password. Reconnect Bluesky in Settings.`,
     );
   }
 
   if (!integration.providerUsername) {
-    throw new ErrorDoNotRetry(
+    throw new IntegrationAuthError(
+      "bluesky",
       `Bluesky integration for user ${userId} is missing the username. Reconnect Bluesky in Settings.`,
     );
   }
@@ -394,8 +400,36 @@ async function processSyncFeedEvent(
   logSyncEvent("sync-feed.complete", { feedId, userId, itemsSynced });
 }
 
+// Persists a permanent failure without letting a persistence error replace
+// the real one: the workload's retry/blocked semantics must always be driven
+// by the sync failure itself, never by an incidental DB write failing while
+// recording it.
+async function recordPermanentFailure(
+  userId: number,
+  feedId: number,
+  error: ErrorDoNotRetry,
+): Promise<void> {
+  try {
+    await persistPermanentSyncFailure(userId, feedId, error);
+  } catch (persistError) {
+    logSyncEvent(
+      "sync-feed.persist-failure-error",
+      {
+        feedId,
+        userId,
+        originalError: error.message,
+        persistError:
+          persistError instanceof Error
+            ? persistError.message
+            : String(persistError),
+      },
+      "error",
+    );
+  }
+}
+
 export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
-  const { userId, feedId, sourceType } = event.eventData;
+  const { userId, feedId } = event.eventData;
 
   try {
     await processSyncFeedEvent(event.eventData, event.attempt);
@@ -406,12 +440,7 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     // indicator. Transient ErrorRetryAfterDelay failures are left alone;
     // they aren't yet a failure state worth showing the user.
     if (error instanceof ErrorDoNotRetry) {
-      await persistPermanentSyncFailure(
-        userId,
-        feedId,
-        sourceType,
-        error.message,
-      );
+      await recordPermanentFailure(userId, feedId, error);
     }
 
     throw error;

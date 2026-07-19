@@ -492,16 +492,20 @@ describe("sync-feed workload — YouTube source", () => {
     expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
   });
 
-  it("throws ErrorDoNotRetry when token is expired and no refresh token is stored", async () => {
+  it("throws IntegrationAuthError (a non-retryable failure) when token is expired and no refresh token is stored", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeYouTubeFeed())
       .mockResolvedValueOnce(makeIntegration({ refreshToken: null }));
 
     mockIsTokenExpired.mockReturnValue(true);
 
+    // IntegrationAuthError extends ErrorDoNotRetry — this failure is
+    // specifically attributable to the connected account, which is what
+    // lets persistPermanentSyncFailure mark the integration as well as the
+    // feed (see the "permanent failure persistence" describe block below).
     await expect(
       (handler as Function)(makeYouTubeEvent()),
-    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
   });
 
   it("throws ErrorRetryAfterDelay when the channel RSS fetch fails on early attempts", async () => {
@@ -621,7 +625,7 @@ describe("sync-feed workload — permanent failure persistence", () => {
     expect(mockUpdateWhere).not.toHaveBeenCalled();
   });
 
-  it("also marks the backing integration when a YouTube feed hits a permanent failure", async () => {
+  it("does not mark any integration when no YouTube integration exists yet", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeYouTubeFeed())
       .mockResolvedValueOnce(undefined); // no YouTube integration found
@@ -630,15 +634,56 @@ describe("sync-feed workload — permanent failure persistence", () => {
       (handler as Function)(makeYouTubeEvent()),
     ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
 
-    // One update for the feed, one for the integration (looked up by
-    // userId + provider, so it applies even without an integration row).
-    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
+    // Only the feed is updated. There is no integration row to mark as
+    // "needs reconnect" — the user was never connected, which
+    // SettingsConnections already communicates via connected: false.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         syncStatus: "error",
         syncError: expect.stringContaining("No YouTube integration found"),
       }),
     );
+  });
+
+  it("also marks the backing integration when the token is expired with no refresh token", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(makeIntegration({ refreshToken: null }));
+    mockIsTokenExpired.mockReturnValue(true);
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    // One update for the feed, one for the integration: this is an
+    // IntegrationAuthError, since the connected account genuinely needs
+    // re-authorizing.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "error",
+        syncError: expect.stringContaining("Re-connect your YouTube account"),
+      }),
+    );
+  });
+
+  it("does not mark the integration when retries are exhausted on a transient YouTube error", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(makeIntegration());
+    mockFetchNewUploadsForChannel.mockRejectedValue(
+      new Error("503 Service Unavailable"),
+    );
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent({ attempt: 4 })),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+
+    // A network flake that exhausted its retries says nothing about the
+    // connected account's health — only the feed is marked, not the
+    // integration.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
   });
 
   it("clears a previously-recorded failure on the next successful sync", async () => {
@@ -674,5 +719,29 @@ describe("sync-feed workload — permanent failure persistence", () => {
         syncFailedAt: null,
       }),
     );
+  });
+
+  it("still surfaces the original sync failure when persisting the failure state itself errors", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ source: "podcast" }));
+    mockUpdateWhere.mockRejectedValue(new Error("connection reset"));
+
+    // The permanent failure is a source mismatch — persistence blowing up
+    // must not replace it with the DB error, or the workload's blocked
+    // state would be driven by an incidental infra failure.
+    await expect(
+      (handler as Function)(
+        makeEvent({
+          eventData: {
+            userId: 1,
+            feedId: 1,
+            sourceType: "rss",
+            mode: "scheduled",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: "ErrorDoNotRetry",
+      message: expect.stringContaining("Source mismatch"),
+    });
   });
 });

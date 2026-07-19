@@ -1,3 +1,4 @@
+import { ErrorDoNotRetry } from "@netlify/async-workloads";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockUpdate, mockUpdateSet, mockUpdateWhere } = vi.hoisted(() => ({
@@ -12,6 +13,7 @@ vi.mock("../../../netlify/functions/db", () => ({
 
 import {
   providerForSourceType,
+  IntegrationAuthError,
   persistPermanentSyncFailure,
   persistSyncSuccess,
 } from "../../../netlify/functions/syncFailureTracking";
@@ -38,8 +40,12 @@ describe("syncFailureTracking", () => {
   });
 
   describe("persistPermanentSyncFailure()", () => {
-    it("persists the error status and message on the feed", async () => {
-      await persistPermanentSyncFailure(1, 42, "rss", "Feed unreachable");
+    it("persists the error status and message on the feed for a plain ErrorDoNotRetry", async () => {
+      await persistPermanentSyncFailure(
+        1,
+        42,
+        new ErrorDoNotRetry("Feed unreachable"),
+      );
 
       expect(mockUpdateSet).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -50,19 +56,24 @@ describe("syncFailureTracking", () => {
       );
     });
 
-    it("does not touch integrations for a source type with no backing integration", async () => {
-      await persistPermanentSyncFailure(1, 42, "rss", "Feed unreachable");
-
-      // Only one update call — the feed. No integration lookup/update.
-      expect(mockUpdate).toHaveBeenCalledTimes(1);
-    });
-
-    it("also persists the error status on the backing integration for youtube", async () => {
+    it("does not touch integrations for a feed-only failure (not IntegrationAuthError)", async () => {
       await persistPermanentSyncFailure(
         1,
         42,
-        "youtube",
-        "Re-connect your YouTube account.",
+        new ErrorDoNotRetry("Source mismatch for feed 42"),
+      );
+
+      // Only one update call — the feed. No integration lookup/update, even
+      // though this is a permanent failure: a source mismatch or exhausted
+      // retries says nothing about whether the connected account is broken.
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("also persists the error status on the backing integration for an IntegrationAuthError", async () => {
+      await persistPermanentSyncFailure(
+        1,
+        42,
+        new IntegrationAuthError("youtube", "Re-connect your YouTube account."),
       );
 
       expect(mockUpdate).toHaveBeenCalledTimes(2);
@@ -76,15 +87,19 @@ describe("syncFailureTracking", () => {
       );
     });
 
-    it("also persists the error status on the backing integration for bluesky", async () => {
+    it("uses the provider carried on the IntegrationAuthError, not the source type", async () => {
       await persistPermanentSyncFailure(
         1,
         42,
-        "bluesky",
-        "Reconnect Bluesky in Settings.",
+        new IntegrationAuthError("bluesky", "Reconnect Bluesky in Settings."),
       );
 
       expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it("IntegrationAuthError is an instance of ErrorDoNotRetry", () => {
+      const error = new IntegrationAuthError("youtube", "expired");
+      expect(error).toBeInstanceOf(ErrorDoNotRetry);
     });
   });
 

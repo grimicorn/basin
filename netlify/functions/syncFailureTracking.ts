@@ -1,3 +1,4 @@
+import { ErrorDoNotRetry } from "@netlify/async-workloads";
 import { and, eq } from "drizzle-orm";
 import { feeds, integrations } from "../../server/db/schema";
 import { SYNC_STATUS } from "../../server/utils/syncStatus";
@@ -5,7 +6,9 @@ import { createDb } from "./db";
 
 // Maps a feed's sourceType to the integration provider it depends on. RSS
 // and podcast feeds have no backing integration, so they map to null and
-// only the feed's own sync status is tracked for them.
+// only the feed's own sync status is tracked for them. Used only on the
+// success path — see IntegrationAuthError for how the failure path
+// attributes a failure to a provider.
 const SOURCE_TYPE_PROVIDER: Record<string, string | undefined> = {
   youtube: "youtube",
   bluesky: "bluesky",
@@ -13,6 +16,23 @@ const SOURCE_TYPE_PROVIDER: Record<string, string | undefined> = {
 
 export function providerForSourceType(sourceType: string): string | null {
   return SOURCE_TYPE_PROVIDER[sourceType] ?? null;
+}
+
+// Thrown instead of a plain ErrorDoNotRetry when a permanent failure is
+// specifically attributable to the connected account (expired token with no
+// refresh token, missing credentials) rather than the feed itself. This is
+// the signal persistPermanentSyncFailure uses to decide whether the failure
+// belongs on the integration too: a feed-only failure (source mismatch, feed
+// deleted, retries exhausted on a network error) must never flag a healthy
+// connection as needing reconnect.
+export class IntegrationAuthError extends ErrorDoNotRetry {
+  provider: string;
+
+  constructor(provider: string, message: string) {
+    super(message);
+    this.name = "IntegrationAuthError";
+    this.provider = provider;
+  }
 }
 
 async function recordFeedSyncFailure(
@@ -77,26 +97,27 @@ async function recordIntegrationSyncSuccess(
     );
 }
 
-// Persists a permanent (ErrorDoNotRetry) sync failure on the feed, and — when
-// the source type is backed by a third-party integration — on that
-// integration too, so both SettingsFeeds and SettingsConnections can surface
-// a "needs attention" indicator. Looking the integration up by (userId,
-// provider) rather than an id means this still works even when the caller
-// never loaded the integration row (e.g. "no integration found" failures).
+// Persists a permanent (ErrorDoNotRetry) sync failure on the feed, and —
+// only when the failure is an IntegrationAuthError — on the connected
+// account too, so SettingsConnections can surface a "needs reconnect"
+// indicator. A feed-only failure (source mismatch, feed deleted, retries
+// exhausted on a transient error) must not touch the integration: the
+// connection itself may be perfectly healthy. Looking the integration up by
+// (userId, provider) rather than an id means this still works even when the
+// error was raised before an integration row was ever loaded (e.g. "no
+// integration found" failures).
 export async function persistPermanentSyncFailure(
   userId: number,
   feedId: number,
-  sourceType: string,
-  message: string,
+  error: ErrorDoNotRetry,
 ): Promise<void> {
-  await recordFeedSyncFailure(feedId, message);
+  await recordFeedSyncFailure(feedId, error.message);
 
-  const provider = providerForSourceType(sourceType);
-  if (!provider) {
+  if (!(error instanceof IntegrationAuthError)) {
     return;
   }
 
-  await recordIntegrationSyncFailure(userId, provider, message);
+  await recordIntegrationSyncFailure(userId, error.provider, error.message);
 }
 
 // Marks a feed sync as successful and clears any previously-recorded failure

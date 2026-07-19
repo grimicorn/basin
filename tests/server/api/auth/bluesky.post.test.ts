@@ -98,4 +98,18 @@ describe("POST /api/auth/bluesky", () => {
       "xxxx-xxxx-xxxx-xxxx",
     );
   });
+
+  it("clears any previously-recorded sync failure on (re)connect", async () => {
+    const event = { context: { user: { id: 1 } } };
+    await handler(event);
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          syncStatus: "ok",
+          syncError: null,
+          syncFailedAt: null,
+        }),
+      }),
+    );
+  });
 });

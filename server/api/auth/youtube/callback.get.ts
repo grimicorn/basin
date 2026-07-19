@@ -1,4 +1,5 @@
 import { integrations } from "../../../db/schema";
+import { SYNC_STATUS } from "../../../utils/syncStatus";
 
 export default defineEventHandler(async (event) => {
   if (!event.context.user) {
@@ -45,6 +46,11 @@ export default defineEventHandler(async (event) => {
         expiresAt,
         scopes: tokens.scope.split(" "),
         providerUsername: handle,
+        // A successful (re)connect clears any stale "needs reconnect" state
+        // immediately, rather than waiting for the next scheduled sync.
+        syncStatus: SYNC_STATUS.OK,
+        syncError: null,
+        syncFailedAt: null,
         updatedAt: new Date(),
       },
     });

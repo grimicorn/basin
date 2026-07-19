@@ -126,4 +126,20 @@ describe("GET /api/auth/youtube/callback", () => {
       "/settings/connections",
     );
   });
+
+  it("clears any previously-recorded sync failure on (re)connect", async () => {
+    const event = { context: { user: { id: 1 } } };
+    mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });
+    mockGetCookie.mockReturnValue("state123");
+    await handler(event);
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          syncStatus: "ok",
+          syncError: null,
+          syncFailedAt: null,
+        }),
+      }),
+    );
+  });
 });

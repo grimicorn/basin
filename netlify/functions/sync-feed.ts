@@ -221,8 +221,12 @@ async function syncYouTubeFeed(
   const integration = await fetchYouTubeIntegration(userId);
 
   if (!integration) {
+    // No integration row exists yet, so there is nothing for
+    // IntegrationAuthError to mark — this is a feed-level message only, and
+    // must not embed the internal userId since it is persisted verbatim to
+    // feeds.syncError and rendered as the SettingsFeeds tooltip.
     throw new ErrorDoNotRetry(
-      `No YouTube integration found for user ${userId}. Re-connect your YouTube account.`,
+      "No YouTube account is connected. Connect YouTube in Settings.",
     );
   }
 
@@ -249,22 +253,24 @@ async function syncBlueskyFeed(
   const integration = await fetchBlueskyIntegration(userId);
 
   if (!integration) {
+    // No integration row exists yet — feed-level message only (see the
+    // matching YouTube case above for why userId is never embedded here).
     throw new ErrorDoNotRetry(
-      `No Bluesky integration found for user ${userId}. Connect Bluesky in Settings first.`,
+      "No Bluesky account is connected. Connect Bluesky in Settings.",
     );
   }
 
   if (!integration.tokenSecret) {
     throw new IntegrationAuthError(
       "bluesky",
-      `Bluesky integration for user ${userId} is missing the app password. Reconnect Bluesky in Settings.`,
+      "Your Bluesky app password is missing. Reconnect Bluesky in Settings.",
     );
   }
 
   if (!integration.providerUsername) {
     throw new IntegrationAuthError(
       "bluesky",
-      `Bluesky integration for user ${userId} is missing the username. Reconnect Bluesky in Settings.`,
+      "Your Bluesky username is missing. Reconnect Bluesky in Settings.",
     );
   }
 

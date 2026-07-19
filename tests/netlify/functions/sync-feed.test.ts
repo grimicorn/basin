@@ -720,7 +720,7 @@ describe("sync-feed workload — permanent failure persistence", () => {
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         syncStatus: "error",
-        syncError: expect.stringContaining("No YouTube integration found"),
+        syncError: expect.stringContaining("No YouTube account is connected"),
       }),
     );
   });

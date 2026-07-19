@@ -19,6 +19,7 @@ import {
   fetchChannelRssXml,
   filterItemsByWatermark,
   fetchNewUploadsForChannel,
+  TokenRefreshAuthError,
 } from "../../../server/utils/youtubeAdapter";
 import type { NewFeedItem } from "../../../server/utils/rssAdapter";
 
@@ -123,6 +124,42 @@ describe("refreshAccessToken", () => {
     await expect(
       refreshAccessToken("bad-refresh", "cid", "csec"),
     ).rejects.toThrow("Token refresh failed: 401");
+  });
+
+  it("throws TokenRefreshAuthError for a 400 (invalid_grant — revoked/expired refresh token)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+    });
+
+    await expect(
+      refreshAccessToken("bad-refresh", "cid", "csec"),
+    ).rejects.toBeInstanceOf(TokenRefreshAuthError);
+  });
+
+  it("throws TokenRefreshAuthError for a 401 (invalid_client)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
+
+    await expect(
+      refreshAccessToken("bad-refresh", "cid", "csec"),
+    ).rejects.toBeInstanceOf(TokenRefreshAuthError);
+  });
+
+  it("throws a plain Error (not TokenRefreshAuthError) for a 5xx — treated as transient by the caller", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+    });
+
+    const rejection = refreshAccessToken("refresh", "cid", "csec");
+    await expect(rejection).rejects.toThrow("Token refresh failed: 503");
+    await expect(rejection).rejects.not.toBeInstanceOf(TokenRefreshAuthError);
   });
 
   it("throws when the response body is missing access_token", async () => {

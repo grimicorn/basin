@@ -1,4 +1,6 @@
 import { integrations } from "../../db/schema";
+import { clearFeedSyncFailures } from "../../utils/feedSyncStatus";
+import { SYNC_STATUS } from "../../utils/syncStatus";
 
 export default defineEventHandler(async (event) => {
   const user = event.context.user;
@@ -49,9 +51,18 @@ export default defineEventHandler(async (event) => {
         tokenSecret: appPassword,
         providerAccountId: session.did,
         providerUsername: session.handle,
+        // A successful (re)connect clears any stale "needs reconnect" state
+        // immediately, rather than waiting for the next scheduled sync.
+        syncStatus: SYNC_STATUS.OK,
+        syncError: null,
+        syncFailedAt: null,
         updatedAt: new Date(),
       },
     });
+
+  // A working connection also clears any feed that previously failed
+  // against it, instead of leaving "Needs attention" up until the next sync.
+  await clearFeedSyncFailures(db, user.id, "bluesky");
 
   return { ok: true, handle: session.handle };
 });

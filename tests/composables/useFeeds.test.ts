@@ -50,6 +50,19 @@ describe("useFeeds", () => {
       await load();
       expect(error.value).toBeNull();
     });
+
+    it("passes through syncStatus and syncError from the API response", async () => {
+      const failingFeed = {
+        ...feedA,
+        syncStatus: "error" as const,
+        syncError: "Feed unreachable",
+      };
+      mockFetch.mockResolvedValue([failingFeed]);
+      const { items, load } = useFeeds();
+      await load();
+      expect(items.value[0].syncStatus).toBe("error");
+      expect(items.value[0].syncError).toBe("Feed unreachable");
+    });
   });
 
   describe("add()", () => {

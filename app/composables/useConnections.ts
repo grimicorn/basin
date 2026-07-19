@@ -6,6 +6,8 @@ export interface Connection {
   connected: boolean;
   account: string;
   since: string;
+  needsReconnect: boolean;
+  syncError: string | null;
 }
 
 interface DbIntegration {
@@ -13,6 +15,8 @@ interface DbIntegration {
   provider: string;
   providerUsername: string | null;
   createdAt: string | null;
+  syncStatus?: "ok" | "error";
+  syncError?: string | null;
 }
 
 const PROVIDERS: Omit<Connection, "connected" | "account" | "since">[] = [
@@ -48,6 +52,8 @@ export function useConnections() {
       connected: false,
       account: "",
       since: "",
+      needsReconnect: false,
+      syncError: null,
     })),
   );
   const loading = ref(false);
@@ -73,6 +79,8 @@ export function useConnections() {
           connected: !!row,
           account: row?.providerUsername ?? "",
           since: formatSince(row?.createdAt ?? null),
+          needsReconnect: row?.syncStatus === "error",
+          syncError: row?.syncError ?? null,
         };
       });
     } catch {
@@ -137,6 +145,8 @@ export function useConnections() {
       connected: false,
       account: "",
       since: "",
+      needsReconnect: false,
+      syncError: null,
     };
     error.value = null;
     try {

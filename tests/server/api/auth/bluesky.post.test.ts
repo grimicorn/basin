@@ -5,10 +5,13 @@ const mockCreateBlueskySession = vi.fn();
 const mockOnConflictDoUpdate = vi.fn();
 const mockValues = vi.fn();
 const mockInsert = vi.fn();
+const mockUpdate = vi.fn();
+const mockUpdateSet = vi.fn();
+const mockUpdateWhere = vi.fn();
 
 vi.stubGlobal("readBody", mockReadBody);
 vi.stubGlobal("createBlueskySession", mockCreateBlueskySession);
-vi.stubGlobal("useDb", () => ({ insert: mockInsert }));
+vi.stubGlobal("useDb", () => ({ insert: mockInsert, update: mockUpdate }));
 
 import handler from "../../../../server/api/auth/bluesky.post";
 
@@ -25,6 +28,9 @@ describe("POST /api/auth/bluesky", () => {
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
     mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockUpdate.mockReturnValue({ set: mockUpdateSet });
+    mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });
+    mockUpdateWhere.mockResolvedValue(undefined);
     mockCreateBlueskySession.mockResolvedValue(mockSession);
     mockReadBody.mockResolvedValue({
       handle: "you.bsky.social",
@@ -96,6 +102,33 @@ describe("POST /api/auth/bluesky", () => {
     expect(mockCreateBlueskySession).toHaveBeenCalledWith(
       "you.bsky.social",
       "xxxx-xxxx-xxxx-xxxx",
+    );
+  });
+
+  it("clears any previously-recorded sync failure on the integration on (re)connect", async () => {
+    const event = { context: { user: { id: 1 } } };
+    await handler(event);
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          syncStatus: "ok",
+          syncError: null,
+          syncFailedAt: null,
+        }),
+      }),
+    );
+  });
+
+  it("also clears any previously-recorded sync failure on the user's Bluesky feeds", async () => {
+    const event = { context: { user: { id: 1 } } };
+    await handler(event);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "ok",
+        syncError: null,
+        syncFailedAt: null,
+      }),
     );
   });
 });

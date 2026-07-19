@@ -53,6 +53,14 @@ vi.mock("../../../server/utils/youtubeAdapter", () => ({
   isTokenExpired: mockIsTokenExpired,
   refreshAccessToken: mockRefreshAccessToken,
   fetchNewUploadsForChannel: mockFetchNewUploadsForChannel,
+  TokenRefreshAuthError: class TokenRefreshAuthError extends Error {
+    status: number;
+    constructor(status: number, statusText: string) {
+      super(`Token refresh failed: ${status} ${statusText}`);
+      this.name = "TokenRefreshAuthError";
+      this.status = status;
+    }
+  },
 }));
 
 // Mock async-workloads — asyncWorkloadFn is an identity wrapper in tests
@@ -73,6 +81,7 @@ vi.mock("@netlify/async-workloads", () => ({
 }));
 
 import handler from "../../../netlify/functions/sync-feed";
+import { TokenRefreshAuthError } from "../../../server/utils/youtubeAdapter";
 
 function recentFetch() {
   return new Date(Date.now() - 60_000); // 1 minute ago
@@ -445,7 +454,8 @@ describe("sync-feed workload — YouTube source", () => {
       "Test Channel",
       expect.any(Date),
     );
-    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+    // Feed sync-status update + integration sync-status update.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
   });
 
   it("refreshes an expired token and persists it before fetching uploads", async () => {
@@ -479,6 +489,54 @@ describe("sync-feed workload — YouTube source", () => {
     expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
   });
 
+  it("throws IntegrationAuthError when the refresh token was revoked (401/400 from Google)", async () => {
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    mockRefreshAccessToken.mockRejectedValue(
+      new TokenRefreshAuthError(400, "Bad Request"),
+    );
+
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "test-client-id");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "test-client-secret");
+
+    // A revoked/expired refresh token is attributed to the connection, not
+    // treated as a transient failure to retry.
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
+  });
+
+  it("treats a non-auth token refresh failure (e.g. 5xx) as transient, not an IntegrationAuthError", async () => {
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    mockRefreshAccessToken.mockRejectedValue(
+      new Error("Token refresh failed: 503 Service Unavailable"),
+    );
+
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "test-client-id");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "test-client-secret");
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent({ attempt: 1 })),
+    ).rejects.toMatchObject({ name: "ErrorRetryAfterDelay" });
+  });
+
   it("throws ErrorDoNotRetry when no YouTube integration exists for the user", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeYouTubeFeed())
@@ -491,16 +549,42 @@ describe("sync-feed workload — YouTube source", () => {
     expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
   });
 
-  it("throws ErrorDoNotRetry when token is expired and no refresh token is stored", async () => {
+  it("throws IntegrationAuthError (a non-retryable failure) when token is expired and no refresh token is stored", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeYouTubeFeed())
       .mockResolvedValueOnce(makeIntegration({ refreshToken: null }));
 
     mockIsTokenExpired.mockReturnValue(true);
 
+    // IntegrationAuthError extends ErrorDoNotRetry — this failure is
+    // specifically attributable to the connected account, which is what
+    // lets persistPermanentSyncFailure mark the integration as well as the
+    // feed (see the "permanent failure persistence" describe block below).
     await expect(
       (handler as Function)(makeYouTubeEvent()),
-    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+  });
+
+  it("throws ServerConfigError (not persisted) when the Google OAuth client env vars are missing", async () => {
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "");
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "ServerConfigError" });
+
+    // A missing server-side OAuth secret is not the user's fault — nothing
+    // should be written to the feed or the integration for it.
+    expect(mockUpdateWhere).not.toHaveBeenCalled();
   });
 
   it("throws ErrorRetryAfterDelay when the channel RSS fetch fails on early attempts", async () => {
@@ -543,7 +627,8 @@ describe("sync-feed workload — YouTube source", () => {
     await (handler as Function)(makeYouTubeEvent());
 
     expect(mockInsert).not.toHaveBeenCalled();
-    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+    // Feed sync-status update + integration sync-status update.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
   });
 
   it("debounces YouTube feeds within the debounce window in scheduled mode", async () => {
@@ -555,5 +640,187 @@ describe("sync-feed workload — YouTube source", () => {
 
     expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// --- Permanent failure persistence (issue #110) ---
+
+describe("sync-feed workload — permanent failure persistence", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockUpdate.mockReturnValue({ set: mockUpdateSet });
+    mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });
+    mockUpdateWhere.mockResolvedValue(undefined);
+
+    mockInsert.mockReturnValue({ values: mockInsertValues });
+    mockInsertValues.mockReturnValue({
+      onConflictDoNothing: mockInsertOnConflict,
+    });
+    mockInsertOnConflict.mockReturnValue({ returning: mockInsertReturning });
+    mockInsertReturning.mockResolvedValue([]);
+
+    mockParseRssFeed.mockResolvedValue([]);
+    mockFetchNewUploadsForChannel.mockResolvedValue([]);
+    mockIsTokenExpired.mockReturnValue(false);
+  });
+
+  it("persists the error state and message on the feed for a permanent failure", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ source: "podcast" }));
+
+    await expect(
+      (handler as Function)(
+        makeEvent({
+          eventData: {
+            userId: 1,
+            feedId: 1,
+            sourceType: "rss",
+            mode: "scheduled",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "error",
+        syncError: expect.stringContaining("Source mismatch"),
+        syncFailedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it("does not persist a failure state for a transient (retryable) error", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: null }));
+    mockParseRssFeed.mockRejectedValue(new Error("Network timeout"));
+
+    await expect(
+      (handler as Function)(makeEvent({ attempt: 1 })),
+    ).rejects.toMatchObject({ name: "ErrorRetryAfterDelay" });
+
+    expect(mockUpdateWhere).not.toHaveBeenCalled();
+  });
+
+  it("does not mark any integration when no YouTube integration exists yet", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(undefined); // no YouTube integration found
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+
+    // Only the feed is updated. There is no integration row to mark as
+    // "needs reconnect" — the user was never connected, which
+    // SettingsConnections already communicates via connected: false.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "error",
+        syncError: expect.stringContaining("No YouTube account is connected"),
+      }),
+    );
+  });
+
+  it("also marks the backing integration when the token is expired with no refresh token", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(makeIntegration({ refreshToken: null }));
+    mockIsTokenExpired.mockReturnValue(true);
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    // One update for the feed, one for the integration: this is an
+    // IntegrationAuthError, since the connected account genuinely needs
+    // re-authorizing.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "error",
+        syncError: expect.stringContaining("Re-connect your YouTube account"),
+      }),
+    );
+  });
+
+  it("does not mark the integration when retries are exhausted on a transient YouTube error", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(makeIntegration());
+    mockFetchNewUploadsForChannel.mockRejectedValue(
+      new Error("503 Service Unavailable"),
+    );
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent({ attempt: 4 })),
+    ).rejects.toMatchObject({ name: "ErrorDoNotRetry" });
+
+    // A network flake that exhausted its retries says nothing about the
+    // connected account's health — only the feed is marked, not the
+    // integration.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a previously-recorded failure on the next successful sync", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ lastFetched: null }));
+
+    await (handler as Function)(makeEvent());
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "ok",
+        syncError: null,
+        syncFailedAt: null,
+      }),
+    );
+  });
+
+  it("clears a previously-recorded integration failure on the next successful YouTube sync", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(makeIntegration());
+    mockIsTokenExpired.mockReturnValue(false);
+    mockFetchNewUploadsForChannel.mockResolvedValue([]);
+
+    await (handler as Function)(makeYouTubeEvent());
+
+    // Feed clear + integration clear.
+    expect(mockUpdateWhere).toHaveBeenCalledTimes(2);
+    expect(mockUpdateSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        syncStatus: "ok",
+        syncError: null,
+        syncFailedAt: null,
+      }),
+    );
+  });
+
+  it("still surfaces the original sync failure when persisting the failure state itself errors", async () => {
+    mockFindFirst.mockResolvedValue(makeFeed({ source: "podcast" }));
+    mockUpdateWhere.mockRejectedValue(new Error("connection reset"));
+
+    // The permanent failure is a source mismatch — persistence blowing up
+    // must not replace it with the DB error, or the workload's blocked
+    // state would be driven by an incidental infra failure.
+    await expect(
+      (handler as Function)(
+        makeEvent({
+          eventData: {
+            userId: 1,
+            feedId: 1,
+            sourceType: "rss",
+            mode: "scheduled",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: "ErrorDoNotRetry",
+      message: expect.stringContaining("Source mismatch"),
+    });
   });
 });

@@ -17,6 +17,15 @@ const podItem = {
   source: "podcast",
   createdAt: null,
 };
+const failingItem = {
+  id: 3,
+  url: "https://failing.example.com/feed.xml",
+  title: "Failing Feed",
+  source: "rss",
+  createdAt: null,
+  syncStatus: "error",
+  syncError: "Feed unreachable — check the URL",
+};
 
 function stubFeeds(overrides: Partial<ReturnType<typeof makeStub>> = {}) {
   const stub = makeStub(overrides);
@@ -101,6 +110,34 @@ describe("SettingsFeeds", () => {
   it("matches snapshot with feeds", () => {
     const wrapper = shallowMount(SettingsFeeds);
     expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  describe("needs-attention indicator", () => {
+    it("shows a needs-attention badge for a feed with a sync error", () => {
+      stubFeeds({ items: [rssItem, failingItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.findAll(".feed-stat.error")).toHaveLength(1);
+    });
+
+    it("does not show a needs-attention badge for a healthy feed", () => {
+      stubFeeds({ items: [rssItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".feed-stat.error").exists()).toBe(false);
+    });
+
+    it("surfaces the sync error message as the badge title", () => {
+      stubFeeds({ items: [failingItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".feed-stat.error").attributes("title")).toBe(
+        "Feed unreachable — check the URL",
+      );
+    });
+
+    it("matches snapshot with a failing feed", () => {
+      stubFeeds({ items: [rssItem, failingItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.html()).toMatchSnapshot();
+    });
   });
 
   describe("detection confirmation UI", () => {

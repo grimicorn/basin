@@ -77,6 +77,41 @@ describe("useConnections", () => {
       await load();
       expect(error.value).toBeNull();
     });
+
+    it("marks needsReconnect when the integration's syncStatus is error", async () => {
+      mockFetch.mockResolvedValue([
+        { ...mockIntegration, syncStatus: "error", syncError: "Token expired" },
+      ]);
+      const { items, load } = useConnections();
+      await load();
+      const youtube = items.value.find(
+        (connection) => connection.id === "youtube",
+      );
+      expect(youtube?.needsReconnect).toBe(true);
+      expect(youtube?.syncError).toBe("Token expired");
+    });
+
+    it("leaves needsReconnect false when the integration's syncStatus is ok", async () => {
+      mockFetch.mockResolvedValue([
+        { ...mockIntegration, syncStatus: "ok", syncError: null },
+      ]);
+      const { items, load } = useConnections();
+      await load();
+      const youtube = items.value.find(
+        (connection) => connection.id === "youtube",
+      );
+      expect(youtube?.needsReconnect).toBe(false);
+      expect(youtube?.syncError).toBeNull();
+    });
+
+    it("leaves needsReconnect false for a disconnected provider", async () => {
+      mockFetch.mockResolvedValue([]);
+      const { items, load } = useConnections();
+      await load();
+      expect(
+        items.value.every((connection) => !connection.needsReconnect),
+      ).toBe(true);
+    });
   });
 
   describe("connect()", () => {

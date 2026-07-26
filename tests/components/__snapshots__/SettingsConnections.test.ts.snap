@@ -45,7 +45,7 @@ exports[`SettingsConnections > needs-reconnect indicator > matches snapshot with
         <div data-v-d3b98f0f="" class="conn-info">
           <div data-v-d3b98f0f="" class="conn-name">YouTube <span data-v-d3b98f0f="" class="live"></span></div>
           <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
-          <div data-v-d3b98f0f="" class="conn-since">@mychannel · Connected Jan 2024</div><span data-v-d3b98f0f="" class="feed-stat error" title="YouTube access token expired. Re-connect your YouTube account."><r-icon-stub data-v-d3b98f0f="" name="alertTriangle" size="12"></r-icon-stub> Needs reconnect </span>
+          <div data-v-d3b98f0f="" class="conn-since">@mychannel · Connected Jan 2024</div><span data-v-d3b98f0f="" class="feed-stat error" title="YouTube access token expired. Re-connect your YouTube account."><r-icon-stub data-v-d3b98f0f="" name="alertTriangle" size="12"></r-icon-stub> Needs reconnect</span>
         </div><button data-v-d3b98f0f="" class="btn">Disconnect</button>
       </div>
       <!--v-if-->

@@ -37,18 +37,23 @@
     "@neondatabase/serverless": "^1.1.0",
     "@netlify/async-workloads": "^0.0.106",
     "@netlify/functions": "^5.3.0",
-    "@pinia/nuxt": "^0.11.3",
+    "@pinia/nuxt": "^1.0.1",
     "@sentry/nuxt": "^10.68.0",
     "drizzle-orm": "^0.45.2",
     "nuxt": "^4.5.0",
-    "pinia": "^3.0.4",
+    "pinia": "^4.0.2",
     "rss-parser": "^3.13.0",
     "stripe": "^22.3.2"
   },
   "overrides": {
     "@netlify/sdk": "^5.0.4",
     "tmp": "^0.2.6",
-    "http-proxy-middleware": "^4.1.1"
+    "http-proxy-middleware": "^4.1.1",
+    "brace-expansion": "^5.0.8",
+    "minimatch": "^10.2.5",
+    "postcss": "^8.5.23",
+    "shell-quote": "^1.10.0",
+    "svgo": "^4.0.2"
   },
   "devDependencies": {
     "@clerk/backend": "^3.5.0",

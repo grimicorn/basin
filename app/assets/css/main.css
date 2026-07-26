@@ -290,6 +290,7 @@ body {
 .feed-stat {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   font-size: 10.5px;
   padding: 3px 8px;
   border-radius: 6px;

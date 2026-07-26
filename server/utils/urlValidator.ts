@@ -2,6 +2,34 @@ import { promises as dns } from "dns";
 
 const ALLOWED_SCHEMES = ["http:", "https:"];
 
+// "localhost" resolves to the loopback address via the OS hosts file, which
+// dns.resolve4/resolve6 do not consult (they query upstream DNS directly and
+// commonly get ENOTFOUND for it). Block the literal hostname up front rather
+// than relying on DNS resolution to catch it.
+const LOOPBACK_HOSTNAME = "localhost";
+
+function isLoopbackHostname(hostname: string): boolean {
+  // Strip a trailing dot (the FQDN root label, e.g. "localhost.") before
+  // comparing, since that's still the loopback name as far as DNS is
+  // concerned.
+  const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  return normalized === LOOPBACK_HOSTNAME;
+}
+
+// Thrown by the framework-agnostic validation core below. Callers in an H3
+// request context (server/api/**) translate this into an H3 error via
+// createError; callers outside H3 (e.g. Netlify Functions, which don't get
+// Nitro's createError auto-import) can catch and handle it directly.
+export class FeedUrlValidationError extends Error {
+  statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.name = "FeedUrlValidationError";
+    this.statusCode = statusCode;
+  }
+}
+
 // IPv4 CIDR ranges that must never be reached from the server side.
 // Covers loopback (127.0.0.0/8), RFC1918 private ranges (10/8, 172.16/12,
 // 192.168/16), link-local (169.254.0.0/16), and localhost (0.0.0.0).
@@ -92,6 +120,13 @@ function isBlockedIpv4MappedAddress(normalized: string): boolean {
 }
 
 function isBlockedIpv6(address: string): boolean {
+  // A bare hostname (e.g. "fdroid.org") never contains a colon, but a
+  // bracketed URL hostname ("[fd00::1]") or a resolved AAAA record
+  // ("fd00::1") always does. Without this guard the fc/fd ULA prefix check
+  // below matches on the first two characters of the string and false-
+  // positives on any domain name that happens to start with "fc" or "fd".
+  if (!address.includes(":")) return false;
+
   const normalized = stripIpv6Brackets(address).toLowerCase();
 
   // Loopback
@@ -137,60 +172,106 @@ async function resolveAllAddresses(hostname: string): Promise<string[]> {
   return addresses;
 }
 
-export async function validateFeedUrl(rawUrl: string): Promise<string> {
+// Framework-agnostic SSRF guard: resolves the hostname via DNS and rejects
+// anything that is, or resolves to, a loopback/RFC1918/link-local address.
+// Has no dependency on H3/Nitro, so it is safe to call from Nuxt server API
+// routes (server/api/**) AND from standalone Netlify Functions
+// (netlify/functions/**), which do not get Nitro's auto-imports (createError
+// included). Call this immediately before every fetch of a feed URL — not
+// just once at add time — so a hostname that resolved to a public IP earlier
+// but has since been re-pointed at a private IP (DNS rebinding) is caught on
+// the next add/sync attempt rather than being fetched indefinitely.
+//
+// Known limitation: this validates the hostname's DNS answer at check time,
+// it does not pin the connection to the resolved address. A resolver that
+// answers differently between this check and the caller's own fetch (a
+// classic TOCTOU DNS-rebinding attack within a single request) is not
+// defended against here — that would require the caller to fetch against
+// the specific IP this function resolved (e.g. a custom dispatcher/lookup),
+// which callers in this codebase do not currently do. What this function
+// does guarantee is that a feed is never fetched using a hostname whose DNS
+// answer, at validation time, points at a private/loopback/link-local
+// address.
+// Exposes the local dev / e2e test-host bypass on its own so callers that
+// need an additional check before delegating to resolvePublicFeedUrl (e.g.
+// feedValidator.ts restricting feed-add to https only) can still let an
+// allowlisted mock host through regardless of scheme, without duplicating
+// the NUXT_FEED_DISCOVERY_ALLOWED_HOSTS parsing logic.
+export function isAllowlistedFeedTestHost(rawUrl: string): boolean {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw createError({ statusCode: 400, statusMessage: "Invalid URL" });
-  }
-
-  if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "URL must use http or https",
-    });
+    return false;
   }
 
   const { hostname, port } = parsed;
   const hostWithPort = port ? `${hostname}:${port}` : hostname;
+  return allowedTestHosts().has(hostWithPort);
+}
+
+export async function resolvePublicFeedUrl(rawUrl: string): Promise<string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new FeedUrlValidationError(400, "Invalid URL");
+  }
+
+  if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
+    throw new FeedUrlValidationError(400, "URL must use http or https");
+  }
 
   // Allow explicitly allowlisted hosts (for local dev and e2e testing only).
-  if (allowedTestHosts().has(hostWithPort)) {
+  if (isAllowlistedFeedTestHost(rawUrl)) {
     return parsed.href;
   }
 
-  if (isBlockedAddress(hostname)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "URL resolves to a disallowed address",
-    });
+  const { hostname } = parsed;
+
+  if (isBlockedAddress(hostname) || isLoopbackHostname(hostname)) {
+    throw new FeedUrlValidationError(
+      400,
+      "URL resolves to a disallowed address",
+    );
   }
 
   let addresses: string[];
   try {
     addresses = await resolveAllAddresses(hostname);
   } catch {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "Could not resolve host",
-    });
+    throw new FeedUrlValidationError(400, "Could not resolve host");
   }
 
   if (addresses.length === 0) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "Could not resolve host",
-    });
+    throw new FeedUrlValidationError(400, "Could not resolve host");
   }
 
   const blockedAddress = addresses.find(isBlockedAddress);
   if (blockedAddress) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "URL resolves to a disallowed address",
-    });
+    throw new FeedUrlValidationError(
+      400,
+      "URL resolves to a disallowed address",
+    );
   }
 
   return parsed.href;
+}
+
+// H3-facing wrapper for use in Nuxt server API routes, where createError is
+// available via Nitro's auto-imports. Translates FeedUrlValidationError into
+// the equivalent H3 error so route handlers can keep throwing/catching H3
+// errors as before.
+export async function validateFeedUrl(rawUrl: string): Promise<string> {
+  try {
+    return await resolvePublicFeedUrl(rawUrl);
+  } catch (err) {
+    if (err instanceof FeedUrlValidationError) {
+      throw createError({
+        statusCode: err.statusCode,
+        statusMessage: err.message,
+      });
+    }
+    throw err;
+  }
 }

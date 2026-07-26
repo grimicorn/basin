@@ -13,6 +13,24 @@ function iconForProvider(id) {
   return "link";
 }
 
+function isBlueskyFormOpen(connection) {
+  return connection.id === "bluesky" && showBlueskyForm.value;
+}
+
+function showSince(connection) {
+  return (
+    connection.connected && Boolean(connection.account || connection.since)
+  );
+}
+
+function sinceText(connection) {
+  return [connection.account, connection.since].filter(Boolean).join(" · ");
+}
+
+function toggleLabel(connection) {
+  return connection.connected ? "Disconnect" : "Connect";
+}
+
 function toggleConn(connection) {
   if (connection.connected) {
     disconnect(connection.id);
@@ -46,14 +64,16 @@ const formatter = new Intl.ListFormat("en", {
   style: "long",
   type: "conjunction",
 });
+
+const providerNames = computed(() => items.value.map(({ name }) => name));
 </script>
 
 <template>
   <section class="set-section">
     <h2>Connected accounts</h2>
     <p class="desc">
-      Link {{ formatter.format(items.map(({ name }) => name)) }} to fold their
-      timelines into your feed.
+      Link {{ formatter.format(providerNames) }} to fold their timelines into
+      your feed.
     </p>
     <p v-if="error" class="desc conn-error">{{ error }}</p>
     <div class="conn-grid">
@@ -61,9 +81,7 @@ const formatter = new Intl.ListFormat("en", {
         v-for="connection in items"
         :key="connection.id"
         class="conn"
-        :class="{
-          'conn-expanded': connection.id === 'bluesky' && showBlueskyForm,
-        }"
+        :class="{ 'conn-expanded': isBlueskyFormOpen(connection) }"
       >
         <div class="conn-row">
           <span class="conn-ic" :style="{ '--c': connection.color }">
@@ -75,18 +93,17 @@ const formatter = new Intl.ListFormat("en", {
               <span v-if="connection.connected" class="live"></span>
             </div>
             <div class="conn-desc">{{ connection.desc }}</div>
-            <div
-              v-if="
-                connection.connected && (connection.account || connection.since)
-              "
-              class="conn-since"
-            >
-              {{
-                [connection.account, connection.since]
-                  .filter(Boolean)
-                  .join(" · ")
-              }}
+            <div v-if="showSince(connection)" class="conn-since">
+              {{ sinceText(connection) }}
             </div>
+            <span
+              v-if="connection.needsReconnect"
+              class="feed-stat error"
+              :title="connection.syncError ?? 'Needs reconnect'"
+            >
+              <RIcon name="alertTriangle" :size="12" />
+              Needs reconnect
+            </span>
           </div>
           <button
             class="btn"
@@ -94,13 +111,10 @@ const formatter = new Intl.ListFormat("en", {
             :disabled="loading"
             @click="toggleConn(connection)"
           >
-            {{ connection.connected ? "Disconnect" : "Connect" }}
+            {{ toggleLabel(connection) }}
           </button>
         </div>
-        <div
-          v-if="connection.id === 'bluesky' && showBlueskyForm"
-          class="bluesky-form"
-        >
+        <div v-if="isBlueskyFormOpen(connection)" class="bluesky-form">
           <p class="desc">
             Enter your Bluesky handle and an App Password from
             <a href="https://bsky.app/settings/app-passwords" target="_blank"

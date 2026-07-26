@@ -52,6 +52,7 @@ const nitroGlobals = {
   isError: "readonly",
   readBody: "readonly",
   getHeader: "readonly",
+  setHeader: "readonly",
   getRouterParam: "readonly",
   getCookie: "readonly",
   setCookie: "readonly",

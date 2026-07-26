@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as dnsModule from "dns";
 
 const { mockParseString, mockParseURL } = vi.hoisted(() => ({
   mockParseString: vi.fn(),
@@ -18,6 +19,12 @@ import {
   parsePodcastFeedFromXml,
   parsePodcastFeed,
 } from "../../../server/utils/podcastAdapter";
+
+// assertSafeFeedUrl (imported from rssAdapter) now delegates to the
+// DNS-resolving urlValidator, so a URL-based parse needs a mocked DNS
+// resolution to a public address to reach parser.parseURL.
+const mockResolve4 = vi.spyOn(dnsModule.promises, "resolve4");
+const mockResolve6 = vi.spyOn(dnsModule.promises, "resolve6");
 
 const FEED_ID = 7;
 
@@ -346,6 +353,11 @@ describe("parsePodcastFeedFromXml", () => {
 describe("parsePodcastFeed", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Default: resolve any hostname to a public IPv4 address so the URL
+    // reaches parser.parseURL. Tests below override with literal IPs/hostnames
+    // that are blocked before DNS resolution is even attempted.
+    mockResolve4.mockResolvedValue(["93.184.216.34"]);
+    mockResolve6.mockRejectedValue(new Error("ENODATA"));
   });
 
   it("fetches by URL and returns mapped items", async () => {
@@ -373,12 +385,27 @@ describe("parsePodcastFeed", () => {
   it("rejects localhost", async () => {
     await expect(
       parsePodcastFeed("http://localhost/podcast.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
   });
 
   it("rejects private IP ranges", async () => {
     await expect(
       parsePodcastFeed("http://192.168.1.1/podcast.xml", FEED_ID),
-    ).rejects.toThrow("not allowed");
+    ).rejects.toThrow("disallowed address");
+  });
+
+  it("rejects a hostname that resolves to a private IP (e.g. DNS rebinding on sync)", async () => {
+    // Mirrors the equivalent rssAdapter test: a domain that is not a blocked
+    // literal but DNS-resolves to an internal address must still be caught,
+    // and since parsePodcastFeed re-validates on every sync (not just at add
+    // time), a feed that rebinds after being added is rejected on its next
+    // scheduled sync.
+    mockResolve4.mockResolvedValueOnce(["172.16.0.9"]);
+    mockResolve6.mockRejectedValueOnce(new Error("ENODATA"));
+
+    await expect(
+      parsePodcastFeed("http://rebound.example.com/podcast.xml", FEED_ID),
+    ).rejects.toThrow("disallowed address");
+    expect(mockParseURL).not.toHaveBeenCalled();
   });
 });

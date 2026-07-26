@@ -194,6 +194,7 @@ config.global.stubs = {
   DashboardFeedGrid: true,
   DashboardFeedColumns: true,
   SettingsFeeds: true,
+  FeedOpmlActions: true,
   SettingsConnections: true,
   SettingsReading: true,
   SettingsAccount: true,

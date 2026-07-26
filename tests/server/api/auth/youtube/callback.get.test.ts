@@ -10,6 +10,9 @@ const mockGetYouTubeChannelHandle = vi.fn();
 const mockOnConflictDoUpdate = vi.fn();
 const mockValues = vi.fn();
 const mockInsert = vi.fn();
+const mockUpdate = vi.fn();
+const mockUpdateSet = vi.fn();
+const mockUpdateWhere = vi.fn();
 
 vi.stubGlobal("getQuery", mockGetQuery);
 vi.stubGlobal("getCookie", mockGetCookie);
@@ -18,7 +21,7 @@ vi.stubGlobal("getRequestURL", mockGetRequestURL);
 vi.stubGlobal("sendRedirect", mockSendRedirect);
 vi.stubGlobal("exchangeCodeForTokens", mockExchangeCodeForTokens);
 vi.stubGlobal("getYouTubeChannelHandle", mockGetYouTubeChannelHandle);
-vi.stubGlobal("useDb", () => ({ insert: mockInsert }));
+vi.stubGlobal("useDb", () => ({ insert: mockInsert, update: mockUpdate }));
 
 import handler from "../../../../../server/api/auth/youtube/callback.get";
 
@@ -37,6 +40,9 @@ describe("GET /api/auth/youtube/callback", () => {
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
     mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockUpdate.mockReturnValue({ set: mockUpdateSet });
+    mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });
+    mockUpdateWhere.mockResolvedValue(undefined);
     mockSendRedirect.mockResolvedValue(undefined);
     mockGetRequestURL.mockReturnValue(
       new URL("https://example.com/api/auth/youtube/callback"),
@@ -124,6 +130,37 @@ describe("GET /api/auth/youtube/callback", () => {
     expect(mockSendRedirect).toHaveBeenCalledWith(
       event,
       "/settings/connections",
+    );
+  });
+
+  it("clears any previously-recorded sync failure on the integration on (re)connect", async () => {
+    const event = { context: { user: { id: 1 } } };
+    mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });
+    mockGetCookie.mockReturnValue("state123");
+    await handler(event);
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          syncStatus: "ok",
+          syncError: null,
+          syncFailedAt: null,
+        }),
+      }),
+    );
+  });
+
+  it("also clears any previously-recorded sync failure on the user's YouTube feeds", async () => {
+    const event = { context: { user: { id: 1 } } };
+    mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });
+    mockGetCookie.mockReturnValue("state123");
+    await handler(event);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncStatus: "ok",
+        syncError: null,
+        syncFailedAt: null,
+      }),
     );
   });
 });

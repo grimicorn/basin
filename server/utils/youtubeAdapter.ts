@@ -45,6 +45,23 @@ export interface SubscriptionsPage {
   nextPageToken?: string;
 }
 
+// Google's token endpoint returns 400 (invalid_grant — the refresh token
+// was revoked, expired from inactivity, or the user changed their password)
+// or 401 (invalid_client) for a refresh token that can never succeed again.
+// Any other status (5xx, rate limiting) is treated as transient by the
+// caller instead.
+const AUTH_FAILURE_STATUS_CODES = new Set([400, 401]);
+
+export class TokenRefreshAuthError extends Error {
+  status: number;
+
+  constructor(status: number, statusText: string) {
+    super(`Token refresh failed: ${status} ${statusText}`);
+    this.name = "TokenRefreshAuthError";
+    this.status = status;
+  }
+}
+
 export function isTokenExpired(expiresAt: Date | null): boolean {
   if (!expiresAt) {
     return true;
@@ -73,6 +90,9 @@ export async function refreshAccessToken(
   });
 
   if (!response.ok) {
+    if (AUTH_FAILURE_STATUS_CODES.has(response.status)) {
+      throw new TokenRefreshAuthError(response.status, response.statusText);
+    }
     throw new Error(
       `Token refresh failed: ${response.status} ${response.statusText}`,
     );

@@ -12,6 +12,7 @@ exports[`SettingsConnections > matches snapshot 1`] = `
           <div data-v-d3b98f0f="" class="conn-name">YouTube <span data-v-d3b98f0f="" class="live"></span></div>
           <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
           <div data-v-d3b98f0f="" class="conn-since">@mychannel · Connected Jan 2024</div>
+          <!--v-if-->
         </div><button data-v-d3b98f0f="" class="btn">Disconnect</button>
       </div>
       <!--v-if-->
@@ -23,6 +24,40 @@ exports[`SettingsConnections > matches snapshot 1`] = `
             <!--v-if-->
           </div>
           <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
+          <!--v-if-->
+          <!--v-if-->
+        </div><button data-v-d3b98f0f="" class="btn btn-primary">Connect</button>
+      </div>
+      <!--v-if-->
+    </div>
+  </div>
+</section>"
+`;
+
+exports[`SettingsConnections > needs-reconnect indicator > matches snapshot with a connection needing reconnect 1`] = `
+"<section data-v-d3b98f0f="" class="set-section">
+  <h2 data-v-d3b98f0f="">Connected accounts</h2>
+  <p data-v-d3b98f0f="" class="desc"> Link YouTube and Bluesky to fold their timelines into your feed. </p>
+  <!--v-if-->
+  <div data-v-d3b98f0f="" class="conn-grid">
+    <div data-v-d3b98f0f="" class="conn">
+      <div data-v-d3b98f0f="" class="conn-row"><span data-v-d3b98f0f="" class="conn-ic" style="--c: var(--src-video);"><r-icon-stub data-v-d3b98f0f="" name="video" size="22"></r-icon-stub></span>
+        <div data-v-d3b98f0f="" class="conn-info">
+          <div data-v-d3b98f0f="" class="conn-name">YouTube <span data-v-d3b98f0f="" class="live"></span></div>
+          <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
+          <div data-v-d3b98f0f="" class="conn-since">@mychannel · Connected Jan 2024</div><span data-v-d3b98f0f="" class="feed-stat error" title="YouTube access token expired. Re-connect your YouTube account."><r-icon-stub data-v-d3b98f0f="" name="alertTriangle" size="12"></r-icon-stub> Needs reconnect </span>
+        </div><button data-v-d3b98f0f="" class="btn">Disconnect</button>
+      </div>
+      <!--v-if-->
+    </div>
+    <div data-v-d3b98f0f="" class="conn">
+      <div data-v-d3b98f0f="" class="conn-row"><span data-v-d3b98f0f="" class="conn-ic" style="--c: var(--src-tweet);"><r-icon-stub data-v-d3b98f0f="" name="chat" size="22"></r-icon-stub></span>
+        <div data-v-d3b98f0f="" class="conn-info">
+          <div data-v-d3b98f0f="" class="conn-name">Bluesky
+            <!--v-if-->
+          </div>
+          <div data-v-d3b98f0f="" class="conn-desc">Subscribe to channels</div>
+          <!--v-if-->
           <!--v-if-->
         </div><button data-v-d3b98f0f="" class="btn btn-primary">Connect</button>
       </div>

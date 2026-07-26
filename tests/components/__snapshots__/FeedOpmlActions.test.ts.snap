@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`FeedOpmlActions > matches snapshot in the default state 1`] = `
+"<div class="opml-actions"><input type="file" accept=".opml,.xml,text/x-opml,text/xml" class="opml-file-input" hidden=""><button class="btn">
+    <r-icon-stub name="upload" size="16"></r-icon-stub> Import OPML
+  </button><button class="btn">
+    <r-icon-stub name="download" size="16"></r-icon-stub> Export OPML
+  </button>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`FeedOpmlActions > matches snapshot with an import summary 1`] = `
+"<div class="opml-actions"><input type="file" accept=".opml,.xml,text/x-opml,text/xml" class="opml-file-input" hidden=""><button class="btn">
+    <r-icon-stub name="upload" size="16"></r-icon-stub> Import OPML
+  </button><button class="btn">
+    <r-icon-stub name="download" size="16"></r-icon-stub> Export OPML
+  </button>
+  <p class="desc opml-summary"> Imported 2 feeds , skipped 1: Bad Feed
+    <!--v-if-->
+  </p>
+</div>"
+`;

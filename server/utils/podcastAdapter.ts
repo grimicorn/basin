@@ -190,7 +190,7 @@ export async function parsePodcastFeed(
   url: string,
   feedId: number,
 ): Promise<NewFeedItem[]> {
-  assertSafeFeedUrl(url);
+  await assertSafeFeedUrl(url);
   const feed = (await podcastParser.parseURL(url)) as PodcastFeed;
   const channelItunesImage = feed["itunes:image"];
 

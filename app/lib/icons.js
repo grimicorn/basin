@@ -25,6 +25,10 @@ export const ICONS = {
   columns:
     '<rect x="3.5" y="4.5" width="5" height="15" rx="1.3"/><rect x="9.5" y="4.5" width="5" height="15" rx="1.3"/><rect x="15.5" y="4.5" width="5" height="15" rx="1.3"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-1.8 6"/><path d="M20 4v6h-6"/>',
+  upload:
+    '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  download:
+    '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   external:
     '<path d="M14 5h5v5M19 5l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
   play: '<path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" stroke="none"/>',
@@ -65,6 +69,8 @@ export const ICONS = {
     '<path d="M21.5 7.2a2.7 2.7 0 0 0-1.9-1.9C17.9 4.8 12 4.8 12 4.8s-5.9 0-7.6.5A2.7 2.7 0 0 0 2.5 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .5 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.6.5 7.6.5s5.9 0 7.6-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.5-4.8Z"/><path d="M10 15l5-3-5-3v6Z" fill="currentColor" stroke="none"/>',
   github:
     '<path d="M9 19c-4 1.2-4-2-6-2.5M15 21v-3.3a3 3 0 0 0-.8-2.2c2.6-.3 5.4-1.3 5.4-5.8a4.5 4.5 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6 0C10.4 1.5 9.4 1.8 9.4 1.8a4.2 4.2 0 0 0-.1 3.2A4.5 4.5 0 0 0 8 8.2c0 4.4 2.8 5.5 5.4 5.8a3 3 0 0 0-.8 2.1V21"/>',
+  alertTriangle:
+    '<path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 10v4.5"/><path d="M12 17.7h.01" stroke-width="2.4"/>',
 };
 
 // source meta

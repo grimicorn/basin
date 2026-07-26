@@ -12,6 +12,7 @@ import {
   isTokenExpired,
   refreshAccessToken,
   fetchNewUploadsForChannel,
+  TokenRefreshAuthError,
 } from "../../server/utils/youtubeAdapter";
 import {
   fetchNewBlueskyPosts,
@@ -20,8 +21,14 @@ import {
 } from "../../server/utils/blueskyAdapter";
 import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
+import {
+  IntegrationAuthError,
+  ServerConfigError,
+  persistPermanentSyncFailure,
+  persistSyncSuccess,
+} from "./syncFailureTracking";
 import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
-import type { SyncFeedEvent } from "./types";
+import type { SyncFeedEvent, SyncFeedEventData } from "./types";
 
 // Supported source types — expand as new adapters are added.
 const SUPPORTED_SOURCE_TYPES = new Set([
@@ -99,17 +106,6 @@ async function upsertFeedItems(
   return result.length;
 }
 
-async function markFeedSynced(
-  feedId: number,
-  syncedAt = new Date(),
-): Promise<void> {
-  const db = createDb();
-  await db
-    .update(feeds)
-    .set({ lastFetched: syncedAt })
-    .where(eq(feeds.id, feedId));
-}
-
 async function syncRssFeed(feedId: number, feedUrl: string): Promise<number> {
   const items = await parseRssFeed(feedUrl, feedId);
   return upsertFeedItems(feedId, items);
@@ -151,6 +147,28 @@ async function persistRefreshedToken(
     .where(eq(integrations.id, integrationId));
 }
 
+// Translates a token-endpoint auth failure (revoked/expired refresh token)
+// into IntegrationAuthError so it is attributed to the connection, not the
+// feed. Any other failure (network, 5xx) passes through unchanged so it
+// still gets the normal transient-retry treatment.
+async function refreshYouTubeToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string,
+) {
+  try {
+    return await refreshAccessToken(refreshToken, clientId, clientSecret);
+  } catch (error) {
+    if (error instanceof TokenRefreshAuthError) {
+      throw new IntegrationAuthError(
+        "youtube",
+        "YouTube authorization expired or was revoked. Re-connect your YouTube account.",
+      );
+    }
+    throw error;
+  }
+}
+
 async function resolveValidAccessToken(
   integration: NonNullable<Awaited<ReturnType<typeof fetchYouTubeIntegration>>>,
 ): Promise<string> {
@@ -159,7 +177,8 @@ async function resolveValidAccessToken(
   }
 
   if (!integration.refreshToken) {
-    throw new ErrorDoNotRetry(
+    throw new IntegrationAuthError(
+      "youtube",
       "YouTube access token expired and no refresh token is stored. Re-connect your YouTube account.",
     );
   }
@@ -168,12 +187,16 @@ async function resolveValidAccessToken(
   const clientSecret = process.env.NUXT_GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new ErrorDoNotRetry(
+    // Missing server config, not a broken feed or user connection — the
+    // token itself may be fine. persistPermanentSyncFailure skips
+    // ServerConfigError entirely so this internal detail is never shown to
+    // the user as a feed/integration failure.
+    throw new ServerConfigError(
       "NUXT_GOOGLE_CLIENT_ID and NUXT_GOOGLE_CLIENT_SECRET must be set to refresh YouTube tokens.",
     );
   }
 
-  const refreshed = await refreshAccessToken(
+  const refreshed = await refreshYouTubeToken(
     integration.refreshToken,
     clientId,
     clientSecret,
@@ -198,8 +221,12 @@ async function syncYouTubeFeed(
   const integration = await fetchYouTubeIntegration(userId);
 
   if (!integration) {
+    // No integration row exists yet, so there is nothing for
+    // IntegrationAuthError to mark — this is a feed-level message only, and
+    // must not embed the internal userId since it is persisted verbatim to
+    // feeds.syncError and rendered as the SettingsFeeds tooltip.
     throw new ErrorDoNotRetry(
-      `No YouTube integration found for user ${userId}. Re-connect your YouTube account.`,
+      "No YouTube account is connected. Connect YouTube in Settings.",
     );
   }
 
@@ -226,20 +253,24 @@ async function syncBlueskyFeed(
   const integration = await fetchBlueskyIntegration(userId);
 
   if (!integration) {
+    // No integration row exists yet — feed-level message only (see the
+    // matching YouTube case above for why userId is never embedded here).
     throw new ErrorDoNotRetry(
-      `No Bluesky integration found for user ${userId}. Connect Bluesky in Settings first.`,
+      "No Bluesky account is connected. Connect Bluesky in Settings.",
     );
   }
 
   if (!integration.tokenSecret) {
-    throw new ErrorDoNotRetry(
-      `Bluesky integration for user ${userId} is missing the app password. Reconnect Bluesky in Settings.`,
+    throw new IntegrationAuthError(
+      "bluesky",
+      "Your Bluesky app password is missing. Reconnect Bluesky in Settings.",
     );
   }
 
   if (!integration.providerUsername) {
-    throw new ErrorDoNotRetry(
-      `Bluesky integration for user ${userId} is missing the username. Reconnect Bluesky in Settings.`,
+    throw new IntegrationAuthError(
+      "bluesky",
+      "Your Bluesky username is missing. Reconnect Bluesky in Settings.",
     );
   }
 
@@ -287,8 +318,13 @@ async function runAdapter(
   return syncRssFeed(feedId, feed.url);
 }
 
-export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
-  const { userId, feedId, sourceType, mode } = event.eventData;
+// Resolves the feed this event targets, throwing ErrorDoNotRetry for every
+// permanent precondition failure (unsupported source, missing feed, source
+// mismatch) so the caller only has to handle the success path.
+async function resolveFeedForSync(
+  eventData: SyncFeedEventData,
+): Promise<FeedRecord> {
+  const { userId, feedId, sourceType } = eventData;
 
   if (!SUPPORTED_SOURCE_TYPES.has(sourceType)) {
     throw new ErrorDoNotRetry(
@@ -310,57 +346,44 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
     );
   }
 
-  if (mode === "scheduled" && isWithinDebounceWindow(feed.lastFetched)) {
-    console.log(
-      JSON.stringify({
-        event: "sync-feed.debounced",
-        feedId,
-        userId,
-        lastFetched: feed.lastFetched,
-      }),
-    );
-    return;
-  }
+  return feed;
+}
 
-  console.log(
-    JSON.stringify({
-      event: "sync-feed.start",
-      feedId,
-      userId,
-      sourceType,
-      mode,
-      attempt: event.attempt,
-    }),
-  );
+function logSyncEvent(
+  event: string,
+  fields: Record<string, unknown>,
+  level: "log" | "error" = "log",
+): void {
+  console[level](JSON.stringify({ event, ...fields }));
+}
 
-  // Capture the sync-start time before reading any pages so the watermark never
-  // advances past what was actually read. A post created after the first
-  // timeline page but before completion would otherwise be skipped forever.
-  const syncStartedAt = new Date();
+// Runs the source-specific adapter, translating adapter failures into the
+// workload's retry semantics: ErrorDoNotRetry propagates as-is, other errors
+// retry with a delay until the attempt cap is hit.
+async function runAdapterWithRetry(
+  feed: FeedRecord,
+  eventData: SyncFeedEventData,
+  attempt: number,
+): Promise<number> {
+  const { feedId, userId, sourceType } = eventData;
 
-  let itemsSynced: number;
   try {
-    itemsSynced = await runAdapter(feedId, userId, feed);
+    return await runAdapter(feedId, userId, feed);
   } catch (error) {
-    // ErrorDoNotRetry from adapters must propagate without wrapping.
     if (error instanceof ErrorDoNotRetry) {
       throw error;
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      JSON.stringify({
-        event: "sync-feed.error",
-        feedId,
-        userId,
-        attempt: event.attempt,
-        error: message,
-      }),
+    logSyncEvent(
+      "sync-feed.error",
+      { feedId, userId, attempt, error: message },
+      "error",
     );
 
-    if (event.attempt >= 4) {
+    if (attempt >= 4) {
       throw new ErrorDoNotRetry(
-        `Feed ${feedId} sync failed after ${event.attempt} attempts: ${message}`,
+        `Feed ${feedId} sync failed after ${attempt} attempts: ${message}`,
       );
     }
 
@@ -370,17 +393,102 @@ export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
       forceDelayTime: false,
     });
   }
+}
 
-  await markFeedSynced(feedId, syncStartedAt);
+async function processSyncFeedEvent(
+  eventData: SyncFeedEventData,
+  attempt: number,
+): Promise<void> {
+  const { userId, feedId, sourceType, mode } = eventData;
 
-  console.log(
-    JSON.stringify({
-      event: "sync-feed.complete",
+  const feed = await resolveFeedForSync(eventData);
+
+  if (mode === "scheduled" && isWithinDebounceWindow(feed.lastFetched)) {
+    logSyncEvent("sync-feed.debounced", {
       feedId,
       userId,
-      itemsSynced,
-    }),
-  );
+      lastFetched: feed.lastFetched,
+    });
+    return;
+  }
+
+  logSyncEvent("sync-feed.start", {
+    feedId,
+    userId,
+    sourceType,
+    mode,
+    attempt,
+  });
+
+  // Capture the sync-start time before reading any pages so the watermark never
+  // advances past what was actually read. A post created after the first
+  // timeline page but before completion would otherwise be skipped forever.
+  const syncStartedAt = new Date();
+
+  const itemsSynced = await runAdapterWithRetry(feed, eventData, attempt);
+
+  await persistSyncSuccess(userId, feedId, sourceType, syncStartedAt);
+
+  logSyncEvent("sync-feed.complete", { feedId, userId, itemsSynced });
+}
+
+// Persists a permanent failure without letting a persistence error replace
+// the real one: the workload's retry/blocked semantics must always be driven
+// by the sync failure itself, never by an incidental DB write failing while
+// recording it.
+async function recordPermanentFailure(
+  userId: number,
+  feedId: number,
+  error: ErrorDoNotRetry,
+): Promise<void> {
+  // ServerConfigError is intentionally never persisted (see
+  // syncFailureTracking.ts) — it's an operator problem, not a user-facing
+  // one — but it still needs to reach the logs so someone notices.
+  if (error instanceof ServerConfigError) {
+    logSyncEvent(
+      "sync-feed.server-config-error",
+      { feedId, userId, error: error.message },
+      "error",
+    );
+    return;
+  }
+
+  try {
+    await persistPermanentSyncFailure(userId, feedId, error);
+  } catch (persistError) {
+    logSyncEvent(
+      "sync-feed.persist-failure-error",
+      {
+        feedId,
+        userId,
+        originalError: error.message,
+        persistError:
+          persistError instanceof Error
+            ? persistError.message
+            : String(persistError),
+      },
+      "error",
+    );
+  }
+}
+
+export default asyncWorkloadFn<SyncFeedEvent>(async (event) => {
+  const { userId, feedId } = event.eventData;
+
+  try {
+    await processSyncFeedEvent(event.eventData, event.attempt);
+  } catch (error) {
+    // Permanent failures are the ones a user needs to act on (expired
+    // token, missing integration, source mismatch, etc.) — persist them so
+    // SettingsFeeds/SettingsConnections can surface a "needs attention"
+    // indicator. Transient ErrorRetryAfterDelay failures are left alone;
+    // they aren't yet a failure state worth showing the user.
+    if (error instanceof ErrorDoNotRetry) {
+      await recordPermanentFailure(userId, feedId, error);
+    }
+
+    throw error;
+  }
 });
 
 export const asyncWorkloadConfig: AsyncWorkloadConfig<SyncFeedEvent> = {

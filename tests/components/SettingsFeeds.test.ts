@@ -17,6 +17,15 @@ const podItem = {
   source: "podcast",
   createdAt: null,
 };
+const failingItem = {
+  id: 3,
+  url: "https://failing.example.com/feed.xml",
+  title: "Failing Feed",
+  source: "rss",
+  createdAt: null,
+  syncStatus: "error",
+  syncError: "Feed unreachable — check the URL",
+};
 
 function stubFeeds(overrides: Partial<ReturnType<typeof makeStub>> = {}) {
   const stub = makeStub(overrides);
@@ -30,6 +39,12 @@ function makeStub(
     error?: string | null;
     detectedSource?: "rss" | "podcast" | null;
     pendingFeedUrl?: string | null;
+    importing?: boolean;
+    exporting?: boolean;
+    importSummary?: {
+      importedCount: number;
+      skipped: { url: string; title: string | null; reason: string }[];
+    } | null;
   } = {},
 ) {
   return {
@@ -43,10 +58,15 @@ function makeStub(
     detectedSource: ref(overrides.detectedSource ?? null),
     sourceOverride: ref(null),
     pendingFeedUrl: ref(overrides.pendingFeedUrl ?? null),
+    importing: ref(overrides.importing ?? false),
+    exporting: ref(overrides.exporting ?? false),
+    importSummary: ref(overrides.importSummary ?? null),
     load: vi.fn(),
     add: vi.fn(),
     confirmAdd: vi.fn(),
     remove: vi.fn(),
+    importOpml: vi.fn(),
+    exportOpml: vi.fn(),
   };
 }
 
@@ -103,6 +123,34 @@ describe("SettingsFeeds", () => {
     expect(wrapper.html()).toMatchSnapshot();
   });
 
+  describe("needs-attention indicator", () => {
+    it("shows a needs-attention badge for a feed with a sync error", () => {
+      stubFeeds({ items: [rssItem, failingItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.findAll(".feed-stat.error")).toHaveLength(1);
+    });
+
+    it("does not show a needs-attention badge for a healthy feed", () => {
+      stubFeeds({ items: [rssItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".feed-stat.error").exists()).toBe(false);
+    });
+
+    it("surfaces the sync error message as the badge title", () => {
+      stubFeeds({ items: [failingItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.find(".feed-stat.error").attributes("title")).toBe(
+        "Feed unreachable — check the URL",
+      );
+    });
+
+    it("matches snapshot with a failing feed", () => {
+      stubFeeds({ items: [rssItem, failingItem] });
+      const wrapper = shallowMount(SettingsFeeds);
+      expect(wrapper.html()).toMatchSnapshot();
+    });
+  });
+
   describe("detection confirmation UI", () => {
     it("shows the detect-confirm panel when detectedSource and pendingFeedUrl are set", () => {
       stubFeeds({
@@ -154,6 +202,45 @@ describe("SettingsFeeds", () => {
       });
       const wrapper = shallowMount(SettingsFeeds);
       expect(wrapper.html()).toMatchSnapshot();
+    });
+  });
+
+  describe("OPML import/export wiring", () => {
+    // The actual file-picker and summary-rendering behavior lives in
+    // FeedOpmlActions.vue (tests/components/FeedOpmlActions.test.ts) —
+    // shallowMount stubs it here, so these tests only cover that
+    // SettingsFeeds wires its useFeeds() state and actions to it correctly.
+    it("passes importing, exporting, and importSummary to FeedOpmlActions", () => {
+      stubFeeds({
+        importing: true,
+        exporting: true,
+        importSummary: { importedCount: 2, skipped: [] },
+      });
+      const wrapper = shallowMount(SettingsFeeds);
+      const opmlActions = wrapper.find("feed-opml-actions-stub");
+      expect(opmlActions.attributes("importing")).toBe("true");
+      expect(opmlActions.attributes("exporting")).toBe("true");
+    });
+
+    it("calls importOpml when FeedOpmlActions emits import-file", async () => {
+      const stub = stubFeeds();
+      const wrapper = shallowMount(SettingsFeeds);
+      const file = new File(["<opml></opml>"], "feeds.opml", {
+        type: "text/x-opml",
+      });
+      await wrapper
+        .findComponent({ name: "FeedOpmlActions" })
+        .vm.$emit("import-file", file);
+      expect(stub.importOpml).toHaveBeenCalledWith(file);
+    });
+
+    it("calls exportOpml when FeedOpmlActions emits export", async () => {
+      const stub = stubFeeds();
+      const wrapper = shallowMount(SettingsFeeds);
+      await wrapper
+        .findComponent({ name: "FeedOpmlActions" })
+        .vm.$emit("export");
+      expect(stub.exportOpml).toHaveBeenCalled();
     });
   });
 });

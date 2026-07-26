@@ -33,6 +33,7 @@
   --font-mono:
     "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-body: var(--font-mono);
+  --font-serif: "Newsreader", Georgia, serif;
 
   /* accent (purple/lavender) — overridable by Tweaks */
   --accent: oklch(0.585 0.17 285);
@@ -280,11 +281,6 @@ body {
   padding: 0 22px;
   font-size: 14px;
 }
-.btn-sm {
-  min-height: 32px;
-  padding: 0 12px;
-  font-size: 12px;
-}
 
 /* feed / source status chips */
 .feed-stat {
@@ -388,24 +384,6 @@ body {
     transform: translateY(0);
   }
 }
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes popIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -468,10 +446,10 @@ body {
   animation: riseIn 0.5s var(--ease) both;
   animation-delay: calc(min(var(--i, 0), 8) * 45ms);
 }
+/* Dropping the animation also drops its `both` fill, so items fall back to
+   their natural opacity/transform — no need to restate either. */
 .reveal-done > * {
-  opacity: 1 !important;
-  transform: none !important;
-  animation: none !important;
+  animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .stagger {
@@ -540,7 +518,7 @@ body {
   font-size: 13px;
   color: var(--ink);
 }
-.field input::placeholder {
+.field ::placeholder {
   color: var(--faint);
 }
 
@@ -581,9 +559,6 @@ body {
   resize: vertical;
   min-height: 96px;
   line-height: 1.55;
-}
-.field textarea::placeholder {
-  color: var(--faint);
 }
 
 /* trailing validation icon */
@@ -738,7 +713,7 @@ body {
 :root[data-reading="serif"] .detail-prose p,
 :root[data-reading="serif"] .detail-title,
 :root[data-reading="serif"] .detail-tweet {
-  font-family: "Newsreader", Georgia, serif;
+  font-family: var(--font-serif);
 }
 :root[data-reading="serif"] .detail-prose p {
   font-size: 17.5px;
@@ -748,7 +723,7 @@ body {
   font-size: 14.5px;
 }
 :root[data-reading="serif"] .card-title {
-  font-family: "Newsreader", Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   font-size: 18px;
   letter-spacing: 0;

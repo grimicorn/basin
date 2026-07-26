@@ -1,4 +1,6 @@
 <script setup>
+const NEEDS_RECONNECT_LABEL = "Needs reconnect";
+
 const { items, loading, error, load, connect, connectBluesky, disconnect } =
   useConnections();
 onMounted(load);
@@ -15,6 +17,18 @@ function iconForProvider(id) {
 
 function isBlueskyFormOpen(connection) {
   return connection.id === "bluesky" && showBlueskyForm.value;
+}
+
+function connectionClass(connection) {
+  return { "conn-expanded": isBlueskyFormOpen(connection) };
+}
+
+function toggleButtonClass(connection) {
+  return { "btn-primary": !connection.connected };
+}
+
+function reconnectTitle(connection) {
+  return connection.syncError ?? NEEDS_RECONNECT_LABEL;
 }
 
 function showSince(connection) {
@@ -66,6 +80,10 @@ const formatter = new Intl.ListFormat("en", {
 });
 
 const providerNames = computed(() => items.value.map(({ name }) => name));
+
+const blueskySubmitDisabled = computed(
+  () => loading.value || !blueskyHandle.value || !blueskyAppPassword.value,
+);
 </script>
 
 <template>
@@ -81,7 +99,7 @@ const providerNames = computed(() => items.value.map(({ name }) => name));
         v-for="connection in items"
         :key="connection.id"
         class="conn"
-        :class="{ 'conn-expanded': isBlueskyFormOpen(connection) }"
+        :class="connectionClass(connection)"
       >
         <div class="conn-row">
           <span class="conn-ic" :style="{ '--c': connection.color }">
@@ -99,15 +117,15 @@ const providerNames = computed(() => items.value.map(({ name }) => name));
             <span
               v-if="connection.needsReconnect"
               class="feed-stat error"
-              :title="connection.syncError ?? 'Needs reconnect'"
+              :title="reconnectTitle(connection)"
             >
               <RIcon name="alertTriangle" :size="12" />
-              Needs reconnect
+              {{ NEEDS_RECONNECT_LABEL }}
             </span>
           </div>
           <button
             class="btn"
-            :class="{ 'btn-primary': !connection.connected }"
+            :class="toggleButtonClass(connection)"
             :disabled="loading"
             @click="toggleConn(connection)"
           >
@@ -139,7 +157,7 @@ const providerNames = computed(() => items.value.map(({ name }) => name));
           <div class="bluesky-actions">
             <button
               class="btn btn-primary"
-              :disabled="loading || !blueskyHandle || !blueskyAppPassword"
+              :disabled="blueskySubmitDisabled"
               @click="submitBlueskyForm"
             >
               Connect

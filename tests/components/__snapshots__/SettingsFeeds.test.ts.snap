@@ -90,6 +90,7 @@ exports[`SettingsFeeds > needs-attention indicator > matches snapshot with a fai
     </button>
   </div>
   <!--v-if-->
+  <feed-opml-actions-stub importing="false" exporting="false"></feed-opml-actions-stub>
   <div class="feed-list">
     <div class="feed-row"><span class="feed-ic" style="--c: var(--src-rss);"><r-icon-stub name="rss" size="16"></r-icon-stub></span>
       <div class="feed-info">

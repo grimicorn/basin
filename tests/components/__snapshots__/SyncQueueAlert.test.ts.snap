@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SyncQueueAlert > matches snapshot (hidden) 1`] = `"<!--v-if-->"`;
+
+exports[`SyncQueueAlert > matches snapshot (visible) 1`] = `
+"<div class="sync-queue-alert">
+  <app-alert-stub theme="warning" compact="" dismissible="" message="3 offline actions couldn't be synced and won't be retried automatically."></app-alert-stub>
+</div>"
+`;

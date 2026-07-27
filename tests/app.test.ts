@@ -14,6 +14,7 @@ describe("App", () => {
     expect(html).toContain("search-overlay-stub");
     expect(html).toContain("reader-detail-stub");
     expect(html).toContain("app-toast-stub");
+    expect(html).toContain("sync-queue-alert-stub");
   });
 
   it("matches snapshot", () => {

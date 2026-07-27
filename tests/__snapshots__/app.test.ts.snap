@@ -8,5 +8,6 @@ exports[`App > matches snapshot 1`] = `
   <search-overlay-stub></search-overlay-stub>
   <reader-detail-stub></reader-detail-stub>
   <app-toast-stub></app-toast-stub>
+  <sync-queue-alert-stub></sync-queue-alert-stub>
 </div>"
 `;

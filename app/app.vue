@@ -71,5 +71,6 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
     <SearchOverlay />
     <ReaderDetail />
     <AppToast />
+    <SyncQueueAlert />
   </div>
 </template>

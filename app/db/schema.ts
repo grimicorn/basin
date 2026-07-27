@@ -9,6 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { SYNC_QUEUE_STATUS } from "../utils/syncQueueStatus";
 
 // Client-side PGlite schema — feeds, feedItems, and syncQueue only.
 // Users/integrations/userSettings live in Neon only.
@@ -58,6 +59,14 @@ export const syncQueue = pgTable("sync_queue", {
   id: serial("id").primaryKey(),
   action: text("action").notNull(),
   payload: text("payload").notNull(),
+  // Retry bookkeeping — see useSyncQueue.ts. "status" flips to "failed" once
+  // an item is quarantined (permanent 4xx from /api/sync, or a transient
+  // failure that exhausted MAX_SYNC_ATTEMPTS); quarantined items are
+  // excluded from future flush passes so they never block items behind them.
+  attempts: integer("attempts").notNull().default(0),
+  status: text("status").notNull().default(SYNC_QUEUE_STATUS.PENDING),
+  lastError: text("last_error"),
+  failedAt: timestamp("failed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   syncedAt: timestamp("synced_at"),
 });

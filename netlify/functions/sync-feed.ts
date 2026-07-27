@@ -15,6 +15,12 @@ import {
   TokenRefreshAuthError,
 } from "../../server/utils/youtubeAdapter";
 import {
+  decryptNullableTokenTolerant,
+  decryptTokenTolerant,
+  encryptToken,
+  TokenEncryptionKeyError,
+} from "../../server/utils/crypto";
+import {
   fetchNewBlueskyPosts,
   BLUESKY_SOURCE,
   DEFAULT_POST_FILTER_POLICY,
@@ -63,9 +69,35 @@ async function fetchFeedRecord(
   });
 }
 
+// A missing/malformed TOKEN_ENCRYPTION_KEY is a server misconfiguration, not
+// this user's fault — the same category as the missing Google OAuth client
+// secret handled below (ServerConfigError), which persistPermanentSyncFailure
+// deliberately skips persisting. A decrypt failure with a well-formed key
+// (rotated/wrong key, corrupted ciphertext) means this connection's stored
+// credentials are genuinely unusable, so that case is treated like a revoked
+// token (IntegrationAuthError) and flagged "needs reconnect" instead of
+// being retried forever. Either way, the underlying error is logged rather
+// than embedded in the user-facing message, since that message is persisted
+// verbatim to syncError and rendered as a tooltip (see the comment on
+// syncYouTubeFeed's "No YouTube account is connected" message above).
+function mapDecryptFailureToSyncError(provider: string, error: unknown): Error {
+  if (error instanceof TokenEncryptionKeyError) {
+    console.error(`${provider} token decryption misconfigured:`, error);
+    return new ServerConfigError(
+      `TOKEN_ENCRYPTION_KEY is missing or invalid; cannot decrypt ${provider} credentials.`,
+    );
+  }
+
+  console.error(`${provider} token decryption failed:`, error);
+  return new IntegrationAuthError(
+    provider,
+    `Your ${provider} connection could not be verified. Reconnect ${provider} in Settings.`,
+  );
+}
+
 async function fetchBlueskyIntegration(userId: number) {
   const db = createDb();
-  return db.query.integrations.findFirst({
+  const integration = await db.query.integrations.findFirst({
     where: and(
       eq(integrations.userId, userId),
       eq(integrations.provider, "bluesky"),
@@ -78,6 +110,21 @@ async function fetchBlueskyIntegration(userId: number) {
       providerUsername: true,
     },
   });
+
+  if (!integration) {
+    return integration;
+  }
+
+  try {
+    return {
+      ...integration,
+      accessToken: decryptTokenTolerant(integration.accessToken),
+      refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
+      tokenSecret: decryptNullableTokenTolerant(integration.tokenSecret),
+    };
+  } catch (error) {
+    throw mapDecryptFailureToSyncError("bluesky", error);
+  }
 }
 
 function isWithinDebounceWindow(lastFetched: Date | null): boolean {
@@ -121,7 +168,7 @@ async function syncPodcastFeed(
 
 async function fetchYouTubeIntegration(userId: number) {
   const db = createDb();
-  return db.query.integrations.findFirst({
+  const integration = await db.query.integrations.findFirst({
     where: and(
       eq(integrations.userId, userId),
       eq(integrations.provider, "youtube"),
@@ -133,6 +180,20 @@ async function fetchYouTubeIntegration(userId: number) {
       expiresAt: true,
     },
   });
+
+  if (!integration) {
+    return integration;
+  }
+
+  try {
+    return {
+      ...integration,
+      accessToken: decryptTokenTolerant(integration.accessToken),
+      refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
+    };
+  } catch (error) {
+    throw mapDecryptFailureToSyncError("youtube", error);
+  }
 }
 
 async function persistRefreshedToken(
@@ -143,7 +204,11 @@ async function persistRefreshedToken(
   const db = createDb();
   await db
     .update(integrations)
-    .set({ accessToken, expiresAt, updatedAt: new Date() })
+    .set({
+      accessToken: encryptToken(accessToken),
+      expiresAt,
+      updatedAt: new Date(),
+    })
     .where(eq(integrations.id, integrationId));
 }
 

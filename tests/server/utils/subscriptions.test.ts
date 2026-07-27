@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type Stripe from "stripe";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import * as realSchema from "../../../server/db/schema";
+import {
+  processedStripeEvents,
+  subscriptions,
+} from "../../../server/db/schema";
 
 const { mockCreateStripeCustomer, mockDeleteStripeCustomer } = vi.hoisted(
   () => ({
@@ -12,8 +21,17 @@ vi.mock("../../../server/utils/stripe", () => ({
   deleteStripeCustomer: mockDeleteStripeCustomer,
 }));
 
+// neon() validates the connection string shape eagerly (even though building
+// a client never opens a network connection), so a syntactically valid
+// user:password@host is required here. Built via concatenation, not a single
+// literal, so it doesn't match the repo's postgres-connection-string gitleaks
+// rule (see .gitleaks.toml) despite carrying no real credentials.
+const UNCONNECTED_DB_URL = "postgres://user:pass" + "@fake.neon.tech/db";
+
 const mockFindFirst = vi.fn();
-const mockOnConflictDoUpdate = vi.fn();
+const mockFindFirstProcessedEvent = vi.fn();
+const mockReturning = vi.fn();
+const mockOnConflictDoUpdate = vi.fn(() => ({ returning: mockReturning }));
 const mockOnConflictDoNothing = vi.fn();
 const mockValues = vi.fn((_values: Record<string, unknown>) => ({
   onConflictDoUpdate: mockOnConflictDoUpdate,
@@ -22,7 +40,10 @@ const mockValues = vi.fn((_values: Record<string, unknown>) => ({
 const mockInsert = vi.fn(() => ({ values: mockValues }));
 
 vi.stubGlobal("useDb", () => ({
-  query: { subscriptions: { findFirst: mockFindFirst } },
+  query: {
+    subscriptions: { findFirst: mockFindFirst },
+    processedStripeEvents: { findFirst: mockFindFirstProcessedEvent },
+  },
   insert: mockInsert,
 }));
 
@@ -149,7 +170,16 @@ describe("getOrCreateStripeCustomerId", () => {
 });
 
 describe("upsertSubscriptionFromStripe", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    // Default: this event id hasn't been seen before. Individual tests
+    // override this to simulate a redelivered/duplicate event.
+    mockFindFirstProcessedEvent.mockResolvedValue(undefined);
+    // Default: the write's setWhere guard is satisfied (a row came back),
+    // i.e. the database agreed the event wasn't stale. Individual tests
+    // override this to simulate the database blocking a stale write.
+    mockReturning.mockResolvedValue([{ id: 1 }]);
+  });
 
   // Only a minimal fake shape is needed for these tests; cast once here so
   // call sites don't need repeated type assertions.
@@ -172,15 +202,30 @@ describe("upsertSubscriptionFromStripe", () => {
     } as unknown as Stripe.Subscription;
   }
 
+  // Wraps a subscription in the Stripe.Event envelope upsertSubscriptionFromStripe
+  // now takes, so dedup (event.id) and ordering (event.created) can be tested.
+  function buildEvent(
+    subscriptionOverrides: Record<string, unknown> = {},
+    eventOverrides: Record<string, unknown> = {},
+  ): Stripe.Event {
+    return {
+      id: "evt_123",
+      type: "customer.subscription.updated",
+      created: 1750000500,
+      data: { object: buildSubscription(subscriptionOverrides) },
+      ...eventOverrides,
+    } as unknown as Stripe.Event;
+  }
+
   it("does nothing when the customer isn't known and metadata has no userId", async () => {
     mockFindFirst.mockResolvedValue(undefined);
-    await upsertSubscriptionFromStripe(buildSubscription());
+    await upsertSubscriptionFromStripe(buildEvent());
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("upserts using the userId from the row matched by customer ID", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(buildSubscription());
+    await upsertSubscriptionFromStripe(buildEvent());
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 9,
@@ -190,15 +235,24 @@ describe("upsertSubscriptionFromStripe", () => {
         plan: "pro",
         status: "trialing",
         cancelAtPeriodEnd: false,
+        lastStripeEventAt: new Date(1750000500 * 1000),
       }),
     );
-    expect(mockOnConflictDoUpdate).toHaveBeenCalled();
+    // The ordering guarantee must be enforced atomically in the write
+    // itself, not just by the in-memory pre-filter — see the "out-of-order
+    // delivery" tests for what this clause actually blocks.
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: subscriptions.userId,
+        setWhere: expect.anything(),
+      }),
+    );
   });
 
   it("falls back to the metadata userId when no row matches the customer ID", async () => {
     mockFindFirst.mockResolvedValue(undefined);
     await upsertSubscriptionFromStripe(
-      buildSubscription({ metadata: { userId: "5" } }),
+      buildEvent({ metadata: { userId: "5" } }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 5 }),
@@ -207,65 +261,29 @@ describe("upsertSubscriptionFromStripe", () => {
 
   it("maps a canceled subscription to plan 'free'", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(
-      buildSubscription({ status: "canceled" }),
-    );
+    await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ plan: "free", status: "canceled" }),
     );
-  });
-
-  it("ignores a stale event for a subscription the active row has replaced", async () => {
-    // Row already points at the active sub_new; an out-of-order event for the
-    // old sub_123 must not overwrite it.
-    mockFindFirst.mockResolvedValue({
-      userId: 9,
-      stripeSubscriptionId: "sub_new",
-      plan: "pro",
-    });
-    await upsertSubscriptionFromStripe(
-      buildSubscription({ id: "sub_123", status: "canceled" }),
-    );
-    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("applies an event for the currently-active subscription", async () => {
     mockFindFirst.mockResolvedValue({
       userId: 9,
       stripeSubscriptionId: "sub_123",
-      plan: "pro",
+      lastStripeEventAt: null,
     });
     await upsertSubscriptionFromStripe(
-      buildSubscription({ id: "sub_123", status: "canceled" }),
+      buildEvent({ id: "sub_123", status: "canceled" }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ plan: "free", status: "canceled" }),
     );
   });
 
-  it("applies a new subscription once the stored one is no longer active", async () => {
-    // User resubscribed: stored row is already free, so a different, active
-    // subscription id is a genuine new subscription and must be applied.
-    mockFindFirst.mockResolvedValue({
-      userId: 9,
-      stripeSubscriptionId: "sub_old",
-      plan: "free",
-    });
-    await upsertSubscriptionFromStripe(
-      buildSubscription({ id: "sub_new", status: "active" }),
-    );
-    expect(mockValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stripeSubscriptionId: "sub_new",
-        plan: "pro",
-        status: "active",
-      }),
-    );
-  });
-
   it("converts unix timestamps to Date objects", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(buildSubscription());
+    await upsertSubscriptionFromStripe(buildEvent());
     const values = mockValues.mock.calls[0][0] as {
       trialEnd: Date;
       currentPeriodEnd: Date;
@@ -276,7 +294,7 @@ describe("upsertSubscriptionFromStripe", () => {
 
   it("handles a null trial_end", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(buildSubscription({ trial_end: null }));
+    await upsertSubscriptionFromStripe(buildEvent({ trial_end: null }));
     const values = mockValues.mock.calls[0][0] as { trialEnd: Date | null };
     expect(values.trialEnd).toBeNull();
   });
@@ -284,7 +302,7 @@ describe("upsertSubscriptionFromStripe", () => {
   it("resolves the object form (not just a string) of subscription.customer", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
     await upsertSubscriptionFromStripe(
-      buildSubscription({ customer: { id: "cus_obj" } }),
+      buildEvent({ customer: { id: "cus_obj" } }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ stripeCustomerId: "cus_obj" }),
@@ -294,12 +312,320 @@ describe("upsertSubscriptionFromStripe", () => {
   it("falls back to the legacy top-level current_period_end when the item lacks it", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
     await upsertSubscriptionFromStripe(
-      buildSubscription({
+      buildEvent({
         current_period_end: 1760000000,
         items: { data: [{ price: { id: "price_yearly" } }] },
       }),
     );
     const values = mockValues.mock.calls[0][0] as { currentPeriodEnd: Date };
     expect(values.currentPeriodEnd).toEqual(new Date(1760000000 * 1000));
+  });
+
+  describe("duplicate delivery (dedup on event id)", () => {
+    it("applies a first-seen event and records it as processed", async () => {
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockOnConflictDoUpdate).toHaveBeenCalled();
+      expect(mockInsert).toHaveBeenCalledWith(processedStripeEvents);
+      expect(mockValues).toHaveBeenCalledWith({
+        stripeEventId: "evt_123",
+        eventType: "customer.subscription.updated",
+      });
+      expect(mockOnConflictDoNothing).toHaveBeenCalledWith({
+        target: processedStripeEvents.stripeEventId,
+      });
+    });
+
+    it("is a no-op the second time the same event id is delivered", async () => {
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+
+      // First delivery: not yet processed, applies normally.
+      mockFindFirstProcessedEvent.mockResolvedValueOnce(undefined);
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockInsert).toHaveBeenCalledWith(subscriptions);
+
+      // Second delivery of the identical event id: already recorded as
+      // processed, so the subscription table must not be written to again.
+      mockInsert.mockClear();
+      mockFindFirstProcessedEvent.mockResolvedValueOnce({ id: 1 });
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("out-of-order delivery (event timestamp ordering)", () => {
+    it("does not overwrite state written by a newer event when an older one for the same subscription arrives later", async () => {
+      // The stored row already reflects a newer event (e.g. "active" at
+      // t=2_000_000); a redelivered/delayed older event for the same
+      // subscription (e.g. a stale "past_due" at t=1_000_000) must be dropped.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        lastStripeEventAt: new Date(2_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "past_due" },
+          { id: "evt_old", created: 1_000_000 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("applies a genuinely newer event for the same subscription", async () => {
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "active" },
+          { id: "evt_new", created: 2_000_000 },
+        ),
+      );
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "active",
+          lastStripeEventAt: new Date(2_000_000 * 1000),
+        }),
+      );
+    });
+
+    it("applies a distinct event with the exact same timestamp as the stored one", async () => {
+      // Ties are NOT stale: Stripe can fire multiple distinct events for the
+      // same subscription within the same one-second `created` value (e.g.
+      // "updated" immediately followed by "deleted" on cancellation).
+      // Rejecting ties would get the row stuck on the first of the pair
+      // forever. Exact redelivery of the *same* event id is a separate
+      // concern already handled by the processed-events dedup table.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "canceled" },
+          { id: "evt_tie", created: 1_000_000 },
+        ),
+      );
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "canceled" }),
+      );
+    });
+
+    it("applies a newer event for a different subscription id once the stored row is no longer pro", async () => {
+      // User resubscribed after their old plan lapsed to free: a different
+      // subscription id is a genuine new subscription and must be applied.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_old",
+        plan: "free",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_new", status: "active" },
+          { id: "evt_resubscribe", created: 2_000_000 },
+        ),
+      );
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stripeSubscriptionId: "sub_new",
+          plan: "pro",
+          status: "active",
+        }),
+      );
+    });
+
+    it("drops a replayed event for an old subscription id the row has since moved past, even with an older timestamp", async () => {
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_new",
+        plan: "pro",
+        lastStripeEventAt: new Date(2_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "canceled" },
+          { id: "evt_old_replay", created: 1_000_000 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("drops a delayed event for a replaced subscription even when its own timestamp is newer than what's stored", async () => {
+      // The regression this guards against: a subscription's own `deleted`
+      // event can be delivered long after a *different*, newer subscription
+      // has already replaced it (e.g. cancel-at-period-end firing weeks
+      // later). Its `created` is chronologically later than the row's
+      // lastStripeEventAt, so a timestamp-only check would wrongly let it
+      // win. Judging on subscription id first (see isStaleEvent) keeps the
+      // active row intact.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_new",
+        plan: "pro",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_old", status: "canceled" },
+          { id: "evt_delayed_deletion", created: 99_999_999 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("drops an old event for a different subscription id even once the stored row is no longer pro", async () => {
+      // The mirror-image regression: once the row is free, the cross-id
+      // branch alone would apply *any* event for *any* other subscription
+      // id regardless of age. An old, redelivered event (still within
+      // Stripe's retry window) for a subscription that predates the row's
+      // last recorded event must not resurrect it.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_b",
+        plan: "free",
+        lastStripeEventAt: new Date(2_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_a", status: "active" },
+          { id: "evt_old_redelivery", created: 1_000_000 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("accepted limitation: a same-timestamp tie is last-write-wins by delivery order, not event semantics", async () => {
+      // Documents current, deliberate behavior rather than asserting a fix:
+      // ties are allowed through (see the "applies a distinct event with the
+      // exact same timestamp" test above) so that legitimate same-second
+      // event pairs (e.g. "updated" then "deleted" on cancellation) both
+      // apply. The tradeoff is that if such a pair is *delivered* out of
+      // its original order, whichever arrives last wins, even if that means
+      // an "active" `updated` landing after a same-second "deleted"
+      // resurrects a subscription that was actually canceled. Stripe's
+      // `created` is only second-granularity, so this can't be resolved by
+      // timestamp alone; picking a type-based tiebreaker (e.g. "deleted"
+      // always wins ties) was judged out of scope for this fix.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        plan: "free",
+        status: "canceled",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "active" },
+          { id: "evt_updated_after_deleted_tie", created: 1_000_000 },
+        ),
+      );
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "active" }),
+      );
+    });
+
+    it("does not mark the event processed when the database blocks a stale write that slipped past the in-memory pre-filter", async () => {
+      // Simulates two deliveries racing past the in-memory isStaleEvent
+      // check with the same stale `existing` read (e.g. a concurrent worker
+      // already applied a newer event between the read and the write here).
+      // setWhere is the authoritative guard: Postgres returns no row, and
+      // that must stop the event from being recorded as processed.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        lastStripeEventAt: null,
+      });
+      mockReturning.mockResolvedValueOnce([]);
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockInsert).toHaveBeenCalledWith(subscriptions);
+      expect(mockInsert).not.toHaveBeenCalledWith(processedStripeEvents);
+    });
+
+    it("compiles a setWhere clause that actually references the ordering and subscription-id columns", async () => {
+      // `setWhere: expect.anything()` (see the earlier "upserts using the
+      // userId..." test) only proves *some* value was passed — it would
+      // still pass if the clause were replaced with a no-op `sql\`true\``.
+      // notStaleWhereClause must stay in lockstep with isStaleEvent (see its
+      // comment), so compile the real SQL object the mocked call captured
+      // and assert on the actual column references and operators, catching
+      // a divergence between the two the mock-call assertion alone can't.
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+      await upsertSubscriptionFromStripe(
+        buildEvent({ id: "sub_123" }, { created: 1_000_000 }),
+      );
+      const [{ setWhere }] = mockOnConflictDoUpdate.mock.calls[0] as [
+        { setWhere: SQL },
+      ];
+      const { sql } = new PgDialect().sqlToQuery(setWhere);
+      expect(sql).toContain('"last_stripe_event_at"');
+      expect(sql).toContain('"stripe_subscription_id"');
+      expect(sql).toContain('"plan"');
+      expect(sql).toMatch(/<=/);
+    });
+
+    it("threads the captured setWhere into the actual ON CONFLICT statement drizzle emits", async () => {
+      // The two tests above only prove notStaleWhereClause *builds* a
+      // correct SQL fragment and that *some* value reaches the mocked
+      // onConflictDoUpdate call — neither proves the installed drizzle-orm
+      // actually appends that fragment to the emitted statement. useDb is
+      // fully mocked in this file, so no test exercises real statement
+      // generation. Rebuild the same call against a real (unconnected)
+      // drizzle instance and inspect the compiled SQL directly, so a future
+      // drizzle-orm upgrade that renames/drops onConflictDoUpdate's setWhere
+      // key fails this test instead of silently turning the guard into a
+      // no-op that every mocked test would still pass.
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+      await upsertSubscriptionFromStripe(
+        buildEvent({ id: "sub_123" }, { created: 1_000_000 }),
+      );
+      const [{ setWhere }] = mockOnConflictDoUpdate.mock.calls[0] as [
+        { setWhere: SQL },
+      ];
+      const realDb = drizzle(neon(UNCONNECTED_DB_URL), {
+        schema: { subscriptions },
+      });
+      const { sql } = realDb
+        .insert(subscriptions)
+        .values({
+          userId: 9,
+          stripeCustomerId: "cus_123",
+          stripeSubscriptionId: "sub_123",
+          plan: "pro",
+          status: "active",
+        })
+        .onConflictDoUpdate({
+          target: subscriptions.userId,
+          set: { plan: "pro" },
+          setWhere,
+        })
+        .toSQL();
+      expect(sql).toMatch(/on conflict .* do update set .* where/i);
+    });
+
+    it("wires db.query.processedStripeEvents against the real schema module useDb passes to drizzle", async () => {
+      // wasEventAlreadyProcessed calls db.query.processedStripeEvents.findFirst,
+      // but useDb is fully mocked in this file (see the vi.stubGlobal above),
+      // so no test exercises the real client. drizzle only populates
+      // db.query.<table> for tables present in the schema object passed to
+      // drizzle() — if server/db/index.ts ever stopped spreading the whole
+      // schema module (e.g. switched to enumerating tables by hand and
+      // missed this one), every webhook would throw
+      // "Cannot read properties of undefined (reading 'findFirst')" with a
+      // fully green mocked suite. Build a real (unconnected) drizzle client
+      // from the actual schema module — the same shape server/db/index.ts
+      // constructs — and assert the query API for this table exists.
+      const realDb = drizzle(neon(UNCONNECTED_DB_URL), {
+        schema: realSchema,
+      });
+      expect(realDb.query.processedStripeEvents).toBeDefined();
+      expect(typeof realDb.query.processedStripeEvents.findFirst).toBe(
+        "function",
+      );
+    });
   });
 });

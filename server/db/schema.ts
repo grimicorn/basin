@@ -138,9 +138,35 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodEnd: timestamp("current_period_end"),
   trialEnd: timestamp("trial_end"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  // The Stripe event `created` timestamp of the last event applied to this
+  // row. Stripe does not guarantee webhook delivery order, so a redelivered
+  // older event must be detected and dropped rather than overwriting state
+  // written by a newer one — see isStaleEvent in server/utils/subscriptions.ts.
+  lastStripeEventAt: timestamp("last_stripe_event_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Dedup log for Stripe webhook events: Stripe explicitly documents that
+// webhooks may be delivered more than once for the same event. Recording the
+// event id here lets the webhook handler treat a redelivery as a no-op
+// instead of reapplying it. Rows are append-only and unbounded — no prune
+// job ships yet (@todo add a scheduled cleanup, mirroring the pattern in
+// netlify/functions/, deleting processed_at older than Stripe's ~3-day retry
+// window; processed_stripe_events_processed_at_idx below exists to support
+// that future query).
+export const processedStripeEvents = pgTable(
+  "processed_stripe_events",
+  {
+    id: serial("id").primaryKey(),
+    stripeEventId: text("stripe_event_id").notNull().unique(),
+    eventType: text("event_type").notNull(),
+    processedAt: timestamp("processed_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("processed_stripe_events_processed_at_idx").on(table.processedAt),
+  ],
+);
 
 export const userSettings = pgTable("user_settings", {
   userId: integer("user_id")

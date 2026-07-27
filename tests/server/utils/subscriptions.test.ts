@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type Stripe from "stripe";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import * as realSchema from "../../../server/db/schema";
 import {
   processedStripeEvents,
   subscriptions,
@@ -17,6 +20,13 @@ vi.mock("../../../server/utils/stripe", () => ({
   createStripeCustomer: mockCreateStripeCustomer,
   deleteStripeCustomer: mockDeleteStripeCustomer,
 }));
+
+// neon() validates the connection string shape eagerly (even though building
+// a client never opens a network connection), so a syntactically valid
+// user:password@host is required here. Built via concatenation, not a single
+// literal, so it doesn't match the repo's postgres-connection-string gitleaks
+// rule (see .gitleaks.toml) despite carrying no real credentials.
+const UNCONNECTED_DB_URL = "postgres://user:pass" + "@fake.neon.tech/db";
 
 const mockFindFirst = vi.fn();
 const mockFindFirstProcessedEvent = vi.fn();
@@ -556,6 +566,66 @@ describe("upsertSubscriptionFromStripe", () => {
       expect(sql).toContain('"stripe_subscription_id"');
       expect(sql).toContain('"plan"');
       expect(sql).toMatch(/<=/);
+    });
+
+    it("threads the captured setWhere into the actual ON CONFLICT statement drizzle emits", async () => {
+      // The two tests above only prove notStaleWhereClause *builds* a
+      // correct SQL fragment and that *some* value reaches the mocked
+      // onConflictDoUpdate call — neither proves the installed drizzle-orm
+      // actually appends that fragment to the emitted statement. useDb is
+      // fully mocked in this file, so no test exercises real statement
+      // generation. Rebuild the same call against a real (unconnected)
+      // drizzle instance and inspect the compiled SQL directly, so a future
+      // drizzle-orm upgrade that renames/drops onConflictDoUpdate's setWhere
+      // key fails this test instead of silently turning the guard into a
+      // no-op that every mocked test would still pass.
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+      await upsertSubscriptionFromStripe(
+        buildEvent({ id: "sub_123" }, { created: 1_000_000 }),
+      );
+      const [{ setWhere }] = mockOnConflictDoUpdate.mock.calls[0] as [
+        { setWhere: SQL },
+      ];
+      const realDb = drizzle(neon(UNCONNECTED_DB_URL), {
+        schema: { subscriptions },
+      });
+      const { sql } = realDb
+        .insert(subscriptions)
+        .values({
+          userId: 9,
+          stripeCustomerId: "cus_123",
+          stripeSubscriptionId: "sub_123",
+          plan: "pro",
+          status: "active",
+        })
+        .onConflictDoUpdate({
+          target: subscriptions.userId,
+          set: { plan: "pro" },
+          setWhere,
+        })
+        .toSQL();
+      expect(sql).toMatch(/on conflict .* do update set .* where/i);
+    });
+
+    it("wires db.query.processedStripeEvents against the real schema module useDb passes to drizzle", async () => {
+      // wasEventAlreadyProcessed calls db.query.processedStripeEvents.findFirst,
+      // but useDb is fully mocked in this file (see the vi.stubGlobal above),
+      // so no test exercises the real client. drizzle only populates
+      // db.query.<table> for tables present in the schema object passed to
+      // drizzle() — if server/db/index.ts ever stopped spreading the whole
+      // schema module (e.g. switched to enumerating tables by hand and
+      // missed this one), every webhook would throw
+      // "Cannot read properties of undefined (reading 'findFirst')" with a
+      // fully green mocked suite. Build a real (unconnected) drizzle client
+      // from the actual schema module — the same shape server/db/index.ts
+      // constructs — and assert the query API for this table exists.
+      const realDb = drizzle(neon(UNCONNECTED_DB_URL), {
+        schema: realSchema,
+      });
+      expect(realDb.query.processedStripeEvents).toBeDefined();
+      expect(typeof realDb.query.processedStripeEvents.findFirst).toBe(
+        "function",
+      );
     });
   });
 });

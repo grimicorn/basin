@@ -33,6 +33,7 @@ globalThis.$fetch = vi.fn().mockResolvedValue(null);
 globalThis.useSyncQueue = vi.fn(() => ({
   queueAction: vi.fn().mockResolvedValue(undefined),
   flushSyncQueue: vi.fn().mockResolvedValue(undefined),
+  retryFailedItems: vi.fn().mockResolvedValue(undefined),
   failedCount: ref(0),
   refreshFailedCount: vi.fn().mockResolvedValue(undefined),
 }));

@@ -25,16 +25,16 @@ export const syncQueueStore = {
         isNull(syncQueue.syncedAt),
         eq(syncQueue.status, SYNC_QUEUE_STATUS.PENDING),
       ),
-      orderBy: [asc(syncQueue.createdAt)],
+      // id as a tiebreaker: createdAt defaults to the transaction clock, so
+      // two rows queued in the same instant would otherwise sort in an
+      // arbitrary order and could apply out of sequence (e.g. an older
+      // "star: false" landing after a newer "star: true").
+      orderBy: [asc(syncQueue.createdAt), asc(syncQueue.id)],
     });
   },
 
   async countFailedItems(db: ClientDb): Promise<number> {
-    const failedItems = await db.query.syncQueue.findMany({
-      where: eq(syncQueue.status, SYNC_QUEUE_STATUS.FAILED),
-      columns: { id: true },
-    });
-    return failedItems.length;
+    return db.$count(syncQueue, eq(syncQueue.status, SYNC_QUEUE_STATUS.FAILED));
   },
 
   async markSynced(db: ClientDb, id: number): Promise<void> {
@@ -71,5 +71,19 @@ export const syncQueueStore = {
         failedAt: new Date(),
       })
       .where(eq(syncQueue.id, id));
+  },
+
+  // User-initiated "try again" — puts every quarantined item back in line
+  // for the next flush pass with a clean retry budget.
+  async requeueFailedItems(db: ClientDb): Promise<void> {
+    await db
+      .update(syncQueue)
+      .set({
+        status: SYNC_QUEUE_STATUS.PENDING,
+        attempts: 0,
+        lastError: null,
+        failedAt: null,
+      })
+      .where(eq(syncQueue.status, SYNC_QUEUE_STATUS.FAILED));
   },
 };

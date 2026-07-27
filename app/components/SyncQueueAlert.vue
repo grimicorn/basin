@@ -1,5 +1,18 @@
 <script setup>
-const { failedCount, refreshFailedCount } = useSyncQueue();
+import { ref, watch } from "vue";
+
+const { failedCount, refreshFailedCount, retryFailedItems } = useSyncQueue();
+
+const dismissed = ref(false);
+const retrying = ref(false);
+
+// A newly-quarantined item should always surface, even if the user
+// previously dismissed the banner for an earlier, since-resolved batch.
+watch(failedCount, (current, previous) => {
+  if (current > previous) {
+    dismissed.value = false;
+  }
+});
 
 const message = computed(() =>
   failedCount.value === 1
@@ -7,14 +20,40 @@ const message = computed(() =>
     : `${failedCount.value} offline actions couldn't be synced and won't be retried automatically.`,
 );
 
+async function retry() {
+  retrying.value = true;
+  try {
+    await retryFailedItems();
+  } finally {
+    retrying.value = false;
+  }
+}
+
 onMounted(() => {
   refreshFailedCount();
 });
 </script>
 
 <template>
-  <div v-if="failedCount > 0" class="sync-queue-alert">
-    <AppAlert theme="warning" compact :message="message" />
+  <div v-if="failedCount > 0 && !dismissed" class="sync-queue-alert">
+    <AppAlert
+      theme="warning"
+      compact
+      dismissible
+      :message="message"
+      @dismiss="dismissed = true"
+    >
+      <template #actions>
+        <button
+          type="button"
+          class="btn btn-ghost sync-queue-alert-retry"
+          :disabled="retrying"
+          @click="retry"
+        >
+          {{ retrying ? "Retrying…" : "Retry now" }}
+        </button>
+      </template>
+    </AppAlert>
   </div>
 </template>
 
@@ -29,5 +68,10 @@ onMounted(() => {
   width: min(420px, calc(100vw - 32px));
   box-shadow: var(--shadow-lg);
   border-radius: var(--radius-sm);
+}
+.sync-queue-alert-retry {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 </style>

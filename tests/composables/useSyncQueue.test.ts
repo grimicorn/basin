@@ -10,6 +10,7 @@ vi.mock("~/composables/syncQueueStore", () => ({
     markSynced: vi.fn(),
     recordRetryableFailure: vi.fn(),
     quarantine: vi.fn(),
+    requeueFailedItems: vi.fn(),
   },
 }));
 
@@ -121,6 +122,89 @@ describe("useSyncQueue", () => {
       expect(syncQueueStore.markSynced).not.toHaveBeenCalled();
     });
 
+    it("keeps a 5xx failure queued for retry rather than quarantining it", async () => {
+      const items = [makeItem({ id: 1 })];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      const serverError = Object.assign(new Error("Bad Gateway"), {
+        statusCode: 502,
+      });
+      mockFetch.mockRejectedValueOnce(serverError);
+
+      const { flushSyncQueue } = useSyncQueue();
+      await flushSyncQueue();
+
+      expect(syncQueueStore.recordRetryableFailure).toHaveBeenCalledWith(
+        fakeDb,
+        1,
+        1,
+        "Bad Gateway",
+      );
+      expect(syncQueueStore.quarantine).not.toHaveBeenCalled();
+    });
+
+    it("treats a 401 as retryable rather than quarantining the whole queue", async () => {
+      // A 401 means the session needs refreshing, not that the mutation
+      // itself is invalid — quarantining it would nuke every pending item
+      // in a single flush the moment a session expires.
+      const items = [makeItem({ id: 1 }), makeItem({ id: 2 })];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      const unauthorized = Object.assign(new Error("Unauthorized"), {
+        statusCode: 401,
+      });
+      mockFetch.mockRejectedValueOnce(unauthorized);
+
+      const { flushSyncQueue } = useSyncQueue();
+      await flushSyncQueue();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(syncQueueStore.recordRetryableFailure).toHaveBeenCalledWith(
+        fakeDb,
+        1,
+        1,
+        "Unauthorized",
+      );
+      expect(syncQueueStore.quarantine).not.toHaveBeenCalled();
+    });
+
+    it("quarantines an item with an unparseable payload without calling $fetch", async () => {
+      const items = [
+        makeItem({ id: 1, payload: "{not valid json" }),
+        makeItem({ id: 2 }),
+      ];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const { flushSyncQueue } = useSyncQueue();
+      await flushSyncQueue();
+
+      expect(syncQueueStore.quarantine).toHaveBeenCalledWith(
+        fakeDb,
+        1,
+        1,
+        expect.any(String),
+      );
+      // Item 1 never reached the network — only item 2's request was made.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(syncQueueStore.markSynced).toHaveBeenCalledWith(fakeDb, 2);
+    });
+
+    it("does not start a second pass while one is already in flight", async () => {
+      const items = [makeItem({ id: 1 })];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      mockFetch.mockResolvedValue({ ok: true });
+
+      // Two callers firing back to back (e.g. the "online" and
+      // "visibilitychange" listeners both reacting to the same reconnect)
+      // must share one pass rather than each reading their own snapshot of
+      // `attempts` and double-incrementing it.
+      const { flushSyncQueue } = useSyncQueue();
+      const firstPass = flushSyncQueue();
+      const secondPass = flushSyncQueue();
+      await Promise.all([firstPass, secondPass]);
+
+      expect(syncQueueStore.getPendingItems).toHaveBeenCalledTimes(1);
+    });
+
     it("respects the retry bound — keeps retrying below it", async () => {
       const item = makeItem({ id: 1, attempts: 3 });
       vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue([item]);
@@ -172,6 +256,27 @@ describe("useSyncQueue", () => {
       const { refreshFailedCount, failedCount } = useSyncQueue();
       await refreshFailedCount();
       expect(failedCount.value).toBe(2);
+    });
+
+    it("falls back to 0 instead of rejecting when the store throws", async () => {
+      vi.mocked(syncQueueStore.countFailedItems).mockRejectedValue(
+        new Error("DB unavailable"),
+      );
+      const { refreshFailedCount, failedCount } = useSyncQueue();
+      await expect(refreshFailedCount()).resolves.toBeUndefined();
+      expect(failedCount.value).toBe(0);
+    });
+  });
+
+  describe("retryFailedItems()", () => {
+    it("re-queues failed items and immediately attempts a flush", async () => {
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue([]);
+
+      const { retryFailedItems } = useSyncQueue();
+      await retryFailedItems();
+
+      expect(syncQueueStore.requeueFailedItems).toHaveBeenCalledWith(fakeDb);
+      expect(syncQueueStore.getPendingItems).toHaveBeenCalled();
     });
   });
 });

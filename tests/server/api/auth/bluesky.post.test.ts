@@ -123,6 +123,22 @@ describe("POST /api/auth/bluesky", () => {
     expect(decryptToken(storedValues.tokenSecret)).toBe("xxxx-xxxx-xxxx-xxxx");
   });
 
+  it("also encrypts the access JWT, refresh JWT, and app password on the reconnect (onConflictDoUpdate) branch", async () => {
+    // Every reconnect of an already-connected account goes through this
+    // branch, not the insert values above — it must never regress to
+    // plaintext on its own.
+    const event = { context: { user: { id: 1 } } };
+    await handler(event);
+
+    const conflictSet = mockOnConflictDoUpdate.mock.calls[0][0].set;
+    expect(isEncryptedToken(conflictSet.accessToken)).toBe(true);
+    expect(isEncryptedToken(conflictSet.refreshToken)).toBe(true);
+    expect(isEncryptedToken(conflictSet.tokenSecret)).toBe(true);
+    expect(decryptToken(conflictSet.accessToken)).toBe(mockSession.accessJwt);
+    expect(decryptToken(conflictSet.refreshToken)).toBe(mockSession.refreshJwt);
+    expect(decryptToken(conflictSet.tokenSecret)).toBe("xxxx-xxxx-xxxx-xxxx");
+  });
+
   it("returns ok and the Bluesky handle on success", async () => {
     const event = { context: { user: { id: 1 } } };
     const result = await handler(event);

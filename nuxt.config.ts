@@ -8,6 +8,22 @@ const marketingCss = fileURLToPath(
   new URL("./app/assets/css/marketing.css", import.meta.url),
 );
 
+// A missing key here would otherwise bake an empty string into the server
+// bundle (see the nitro.replace comment below) and silently ship with
+// integration tokens unencryptable — fail the build instead of the deploy.
+function requireTokenEncryptionKeyForBuild(): string {
+  const key = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      "TOKEN_ENCRYPTION_KEY must be set before building — integration " +
+        "tokens (YouTube/Bluesky) cannot be encrypted without it. Generate " +
+        "one with `openssl rand -hex 32` and add it to this environment's " +
+        "dotenvx file.",
+    );
+  }
+  return key;
+}
+
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   modules: ["@pinia/nuxt", "@clerk/nuxt", "@sentry/nuxt/module"],
@@ -65,7 +81,7 @@ export default defineNuxtConfig({
     replace: {
       "process.env.SENTRY_DSN": JSON.stringify(process.env.SENTRY_DSN || ""),
       "process.env.TOKEN_ENCRYPTION_KEY": JSON.stringify(
-        process.env.TOKEN_ENCRYPTION_KEY || "",
+        requireTokenEncryptionKeyForBuild(),
       ),
     },
   },

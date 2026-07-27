@@ -146,6 +146,24 @@ describe("GET /api/auth/youtube/callback", () => {
     );
   });
 
+  it("also encrypts the access and refresh tokens on the reconnect (onConflictDoUpdate) branch", async () => {
+    // Every reconnect of an already-connected account goes through this
+    // branch, not the insert values above — it must never regress to
+    // plaintext on its own.
+    const event = { context: { user: { id: 1 } } };
+    mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });
+    mockGetCookie.mockReturnValue("state123");
+    await handler(event);
+
+    const conflictSet = mockOnConflictDoUpdate.mock.calls[0][0].set;
+    expect(isEncryptedToken(conflictSet.accessToken)).toBe(true);
+    expect(isEncryptedToken(conflictSet.refreshToken)).toBe(true);
+    expect(decryptToken(conflictSet.accessToken)).toBe(mockTokens.access_token);
+    expect(decryptToken(conflictSet.refreshToken)).toBe(
+      mockTokens.refresh_token,
+    );
+  });
+
   it("stores a null refreshToken as null (no encryption of a missing value)", async () => {
     const event = { context: { user: { id: 1 } } };
     mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });

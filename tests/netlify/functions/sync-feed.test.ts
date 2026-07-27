@@ -514,20 +514,39 @@ describe("sync-feed workload — YouTube source", () => {
     expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
   });
 
-  it("decrypts an already-encrypted stored access token before using it", async () => {
-    const encryptedAccessToken = encryptToken("real-plaintext-access-token");
+  it("decrypts an already-encrypted stored refresh token before sending it to Google's token endpoint", async () => {
+    // isTokenExpired(true) forces resolveValidAccessToken down the refresh
+    // path, which is the only place integration.refreshToken is actually
+    // consumed downstream (the resolved accessToken itself is otherwise
+    // discarded by syncYouTubeFeed — see the comment there) — so this is the
+    // one observable way to prove the read path decrypts rather than leaking
+    // ciphertext into an outbound API call.
+    const encryptedRefreshToken = encryptToken("real-plaintext-refresh-token");
+    const expiredIntegration = makeIntegration({
+      expiresAt: new Date(Date.now() - 1000),
+      refreshToken: encryptedRefreshToken,
+    });
+
     mockFindFirst
-      .mockResolvedValueOnce(makeYouTubeFeed({ lastFetched: staleFetch() }))
-      .mockResolvedValueOnce(
-        makeIntegration({ accessToken: encryptedAccessToken }),
-      );
+      .mockResolvedValueOnce(makeYouTubeFeed())
+      .mockResolvedValueOnce(expiredIntegration);
+
+    mockIsTokenExpired.mockReturnValue(true);
+    mockRefreshAccessToken.mockResolvedValue({
+      accessToken: "fresh-token",
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_ID", "test-client-id");
+    vi.stubEnv("NUXT_GOOGLE_CLIENT_SECRET", "test-client-secret");
 
     await (handler as Function)(makeYouTubeEvent());
 
-    // isTokenExpired is false in this describe's default beforeEach, so no
-    // refresh/persist happens — this only proves the read path decrypts
-    // rather than leaking ciphertext downstream.
-    expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
+    expect(mockRefreshAccessToken).toHaveBeenCalledWith(
+      "real-plaintext-refresh-token",
+      "test-client-id",
+      "test-client-secret",
+    );
   });
 
   it("throws IntegrationAuthError when the refresh token was revoked (401/400 from Google)", async () => {

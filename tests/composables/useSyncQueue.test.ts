@@ -103,6 +103,37 @@ describe("useSyncQueue", () => {
       expect(syncQueueStore.recordRetryableFailure).not.toHaveBeenCalled();
     });
 
+    // Documents a deliberate tradeoff: not head-of-line-blocking on a
+    // permanent failure means a later mutation for the *same* entity can
+    // apply even though an earlier one for that entity was quarantined.
+    // That's the intended behavior — the alternative (blocking everything
+    // behind a row that can never succeed) is exactly bug #122.
+    it("lets a later mutation for the same entity apply after an earlier one is quarantined", async () => {
+      const samePayload = JSON.stringify({ feedId: 1, guid: "abc" });
+      const items = [
+        makeItem({ id: 1, action: "star", payload: samePayload }),
+        makeItem({ id: 2, action: "star", payload: samePayload }),
+      ];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      const forbidden = Object.assign(new Error("Forbidden"), {
+        statusCode: 403,
+      });
+      mockFetch
+        .mockRejectedValueOnce(forbidden)
+        .mockResolvedValueOnce({ ok: true });
+
+      const { flushSyncQueue } = useSyncQueue();
+      await flushSyncQueue();
+
+      expect(syncQueueStore.quarantine).toHaveBeenCalledWith(
+        fakeDb,
+        1,
+        1,
+        "Forbidden",
+      );
+      expect(syncQueueStore.markSynced).toHaveBeenCalledWith(fakeDb, 2);
+    });
+
     it("keeps a transiently-failing item queued for retry and stops the pass", async () => {
       const items = [makeItem({ id: 1 }), makeItem({ id: 2 })];
       vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
@@ -258,13 +289,20 @@ describe("useSyncQueue", () => {
       expect(failedCount.value).toBe(2);
     });
 
-    it("falls back to 0 instead of rejecting when the store throws", async () => {
-      vi.mocked(syncQueueStore.countFailedItems).mockRejectedValue(
+    it("resolves without throwing and keeps the last known count when the store rejects", async () => {
+      // A read failure must never claim "zero failures" — that would hide
+      // real quarantined items from the banner — so the previous value is
+      // preserved rather than reset.
+      vi.mocked(syncQueueStore.countFailedItems).mockResolvedValueOnce(4);
+      const { refreshFailedCount, failedCount } = useSyncQueue();
+      await refreshFailedCount();
+      expect(failedCount.value).toBe(4);
+
+      vi.mocked(syncQueueStore.countFailedItems).mockRejectedValueOnce(
         new Error("DB unavailable"),
       );
-      const { refreshFailedCount, failedCount } = useSyncQueue();
       await expect(refreshFailedCount()).resolves.toBeUndefined();
-      expect(failedCount.value).toBe(0);
+      expect(failedCount.value).toBe(4);
     });
   });
 
@@ -277,6 +315,42 @@ describe("useSyncQueue", () => {
 
       expect(syncQueueStore.requeueFailedItems).toHaveBeenCalledWith(fakeDb);
       expect(syncQueueStore.getPendingItems).toHaveBeenCalled();
+    });
+
+    it("still refreshes failedCount when the flush it triggers no-ops offline", async () => {
+      vi.stubGlobal("navigator", { onLine: false });
+      vi.mocked(syncQueueStore.countFailedItems).mockResolvedValue(0);
+
+      const { retryFailedItems, failedCount } = useSyncQueue();
+      failedCount.value = 3;
+      await retryFailedItems();
+
+      expect(syncQueueStore.requeueFailedItems).toHaveBeenCalledWith(fakeDb);
+      // Offline means nothing was actually resent — getPendingItems is
+      // never reached — but the count must still reflect the requeue.
+      expect(syncQueueStore.getPendingItems).not.toHaveBeenCalled();
+      expect(failedCount.value).toBe(0);
+    });
+
+    it("waits out an in-flight pass before requeuing, so the requeued rows aren't missed by a stale snapshot", async () => {
+      const items = [makeItem({ id: 1 })];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const { flushSyncQueue, retryFailedItems } = useSyncQueue();
+      const inFlightPass = flushSyncQueue();
+      await retryFailedItems();
+      await inFlightPass;
+
+      // requeueFailedItems must run after the earlier pass's
+      // getPendingItems snapshot, and flushSyncQueue's own getPendingItems
+      // call inside retryFailedItems is a second, fresh read.
+      expect(syncQueueStore.getPendingItems).toHaveBeenCalledTimes(2);
+      const requeueOrder = vi.mocked(syncQueueStore.requeueFailedItems).mock
+        .invocationCallOrder[0];
+      const secondGetPendingOrder = vi.mocked(syncQueueStore.getPendingItems)
+        .mock.invocationCallOrder[1];
+      expect(requeueOrder).toBeLessThan(secondGetPendingOrder);
     });
   });
 });

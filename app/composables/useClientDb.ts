@@ -16,7 +16,7 @@ const schema = {
   feedItemsRelations,
   syncQueue,
 };
-type ClientDb = ReturnType<typeof drizzle<typeof schema>>;
+export type ClientDb = ReturnType<typeof drizzle<typeof schema>>;
 
 let _db: ClientDb | null = null;
 

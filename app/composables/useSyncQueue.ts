@@ -117,36 +117,56 @@ async function syncItem(db: ClientDb, item: SyncQueueRow): Promise<boolean> {
       method: "POST",
       body: { action: item.action, payload },
     });
-    await syncQueueStore.markSynced(db, item.id);
-    return false;
   } catch (error) {
     return handleSyncFailure(db, item, error);
   }
+
+  // The mutation already reached the server at this point — a failure here
+  // is purely local bookkeeping (a PGlite write), not a sync failure, so it
+  // must never be routed through handleSyncFailure's classification. Doing
+  // so could eventually quarantine a mutation that has, in fact, synced.
+  try {
+    await syncQueueStore.markSynced(db, item.id);
+  } catch (error) {
+    console.error("Failed to record a synced sync_queue item locally", error);
+  }
+  return false;
 }
 
 async function runFlushPass(): Promise<void> {
-  if (!navigator.onLine) return;
+  try {
+    if (!navigator.onLine) {
+      return;
+    }
 
-  const db = await useClientDb();
-  const pending = await syncQueueStore.getPendingItems(db);
+    const db = await useClientDb();
+    const pending = await syncQueueStore.getPendingItems(db);
 
-  for (const item of pending) {
-    const stillRetryable = await syncItem(db, item);
-    if (stillRetryable) break;
+    for (const item of pending) {
+      const stillRetryable = await syncItem(db, item);
+      if (stillRetryable) {
+        break;
+      }
+    }
+  } finally {
+    // Always runs — including the offline early-return and a
+    // user-initiated retryFailedItems() that requeued items but found
+    // nothing (yet) to send — so the banner never reports a stale count.
+    await refreshFailedCount();
   }
-
-  await refreshFailedCount();
 }
 
-// Best-effort — a database that can't be reached has no failed rows to
-// report, so a failure here should never surface as an unhandled rejection
-// (e.g. from the UI banner's onMounted hook) or interrupt a flush pass.
+// Best-effort read — a database that can't be reached has no failed rows to
+// report, so a failure here must never surface as an unhandled rejection
+// (e.g. from the UI banner's onMounted hook) or interrupt a flush pass. It
+// also must not claim zero failures when the read itself is what failed —
+// that would hide real quarantined items — so the previous count is kept.
 async function refreshFailedCount(): Promise<void> {
   try {
     const db = await useClientDb();
     failedCount.value = await syncQueueStore.countFailedItems(db);
-  } catch {
-    failedCount.value = 0;
+  } catch (error) {
+    console.error("Failed to refresh the quarantined sync queue count", error);
   }
 }
 
@@ -162,7 +182,9 @@ export function useSyncQueue() {
   // Callers already in flight share the same pass instead of starting a
   // second one — see the flushInFlight comment above.
   async function flushSyncQueue(): Promise<void> {
-    if (flushInFlight) return flushInFlight;
+    if (flushInFlight) {
+      return flushInFlight;
+    }
 
     flushInFlight = runFlushPass().finally(() => {
       flushInFlight = null;
@@ -171,8 +193,16 @@ export function useSyncQueue() {
   }
 
   // Re-queues every quarantined item (for a user-initiated "try again") and
-  // immediately attempts to flush them.
+  // immediately attempts to flush them. Waits out any pass already in
+  // flight first — that pass would have snapshotted pending items before
+  // this requeue ran, so the freshly-requeued rows wouldn't be in it, and
+  // its refreshFailedCount() would report 0 as if the retry had already
+  // succeeded when nothing had actually been resent yet.
   async function retryFailedItems(): Promise<void> {
+    if (flushInFlight) {
+      await flushInFlight;
+    }
+
     const db = await useClientDb();
     await syncQueueStore.requeueFailedItems(db);
     await flushSyncQueue();

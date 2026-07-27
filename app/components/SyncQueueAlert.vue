@@ -1,7 +1,6 @@
 <script setup>
-import { ref, watch } from "vue";
-
 const { failedCount, refreshFailedCount, retryFailedItems } = useSyncQueue();
+const { showToast } = useToast();
 
 const dismissed = ref(false);
 const retrying = ref(false);
@@ -24,6 +23,8 @@ async function retry() {
   retrying.value = true;
   try {
     await retryFailedItems();
+  } catch {
+    showToast("Retry failed — check your connection and try again");
   } finally {
     retrying.value = false;
   }

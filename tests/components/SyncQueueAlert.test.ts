@@ -3,6 +3,7 @@ import { shallowMount } from "@vue/test-utils";
 import { ref } from "vue";
 import SyncQueueAlert from "~/components/SyncQueueAlert.vue";
 import AppAlert from "~/components/AppAlert.vue";
+import { useToast } from "~/composables/useToast";
 
 const mockFailedCount = ref(0);
 const mockRefreshFailedCount = vi.fn().mockResolvedValue(undefined);
@@ -61,6 +62,25 @@ describe("SyncQueueAlert", () => {
     await wrapper.vm.$nextTick();
     await wrapper.find(".sync-queue-alert-retry").trigger("click");
     expect(mockRetryFailedItems).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a toast and re-enables the button when the retry itself fails", async () => {
+    mockRetryFailedItems.mockRejectedValueOnce(new Error("Network error"));
+    const { toast } = useToast();
+    toast.show = false;
+    toast.msg = "";
+
+    const wrapper = mountWithRealAppAlert();
+    mockFailedCount.value = 2;
+    await wrapper.vm.$nextTick();
+    await wrapper.find(".sync-queue-alert-retry").trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(toast.show).toBe(true);
+    expect(toast.msg).toContain("Retry failed");
+    expect(wrapper.find(".sync-queue-alert-retry").attributes("disabled")).toBe(
+      undefined,
+    );
   });
 
   it("hides the banner once dismissed", async () => {

@@ -1,10 +1,11 @@
 import { and, asc, eq, isNull, type InferSelectModel } from "drizzle-orm";
 import { syncQueue } from "~/db/schema";
 import { SYNC_QUEUE_STATUS } from "~/utils/syncQueueStatus";
+import type { ClientDb } from "~/composables/useClientDb";
 
 export type SyncQueueRow = InferSelectModel<typeof syncQueue>;
 export type SyncQueueAction = "markRead" | "star" | "save";
-export type ClientDb = Awaited<ReturnType<typeof useClientDb>>;
+export type { ClientDb };
 
 // The only module that talks to the client PGlite database on behalf of
 // useSyncQueue.ts — keeping the DB access isolated here means the retry and

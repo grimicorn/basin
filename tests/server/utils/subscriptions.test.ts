@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type Stripe from "stripe";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   processedStripeEvents,
   subscriptions,
@@ -166,9 +168,6 @@ describe("upsertSubscriptionFromStripe", () => {
     // Default: the write's setWhere guard is satisfied (a row came back),
     // i.e. the database agreed the event wasn't stale. Individual tests
     // override this to simulate the database blocking a stale write.
-    mockOnConflictDoUpdate.mockImplementation(() => ({
-      returning: mockReturning,
-    }));
     mockReturning.mockResolvedValue([{ id: 1 }]);
   });
 
@@ -469,6 +468,27 @@ describe("upsertSubscriptionFromStripe", () => {
       expect(mockInsert).not.toHaveBeenCalled();
     });
 
+    it("drops an old event for a different subscription id even once the stored row is no longer pro", async () => {
+      // The mirror-image regression: once the row is free, the cross-id
+      // branch alone would apply *any* event for *any* other subscription
+      // id regardless of age. An old, redelivered event (still within
+      // Stripe's retry window) for a subscription that predates the row's
+      // last recorded event must not resurrect it.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_b",
+        plan: "free",
+        lastStripeEventAt: new Date(2_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_a", status: "active" },
+          { id: "evt_old_redelivery", created: 1_000_000 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
     it("accepted limitation: a same-timestamp tie is last-write-wins by delivery order, not event semantics", async () => {
       // Documents current, deliberate behavior rather than asserting a fix:
       // ties are allowed through (see the "applies a distinct event with the
@@ -514,6 +534,28 @@ describe("upsertSubscriptionFromStripe", () => {
       await upsertSubscriptionFromStripe(buildEvent());
       expect(mockInsert).toHaveBeenCalledWith(subscriptions);
       expect(mockInsert).not.toHaveBeenCalledWith(processedStripeEvents);
+    });
+
+    it("compiles a setWhere clause that actually references the ordering and subscription-id columns", async () => {
+      // `setWhere: expect.anything()` (see the earlier "upserts using the
+      // userId..." test) only proves *some* value was passed — it would
+      // still pass if the clause were replaced with a no-op `sql\`true\``.
+      // notStaleWhereClause must stay in lockstep with isStaleEvent (see its
+      // comment), so compile the real SQL object the mocked call captured
+      // and assert on the actual column references and operators, catching
+      // a divergence between the two the mock-call assertion alone can't.
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+      await upsertSubscriptionFromStripe(
+        buildEvent({ id: "sub_123" }, { created: 1_000_000 }),
+      );
+      const [{ setWhere }] = mockOnConflictDoUpdate.mock.calls[0] as [
+        { setWhere: SQL },
+      ];
+      const { sql } = new PgDialect().sqlToQuery(setWhere);
+      expect(sql).toContain('"last_stripe_event_at"');
+      expect(sql).toContain('"stripe_subscription_id"');
+      expect(sql).toContain('"plan"');
+      expect(sql).toMatch(/<=/);
     });
   });
 });

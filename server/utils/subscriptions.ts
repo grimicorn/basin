@@ -134,33 +134,29 @@ interface ExistingSubscriptionRow {
   lastStripeEventAt: Date | null;
 }
 
-// An event is stale — and must not overwrite the stored row — in two cases:
+// An event is stale — and must not overwrite the stored row — if either:
 //
-// 1. Different subscription id, and the stored row is still "pro": a stale
-//    or delayed event for a subscription the user has since replaced (e.g. a
-//    `deleted` for the old subscription landing weeks later, after a newer
-//    subscription's `created` already made the row active) must not undo
-//    the currently-active one. This is judged on subscription id, not
-//    timestamp — the old subscription's own event can easily have a *later*
-//    `created` than the new subscription's, so time alone can't tell them
-//    apart. Once the stored row is no longer "pro", a different id is a
+// 1. It is strictly older than the last event already applied to this row
+//    (regardless of subscription id — an old event redelivered within
+//    Stripe's retry window must not resurrect state a newer one already
+//    replaced, even for a subscription id the row has since moved past). A
+//    tie (equal timestamps) is NOT stale: Stripe can fire distinct events
+//    for the same subscription within the same one-second `created` value
+//    (e.g. `updated` immediately followed by `deleted` on cancellation), and
+//    rejecting ties would stick the row on the first of the pair forever.
+//    Exact redelivery of the *same* event is a separate concern already
+//    handled by wasEventAlreadyProcessed.
+// 2. It is for a *different* subscription id than the row's, while the row
+//    is still "pro". This is judged on subscription id, not timestamp: a
+//    delayed event for a replaced subscription (e.g. a `deleted` for the old
+//    one arriving weeks after a resubscribe) can have a *later* `created`
+//    than the new subscription's own events, so timestamp alone can't tell
+//    them apart. Once the row is no longer "pro", a different id is a
 //    genuine resubscribe and is let through.
-// 2. Same subscription id, and this event isn't newer than the last one
-//    applied to this row — dedup alone doesn't fix out-of-order delivery,
-//    since a *different*, older event for the same subscription can still
-//    arrive after a newer one (e.g. a stale "past_due" `updated` redelivered
-//    after "active" already synced).
-//
-// A tie (equal timestamps) in case 2 is NOT stale: Stripe can fire distinct
-// events for the same subscription within the same one-second `created`
-// value (e.g. `updated` immediately followed by `deleted` on cancellation),
-// and rejecting ties would stick the row on the first of the pair forever.
-// Exact redelivery of the *same* event is a separate concern already handled
-// by wasEventAlreadyProcessed.
 //
 // This is only a cheap in-memory pre-filter — the authoritative, race-safe
 // guarantee is the `setWhere` clause on the write below, which mirrors this
-// same logic atomically against the row's current state in Postgres.
+// same logic atomically against the row's actual current state in Postgres.
 function isStaleEvent(
   existing: ExistingSubscriptionRow | undefined,
   subscription: Stripe.Subscription,
@@ -169,13 +165,15 @@ function isStaleEvent(
   if (!existing?.stripeSubscriptionId) {
     return false;
   }
-  if (existing.stripeSubscriptionId !== subscription.id) {
-    return existing.plan === "pro";
+  if (
+    existing.lastStripeEventAt &&
+    eventCreatedAt < existing.lastStripeEventAt
+  ) {
+    return true;
   }
-  if (!existing.lastStripeEventAt) {
-    return false;
-  }
-  return eventCreatedAt < existing.lastStripeEventAt;
+  return (
+    existing.stripeSubscriptionId !== subscription.id && existing.plan === "pro"
+  );
 }
 
 // Mirrors isStaleEvent as a SQL condition, passed as the write's setWhere so
@@ -185,21 +183,17 @@ function notStaleWhereClause(
   subscription: Stripe.Subscription,
   eventCreatedAt: Date,
 ) {
-  const differentSubscriptionNotYetPro = and(
-    ne(subscriptions.stripeSubscriptionId, subscription.id),
-    ne(subscriptions.plan, "pro"),
+  const notOlderThanLastApplied = or(
+    isNull(subscriptions.lastStripeEventAt),
+    lte(subscriptions.lastStripeEventAt, eventCreatedAt),
   );
-  const sameSubscriptionNotOlder = and(
+  const sameSubscriptionOrNoLongerPro = or(
     eq(subscriptions.stripeSubscriptionId, subscription.id),
-    or(
-      isNull(subscriptions.lastStripeEventAt),
-      lte(subscriptions.lastStripeEventAt, eventCreatedAt),
-    ),
+    ne(subscriptions.plan, "pro"),
   );
   return or(
     isNull(subscriptions.stripeSubscriptionId),
-    differentSubscriptionNotYetPro,
-    sameSubscriptionNotOlder,
+    and(notOlderThanLastApplied, sameSubscriptionOrNoLongerPro),
   );
 }
 

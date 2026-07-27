@@ -229,7 +229,15 @@ describe("upsertSubscriptionFromStripe", () => {
         lastStripeEventAt: new Date(1750000500 * 1000),
       }),
     );
-    expect(mockOnConflictDoUpdate).toHaveBeenCalled();
+    // The ordering guarantee must be enforced atomically in the write
+    // itself, not just by the in-memory pre-filter — see the "out-of-order
+    // delivery" tests for what this clause actually blocks.
+    expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: subscriptions.userId,
+        setWhere: expect.anything(),
+      }),
+    );
   });
 
   it("falls back to the metadata userId when no row matches the customer ID", async () => {
@@ -398,13 +406,13 @@ describe("upsertSubscriptionFromStripe", () => {
       );
     });
 
-    it("applies a newer event for a different (resubscribed) subscription id", async () => {
-      // User resubscribed: a genuinely newer event for a *different*
-      // subscription id must still be applied — staleness is judged purely
-      // by timestamp, not by whether the subscription id changed.
+    it("applies a newer event for a different subscription id once the stored row is no longer pro", async () => {
+      // User resubscribed after their old plan lapsed to free: a different
+      // subscription id is a genuine new subscription and must be applied.
       mockFindFirst.mockResolvedValue({
         userId: 9,
         stripeSubscriptionId: "sub_old",
+        plan: "free",
         lastStripeEventAt: new Date(1_000_000 * 1000),
       });
       await upsertSubscriptionFromStripe(
@@ -422,10 +430,11 @@ describe("upsertSubscriptionFromStripe", () => {
       );
     });
 
-    it("drops a replayed event for an old subscription id the row has since moved past", async () => {
+    it("drops a replayed event for an old subscription id the row has since moved past, even with an older timestamp", async () => {
       mockFindFirst.mockResolvedValue({
         userId: 9,
         stripeSubscriptionId: "sub_new",
+        plan: "pro",
         lastStripeEventAt: new Date(2_000_000 * 1000),
       });
       await upsertSubscriptionFromStripe(
@@ -435,6 +444,59 @@ describe("upsertSubscriptionFromStripe", () => {
         ),
       );
       expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("drops a delayed event for a replaced subscription even when its own timestamp is newer than what's stored", async () => {
+      // The regression this guards against: a subscription's own `deleted`
+      // event can be delivered long after a *different*, newer subscription
+      // has already replaced it (e.g. cancel-at-period-end firing weeks
+      // later). Its `created` is chronologically later than the row's
+      // lastStripeEventAt, so a timestamp-only check would wrongly let it
+      // win. Judging on subscription id first (see isStaleEvent) keeps the
+      // active row intact.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_new",
+        plan: "pro",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_old", status: "canceled" },
+          { id: "evt_delayed_deletion", created: 99_999_999 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("accepted limitation: a same-timestamp tie is last-write-wins by delivery order, not event semantics", async () => {
+      // Documents current, deliberate behavior rather than asserting a fix:
+      // ties are allowed through (see the "applies a distinct event with the
+      // exact same timestamp" test above) so that legitimate same-second
+      // event pairs (e.g. "updated" then "deleted" on cancellation) both
+      // apply. The tradeoff is that if such a pair is *delivered* out of
+      // its original order, whichever arrives last wins, even if that means
+      // an "active" `updated` landing after a same-second "deleted"
+      // resurrects a subscription that was actually canceled. Stripe's
+      // `created` is only second-granularity, so this can't be resolved by
+      // timestamp alone; picking a type-based tiebreaker (e.g. "deleted"
+      // always wins ties) was judged out of scope for this fix.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        plan: "free",
+        status: "canceled",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "active" },
+          { id: "evt_updated_after_deleted_tie", created: 1_000_000 },
+        ),
+      );
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "active" }),
+      );
     });
 
     it("does not mark the event processed when the database blocks a stale write that slipped past the in-memory pre-filter", async () => {

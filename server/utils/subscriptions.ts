@@ -1,7 +1,7 @@
 // Owns reads/writes to the `subscriptions` table and translates Stripe
 // subscription objects into our own plan/status representation. Keeps the
 // Stripe SDK calls (server/utils/stripe.ts) separate from persistence.
-import { eq, isNull, lte, or } from "drizzle-orm";
+import { and, eq, isNull, lte, ne, or } from "drizzle-orm";
 import type Stripe from "stripe";
 import { processedStripeEvents, subscriptions } from "../db/schema";
 import { createStripeCustomer, deleteStripeCustomer } from "./stripe";
@@ -128,36 +128,79 @@ function currentPeriodEnd(subscription: Stripe.Subscription): Date | null {
   return toDate(item?.current_period_end ?? legacyPeriodEnd);
 }
 
-// An event is stale — and must not overwrite the stored row — when its
-// Stripe `created` timestamp is strictly older than the last event already
-// applied to this row. lastStripeEventAt is written alongside every other
-// field on every successful write (see `values` below), so it always
-// reflects the created time of whichever event most recently won,
-// regardless of which Stripe subscription id that event was for. That makes
-// a plain timestamp comparison sufficient to catch both an out-of-order
-// update for the *same* subscription (e.g. a stale "past_due" redelivered
-// after a newer "active" already synced) and a replayed event for a
-// subscription the user has since replaced (a genuine resubscribe's events
-// are, in practice, always newer than whatever was last recorded).
+interface ExistingSubscriptionRow {
+  stripeSubscriptionId: string | null;
+  plan: string;
+  lastStripeEventAt: Date | null;
+}
+
+// An event is stale — and must not overwrite the stored row — in two cases:
 //
-// A tie (equal timestamps) is NOT stale: Stripe can emit multiple distinct
+// 1. Different subscription id, and the stored row is still "pro": a stale
+//    or delayed event for a subscription the user has since replaced (e.g. a
+//    `deleted` for the old subscription landing weeks later, after a newer
+//    subscription's `created` already made the row active) must not undo
+//    the currently-active one. This is judged on subscription id, not
+//    timestamp — the old subscription's own event can easily have a *later*
+//    `created` than the new subscription's, so time alone can't tell them
+//    apart. Once the stored row is no longer "pro", a different id is a
+//    genuine resubscribe and is let through.
+// 2. Same subscription id, and this event isn't newer than the last one
+//    applied to this row — dedup alone doesn't fix out-of-order delivery,
+//    since a *different*, older event for the same subscription can still
+//    arrive after a newer one (e.g. a stale "past_due" `updated` redelivered
+//    after "active" already synced).
+//
+// A tie (equal timestamps) in case 2 is NOT stale: Stripe can fire distinct
 // events for the same subscription within the same one-second `created`
 // value (e.g. `updated` immediately followed by `deleted` on cancellation),
-// and rejecting same-timestamp events would let the row get stuck on the
-// first of the pair forever. Exact redelivery of the *same* event is a
-// separate concern already handled by wasEventAlreadyProcessed.
+// and rejecting ties would stick the row on the first of the pair forever.
+// Exact redelivery of the *same* event is a separate concern already handled
+// by wasEventAlreadyProcessed.
 //
-// This check is only a cheap in-memory pre-filter — the authoritative,
-// race-safe guarantee is the `setWhere` clause on the write below, which
-// Postgres evaluates atomically against the row's current state.
+// This is only a cheap in-memory pre-filter — the authoritative, race-safe
+// guarantee is the `setWhere` clause on the write below, which mirrors this
+// same logic atomically against the row's current state in Postgres.
 function isStaleEvent(
-  existingLastStripeEventAt: Date | null | undefined,
+  existing: ExistingSubscriptionRow | undefined,
+  subscription: Stripe.Subscription,
   eventCreatedAt: Date,
 ): boolean {
-  if (!existingLastStripeEventAt) {
+  if (!existing?.stripeSubscriptionId) {
     return false;
   }
-  return eventCreatedAt < existingLastStripeEventAt;
+  if (existing.stripeSubscriptionId !== subscription.id) {
+    return existing.plan === "pro";
+  }
+  if (!existing.lastStripeEventAt) {
+    return false;
+  }
+  return eventCreatedAt < existing.lastStripeEventAt;
+}
+
+// Mirrors isStaleEvent as a SQL condition, passed as the write's setWhere so
+// Postgres makes the same decision atomically against the row's actual
+// current state (see isStaleEvent's comment for why each branch exists).
+function notStaleWhereClause(
+  subscription: Stripe.Subscription,
+  eventCreatedAt: Date,
+) {
+  const differentSubscriptionNotYetPro = and(
+    ne(subscriptions.stripeSubscriptionId, subscription.id),
+    ne(subscriptions.plan, "pro"),
+  );
+  const sameSubscriptionNotOlder = and(
+    eq(subscriptions.stripeSubscriptionId, subscription.id),
+    or(
+      isNull(subscriptions.lastStripeEventAt),
+      lte(subscriptions.lastStripeEventAt, eventCreatedAt),
+    ),
+  );
+  return or(
+    isNull(subscriptions.stripeSubscriptionId),
+    differentSubscriptionNotYetPro,
+    sameSubscriptionNotOlder,
+  );
 }
 
 async function wasEventAlreadyProcessed(
@@ -172,12 +215,10 @@ async function wasEventAlreadyProcessed(
 
 // Records that an event was applied, so a redelivery of the same event id is
 // a no-op instead of being reapplied. Always called *after* the subscription
-// write below has already succeeded — never before — so a crash between the
-// two can only leave an event applied-but-unmarked (safe: a redelivery just
-// reapplies the same, idempotent write) and never marked-but-unapplied (which
-// would silently drop a real update forever). onConflictDoNothing makes the
-// insert itself race-safe if two deliveries of the same event are in flight
-// concurrently.
+// write below has succeeded, never before, so a crash between the two can
+// only leave an event applied-but-unmarked (safe — a redelivery just
+// reapplies the same, idempotent write), never marked-but-unapplied (which
+// would silently drop a real update forever).
 async function markEventProcessed(
   db: ReturnType<typeof useDb>,
   stripeEventId: string,
@@ -195,14 +236,8 @@ async function markEventProcessed(
 // in the subscription metadata at checkout time. If neither resolves, the event
 // can't be attributed to a known user and is dropped.
 //
-// Duplicate delivery: Stripe explicitly documents that a webhook event may be
-// delivered more than once. wasEventAlreadyProcessed short-circuits a
-// redelivery of an event we already fully applied.
-//
-// Out-of-order delivery: dedup alone doesn't fix this — a *different*, older
-// event can still arrive after a newer one. isStaleEvent pre-filters that in
-// memory, and the write's `setWhere` enforces it atomically against
-// concurrent/racing deliveries (see both comments above and below).
+// Duplicate delivery is handled by wasEventAlreadyProcessed; out-of-order
+// delivery by isStaleEvent (see both functions' comments).
 export async function upsertSubscriptionFromStripe(
   event: Stripe.Event,
 ): Promise<void> {
@@ -235,7 +270,7 @@ export async function upsertSubscriptionFromStripe(
     }));
 
   const eventCreatedAt = new Date(event.created * 1000);
-  if (isStaleEvent(existing?.lastStripeEventAt, eventCreatedAt)) {
+  if (isStaleEvent(existing, subscription, eventCreatedAt)) {
     return;
   }
 
@@ -254,22 +289,17 @@ export async function upsertSubscriptionFromStripe(
     updatedAt: new Date(),
   };
 
-  // The in-memory isStaleEvent check above is only a pre-filter — two
-  // concurrent/racing deliveries could both read the row before either
-  // writes. `setWhere` makes the actual ordering guarantee atomic: Postgres
-  // only applies the update if the row's stored lastStripeEventAt is still
-  // older than (or equal to, to allow same-second distinct events) this
-  // event's timestamp, so the older of two racing writes can never win.
+  // isStaleEvent above is only a pre-filter — two racing deliveries could
+  // both read the row before either writes. notStaleWhereClause makes the
+  // guarantee atomic by re-checking the same logic against the row's actual
+  // current state inside the write itself.
   const written = await db
     .insert(subscriptions)
     .values(values)
     .onConflictDoUpdate({
       target: subscriptions.userId,
       set: values,
-      setWhere: or(
-        isNull(subscriptions.lastStripeEventAt),
-        lte(subscriptions.lastStripeEventAt, eventCreatedAt),
-      ),
+      setWhere: notStaleWhereClause(subscription, eventCreatedAt),
     })
     .returning({ id: subscriptions.id });
 

@@ -21,8 +21,16 @@ const message = computed(() =>
 
 async function retry() {
   retrying.value = true;
+  const countBeforeRetry = failedCount.value;
   try {
     await retryFailedItems();
+    // retryFailedItems() resolves normally even when every item fails
+    // again (e.g. still 403ing) — without this, the button would just
+    // flip back to "Retry now" against an unchanged banner, indistinguishable
+    // from the click not having registered at all.
+    if (failedCount.value >= countBeforeRetry) {
+      showToast("Still couldn't sync — these actions may need to be redone");
+    }
   } catch {
     showToast("Retry failed — check your connection and try again");
   } finally {

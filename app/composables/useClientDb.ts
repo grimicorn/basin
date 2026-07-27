@@ -20,8 +20,10 @@ export type ClientDb = ReturnType<typeof drizzle<typeof schema>>;
 
 let _db: ClientDb | null = null;
 
-// DDL kept in sync with app/db/schema.ts — run once on first init.
-const MIGRATIONS = /* sql */ `
+// DDL kept in sync with app/db/schema.ts — run once on first init. Exported
+// so tests can stand up a real (in-memory) PGlite instance against the same
+// DDL instead of hand-duplicating it — see tests/composables/syncQueueStore.test.ts.
+export const MIGRATIONS = /* sql */ `
   CREATE TABLE IF NOT EXISTS feeds (
     id         SERIAL PRIMARY KEY,
     user_id    INTEGER NOT NULL,

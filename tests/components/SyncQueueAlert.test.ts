@@ -64,6 +64,43 @@ describe("SyncQueueAlert", () => {
     expect(mockRetryFailedItems).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a toast when the retry resolves but nothing actually cleared", async () => {
+    // retryFailedItems() resolves normally even when every item fails
+    // again — the mock simulates that by leaving failedCount unchanged.
+    mockRetryFailedItems.mockImplementationOnce(async () => {
+      mockFailedCount.value = 2;
+    });
+    const { toast } = useToast();
+    toast.show = false;
+    toast.msg = "";
+
+    const wrapper = mountWithRealAppAlert();
+    mockFailedCount.value = 2;
+    await wrapper.vm.$nextTick();
+    await wrapper.find(".sync-queue-alert-retry").trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(toast.show).toBe(true);
+    expect(toast.msg).toContain("Still couldn't sync");
+  });
+
+  it("does not show the 'still couldn't sync' toast once the retry actually clears everything", async () => {
+    mockRetryFailedItems.mockImplementationOnce(async () => {
+      mockFailedCount.value = 0;
+    });
+    const { toast } = useToast();
+    toast.show = false;
+    toast.msg = "";
+
+    const wrapper = mountWithRealAppAlert();
+    mockFailedCount.value = 2;
+    await wrapper.vm.$nextTick();
+    await wrapper.find(".sync-queue-alert-retry").trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(toast.show).toBe(false);
+  });
+
   it("shows a toast and re-enables the button when the retry itself fails", async () => {
     mockRetryFailedItems.mockRejectedValueOnce(new Error("Network error"));
     const { toast } = useToast();

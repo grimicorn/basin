@@ -133,6 +133,26 @@ async function syncItem(db: ClientDb, item: SyncQueueRow): Promise<boolean> {
   return false;
 }
 
+// Runs one item and reports its outcome to the local DB. If recording that
+// outcome (quarantine / recordRetryableFailure / markSynced) itself throws —
+// a broken local PGlite, not a sync failure — the item's true state wasn't
+// persisted, so it's safest to leave it pending and stop the pass rather
+// than plow through the rest of the queue against a database that isn't
+// working. That's the same "stop the pass" behavior a transient sync
+// failure gets, applied here for the same reason: don't guess at an
+// unrecorded outcome.
+async function processItem(db: ClientDb, item: SyncQueueRow): Promise<boolean> {
+  try {
+    return await syncItem(db, item);
+  } catch (error) {
+    console.error(
+      "Failed to record a sync_queue item's outcome locally",
+      error,
+    );
+    return true;
+  }
+}
+
 async function runFlushPass(): Promise<void> {
   try {
     if (!navigator.onLine) {
@@ -143,15 +163,21 @@ async function runFlushPass(): Promise<void> {
     const pending = await syncQueueStore.getPendingItems(db);
 
     for (const item of pending) {
-      const stillRetryable = await syncItem(db, item);
+      const stillRetryable = await processItem(db, item);
       if (stillRetryable) {
         break;
       }
     }
+  } catch (error) {
+    // useClientDb()/getPendingItems() itself failing (IndexedDB unavailable,
+    // quota exceeded) must not become an unhandled rejection — the plugin
+    // calls flushSyncQueue() without awaiting or catching it.
+    console.error("Sync queue flush pass failed", error);
   } finally {
-    // Always runs — including the offline early-return and a
-    // user-initiated retryFailedItems() that requeued items but found
-    // nothing (yet) to send — so the banner never reports a stale count.
+    // Always runs — including the offline early-return, the outer catch
+    // above, and a user-initiated retryFailedItems() that requeued items
+    // but found nothing (yet) to send — so the banner never reports a
+    // stale count.
     await refreshFailedCount();
   }
 }
@@ -192,19 +218,25 @@ export function useSyncQueue() {
     return flushInFlight;
   }
 
-  // Re-queues every quarantined item (for a user-initiated "try again") and
-  // immediately attempts to flush them. Waits out any pass already in
-  // flight first — that pass would have snapshotted pending items before
-  // this requeue ran, so the freshly-requeued rows wouldn't be in it, and
-  // its refreshFailedCount() would report 0 as if the retry had already
-  // succeeded when nothing had actually been resent yet.
+  // Re-queues every quarantined item (for a user-initiated "try again"),
+  // then guarantees a flush pass that starts *after* the requeue has
+  // committed. Requeuing happens first and unconditionally: waiting for an
+  // in-flight pass before requeuing would still leave a window where a new
+  // pass starts between that wait and the requeue actually committing,
+  // snapshots the old (still-failed) rows, and — since flushSyncQueue()
+  // then just returns that already-running pass — reports the retry as
+  // done via refreshFailedCount() without anything having been resent.
+  // Requeuing unconditionally first, then waiting out whatever pass is (or
+  // becomes) in flight before starting a guaranteed-fresh one, closes that
+  // window: any pass still running by the time flushSyncQueue() is called
+  // below is guaranteed to have started after the requeue committed.
   async function retryFailedItems(): Promise<void> {
-    if (flushInFlight) {
-      await flushInFlight;
-    }
-
     const db = await useClientDb();
     await syncQueueStore.requeueFailedItems(db);
+
+    while (flushInFlight) {
+      await flushInFlight;
+    }
     await flushSyncQueue();
   }
 

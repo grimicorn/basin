@@ -79,6 +79,47 @@ describe("useSyncQueue", () => {
       expect(syncQueueStore.recordRetryableFailure).not.toHaveBeenCalled();
     });
 
+    it("does not quarantine an item whose local markSynced write fails after a successful POST", async () => {
+      // The mutation already reached the server — a failure recording that
+      // fact locally is a PGlite bookkeeping problem, not a sync failure,
+      // and must never feed the transient/permanent classifier.
+      const items = [makeItem({ id: 1 }), makeItem({ id: 2 })];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      mockFetch.mockResolvedValue({ ok: true });
+      vi.mocked(syncQueueStore.markSynced).mockRejectedValueOnce(
+        new Error("DB write failed"),
+      );
+
+      const { flushSyncQueue } = useSyncQueue();
+      await flushSyncQueue();
+
+      expect(syncQueueStore.quarantine).not.toHaveBeenCalled();
+      expect(syncQueueStore.recordRetryableFailure).not.toHaveBeenCalled();
+      // The pass continued to item 2 rather than stopping.
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(syncQueueStore.markSynced).toHaveBeenCalledWith(fakeDb, 2);
+    });
+
+    it("stops the pass (without quarantining) when recording an outcome throws unexpectedly", async () => {
+      // If quarantine/recordRetryableFailure itself throws (a broken local
+      // DB), the item's true outcome wasn't persisted — safest is to leave
+      // it pending and stop, not guess, and not let the rejection escape as
+      // an unhandled rejection from the bare flushSyncQueue() calls in
+      // app/plugins/sync.client.ts.
+      const items = [makeItem({ id: 1 }), makeItem({ id: 2 })];
+      vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      vi.mocked(syncQueueStore.recordRetryableFailure).mockRejectedValueOnce(
+        new Error("DB write failed"),
+      );
+
+      const { flushSyncQueue } = useSyncQueue();
+      await expect(flushSyncQueue()).resolves.toBeUndefined();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(syncQueueStore.quarantine).not.toHaveBeenCalled();
+    });
+
     it("quarantines a permanently-failing (403) item without blocking items behind it", async () => {
       const items = [makeItem({ id: 1 }), makeItem({ id: 2 })];
       vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
@@ -332,7 +373,7 @@ describe("useSyncQueue", () => {
       expect(failedCount.value).toBe(0);
     });
 
-    it("waits out an in-flight pass before requeuing, so the requeued rows aren't missed by a stale snapshot", async () => {
+    it("guarantees a fresh pass that starts after the requeue commits, even if one was already in flight", async () => {
       const items = [makeItem({ id: 1 })];
       vi.mocked(syncQueueStore.getPendingItems).mockResolvedValue(items);
       mockFetch.mockResolvedValue({ ok: true });
@@ -342,9 +383,11 @@ describe("useSyncQueue", () => {
       await retryFailedItems();
       await inFlightPass;
 
-      // requeueFailedItems must run after the earlier pass's
-      // getPendingItems snapshot, and flushSyncQueue's own getPendingItems
-      // call inside retryFailedItems is a second, fresh read.
+      // The already-running pass's own getPendingItems is one call;
+      // retryFailedItems() must still guarantee a second, fresh
+      // getPendingItems call that starts after requeueFailedItems commits
+      // (rather than requeueFailedItems racing a pass that reads pending
+      // items before the requeue lands and then reports success).
       expect(syncQueueStore.getPendingItems).toHaveBeenCalledTimes(2);
       const requeueOrder = vi.mocked(syncQueueStore.requeueFailedItems).mock
         .invocationCallOrder[0];

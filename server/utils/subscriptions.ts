@@ -1,7 +1,7 @@
 // Owns reads/writes to the `subscriptions` table and translates Stripe
 // subscription objects into our own plan/status representation. Keeps the
 // Stripe SDK calls (server/utils/stripe.ts) separate from persistence.
-import { eq } from "drizzle-orm";
+import { eq, isNull, lte, or } from "drizzle-orm";
 import type Stripe from "stripe";
 import { processedStripeEvents, subscriptions } from "../db/schema";
 import { createStripeCustomer, deleteStripeCustomer } from "./stripe";
@@ -128,38 +128,36 @@ function currentPeriodEnd(subscription: Stripe.Subscription): Date | null {
   return toDate(item?.current_period_end ?? legacyPeriodEnd);
 }
 
-// An event is stale — and must not overwrite the stored row — in two cases:
+// An event is stale — and must not overwrite the stored row — when its
+// Stripe `created` timestamp is strictly older than the last event already
+// applied to this row. lastStripeEventAt is written alongside every other
+// field on every successful write (see `values` below), so it always
+// reflects the created time of whichever event most recently won,
+// regardless of which Stripe subscription id that event was for. That makes
+// a plain timestamp comparison sufficient to catch both an out-of-order
+// update for the *same* subscription (e.g. a stale "past_due" redelivered
+// after a newer "active" already synced) and a replayed event for a
+// subscription the user has since replaced (a genuine resubscribe's events
+// are, in practice, always newer than whatever was last recorded).
 //
-// 1. Different subscription id: an out-of-order event for a subscription the
-//    user already replaced. Once the stored subscription is no longer "pro"
-//    (canceled/expired), a different subscription id is a genuine resubscribe
-//    and is allowed through instead.
-// 2. Same subscription id: an event whose Stripe `created` timestamp is not
-//    newer than the last event we already applied to this row. Stripe does
-//    not guarantee webhook delivery order, so a redelivered/delayed older
-//    event (e.g. a stale "past_due" `updated`) arriving after a newer one
-//    (e.g. "active") synced must be dropped rather than overwrite it.
+// A tie (equal timestamps) is NOT stale: Stripe can emit multiple distinct
+// events for the same subscription within the same one-second `created`
+// value (e.g. `updated` immediately followed by `deleted` on cancellation),
+// and rejecting same-timestamp events would let the row get stuck on the
+// first of the pair forever. Exact redelivery of the *same* event is a
+// separate concern already handled by wasEventAlreadyProcessed.
+//
+// This check is only a cheap in-memory pre-filter — the authoritative,
+// race-safe guarantee is the `setWhere` clause on the write below, which
+// Postgres evaluates atomically against the row's current state.
 function isStaleEvent(
-  existing:
-    | {
-        stripeSubscriptionId: string | null;
-        plan: string;
-        lastStripeEventAt: Date | null;
-      }
-    | undefined,
-  subscription: Stripe.Subscription,
+  existingLastStripeEventAt: Date | null | undefined,
   eventCreatedAt: Date,
 ): boolean {
-  if (!existing?.stripeSubscriptionId) {
+  if (!existingLastStripeEventAt) {
     return false;
   }
-  if (existing.stripeSubscriptionId !== subscription.id) {
-    return existing.plan === "pro";
-  }
-  if (!existing.lastStripeEventAt) {
-    return false;
-  }
-  return eventCreatedAt <= existing.lastStripeEventAt;
+  return eventCreatedAt < existingLastStripeEventAt;
 }
 
 async function wasEventAlreadyProcessed(
@@ -202,9 +200,9 @@ async function markEventProcessed(
 // redelivery of an event we already fully applied.
 //
 // Out-of-order delivery: dedup alone doesn't fix this — a *different*, older
-// event can still arrive after a newer one. isStaleEvent guards that using
-// the event's own `created` timestamp compared against the last one applied
-// to this row (see isStaleEvent above).
+// event can still arrive after a newer one. isStaleEvent pre-filters that in
+// memory, and the write's `setWhere` enforces it atomically against
+// concurrent/racing deliveries (see both comments above and below).
 export async function upsertSubscriptionFromStripe(
   event: Stripe.Event,
 ): Promise<void> {
@@ -237,7 +235,7 @@ export async function upsertSubscriptionFromStripe(
     }));
 
   const eventCreatedAt = new Date(event.created * 1000);
-  if (isStaleEvent(existing, subscription, eventCreatedAt)) {
+  if (isStaleEvent(existing?.lastStripeEventAt, eventCreatedAt)) {
     return;
   }
 
@@ -256,10 +254,32 @@ export async function upsertSubscriptionFromStripe(
     updatedAt: new Date(),
   };
 
-  await db.insert(subscriptions).values(values).onConflictDoUpdate({
-    target: subscriptions.userId,
-    set: values,
-  });
+  // The in-memory isStaleEvent check above is only a pre-filter — two
+  // concurrent/racing deliveries could both read the row before either
+  // writes. `setWhere` makes the actual ordering guarantee atomic: Postgres
+  // only applies the update if the row's stored lastStripeEventAt is still
+  // older than (or equal to, to allow same-second distinct events) this
+  // event's timestamp, so the older of two racing writes can never win.
+  const written = await db
+    .insert(subscriptions)
+    .values(values)
+    .onConflictDoUpdate({
+      target: subscriptions.userId,
+      set: values,
+      setWhere: or(
+        isNull(subscriptions.lastStripeEventAt),
+        lte(subscriptions.lastStripeEventAt, eventCreatedAt),
+      ),
+    })
+    .returning({ id: subscriptions.id });
+
+  // `returning` comes back empty when setWhere blocked the update (the DB
+  // decided the event was stale after all) — that event was correctly not
+  // applied, so it's left unmarked in processedStripeEvents, same as the
+  // no-known-userId branch above.
+  if (written.length === 0) {
+    return;
+  }
 
   // Only recorded once the write above has actually succeeded — see
   // markEventProcessed's comment for why this ordering matters.

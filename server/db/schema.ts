@@ -150,9 +150,11 @@ export const subscriptions = pgTable("subscriptions", {
 // Dedup log for Stripe webhook events: Stripe explicitly documents that
 // webhooks may be delivered more than once for the same event. Recording the
 // event id here lets the webhook handler treat a redelivery as a no-op
-// instead of reapplying it. Rows are append-only and safe to prune once an
-// event is old enough that Stripe would no longer redeliver it (Stripe retries
-// for up to 3 days) — see the retention note in the PR that introduced this.
+// instead of reapplying it. Rows are append-only and unbounded — no prune
+// job ships yet (@todo add a scheduled cleanup, mirroring the pattern in
+// netlify/functions/, deleting processed_at older than Stripe's ~3-day retry
+// window; processed_stripe_events_processed_at_idx below exists to support
+// that future query).
 export const processedStripeEvents = pgTable(
   "processed_stripe_events",
   {

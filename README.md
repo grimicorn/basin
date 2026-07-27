@@ -65,6 +65,23 @@ The schema lives in [`server/db/schema.ts`](server/db/schema.ts). Tables:
 | `user_settings` | Per-user reading preferences                                        |
 | `subscriptions` | Stripe billing state (customer, subscription, plan/status) per user |
 
+### Token encryption
+
+`integrations.accessToken` / `refreshToken` / `tokenSecret` (YouTube OAuth
+tokens, Bluesky JWTs, and the Bluesky app password) are encrypted with
+AES-256-GCM before they're written — see
+[`server/utils/crypto.ts`](server/utils/crypto.ts) and
+[`docs/api-auth-storage.md`](docs/api-auth-storage.md) for the design.
+Requires `TOKEN_ENCRYPTION_KEY` (see [`.env.example`](.env.example) for how to
+generate one); reads tolerate legacy plaintext rows written before encryption
+was added, but you should run the one-off backfill once per environment to
+migrate them:
+
+```bash
+npm run tokens:backfill                      # local (.env)
+dotenvx run -f .env.production -- node scripts/backfill-encrypt-tokens.ts
+```
+
 ### Database commands
 
 Push the schema directly to Neon (useful for initial setup or during development):

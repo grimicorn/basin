@@ -8,6 +8,46 @@ const marketingCss = fileURLToPath(
   new URL("./app/assets/css/marketing.css", import.meta.url),
 );
 
+// Must match the key shape server/utils/crypto.ts requires (32 bytes of hex
+// = 64 hex characters) — checked again here so a malformed (not just
+// missing) key also fails the build instead of shipping and throwing
+// TokenEncryptionKeyError on the first OAuth callback or token refresh.
+const TOKEN_ENCRYPTION_KEY_PATTERN = /^[0-9a-f]{64}$/i;
+
+// `nuxt build` (both npm run build and build:dev — Netlify production and
+// preview both go through this same command) always runs with
+// NODE_ENV=production; only `nuxt dev` doesn't. Hard-failing unconditionally
+// here would also block `nuxt dev`/`nuxt typecheck` for any contributor who
+// hasn't set up a local TOKEN_ENCRYPTION_KEY, even for work that never
+// touches integrations — so the missing/malformed-key guard below only
+// blocks an actual deployable build. server/utils/crypto.ts still throws a
+// precise TokenEncryptionKeyError at the real call site if dev code path
+// ever touches an integration without a key.
+const isProductionBuild = process.env.NODE_ENV === "production";
+
+// A missing or malformed key here would otherwise bake an empty (or invalid)
+// string into the server bundle (see the nitro.replace comment below) and
+// silently ship with integration tokens unencryptable — fail the build
+// instead of the deploy.
+function requireTokenEncryptionKeyForBuild(): string {
+  const key = process.env.TOKEN_ENCRYPTION_KEY ?? "";
+
+  if (!isProductionBuild) {
+    return key;
+  }
+
+  if (!TOKEN_ENCRYPTION_KEY_PATTERN.test(key)) {
+    throw new Error(
+      "TOKEN_ENCRYPTION_KEY must be set to 64 hex characters (32 bytes) " +
+        "before building — integration tokens (YouTube/Bluesky) cannot be " +
+        "encrypted without it. Generate one with `openssl rand -hex 32` " +
+        "and add it to this environment's dotenvx file.",
+    );
+  }
+
+  return key;
+}
+
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   modules: ["@pinia/nuxt", "@clerk/nuxt", "@sentry/nuxt/module"],
@@ -56,8 +96,17 @@ export default defineNuxtConfig({
     // before useRuntimeConfig() is available), and dotenvx does NOT run in the
     // deployed function. Statically bake the build-time value into the server
     // bundle so SENTRY_DSN stays sourced only from the dotenvx files.
+    //
+    // server/utils/crypto.ts reads TOKEN_ENCRYPTION_KEY the same way (raw
+    // process.env, per docs/api-auth-storage.md) so it can also be called
+    // from netlify/functions/sync-feed.ts, which decrypts its own env at
+    // runtime via loadEnv() and never goes through this Nitro build. Baking
+    // it here covers the server/api/* (Nitro) call sites the same way.
     replace: {
       "process.env.SENTRY_DSN": JSON.stringify(process.env.SENTRY_DSN || ""),
+      "process.env.TOKEN_ENCRYPTION_KEY": JSON.stringify(
+        requireTokenEncryptionKeyForBuild(),
+      ),
     },
   },
   css: [mainCss, marketingCss],

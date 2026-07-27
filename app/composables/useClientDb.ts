@@ -54,9 +54,21 @@ const MIGRATIONS = /* sql */ `
     id         SERIAL PRIMARY KEY,
     action     TEXT NOT NULL,
     payload    TEXT NOT NULL,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    status     TEXT NOT NULL DEFAULT 'pending',
+    last_error TEXT,
+    failed_at  TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     synced_at  TIMESTAMP
   );
+
+  -- Local PGlite databases created before retry/quarantine tracking existed
+  -- only have the columns above the CREATE TABLE originally shipped with —
+  -- add the rest here so an existing IndexedDB store picks them up too.
+  ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+  ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS last_error TEXT;
+  ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS failed_at TIMESTAMP;
 `;
 
 export async function useClientDb(): Promise<ClientDb> {

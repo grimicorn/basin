@@ -33,6 +33,8 @@ globalThis.$fetch = vi.fn().mockResolvedValue(null);
 globalThis.useSyncQueue = vi.fn(() => ({
   queueAction: vi.fn().mockResolvedValue(undefined),
   flushSyncQueue: vi.fn().mockResolvedValue(undefined),
+  failedCount: ref(0),
+  refreshFailedCount: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Nuxt router / navigation globals
@@ -171,6 +173,7 @@ config.global.stubs = {
   RLogo: true,
   AppHeader: true,
   AppToast: true,
+  SyncQueueAlert: true,
   SearchOverlay: true,
   ReaderDetail: true,
   SourceTag: true,

@@ -125,13 +125,16 @@ export async function backfillRow(
   const nextRefreshToken = update.refreshToken ?? row.refreshToken;
   const nextTokenSecret = update.tokenSecret ?? row.tokenSecret;
 
+  // updated_at is deliberately left untouched — this is a storage-format
+  // change, not a user action, and the WHERE guard above already provides
+  // the concurrency safety; bumping it would make every migrated row look
+  // like it was just "reconnected" in the UI.
   const updatedRows = await sql`
     UPDATE integrations
     SET
       access_token = ${nextAccessToken},
       refresh_token = ${nextRefreshToken},
-      token_secret = ${nextTokenSecret},
-      updated_at = now()
+      token_secret = ${nextTokenSecret}
     WHERE id = ${row.id}
       AND access_token = ${row.accessToken}
       AND refresh_token IS NOT DISTINCT FROM ${row.refreshToken}
@@ -142,15 +145,32 @@ export async function backfillRow(
   return updatedRows.length > 0 ? "updated" : "skipped-concurrent-change";
 }
 
+// One row failing to encrypt or write must not abort the rest of the run
+// (fail loud, but surface partial results) — the caller decides how to react
+// to a non-zero failedCount rather than losing all progress to one bad row.
+// Exported for unit testing.
+export async function backfillRowReportingFailure(
+  sql: SqlTag,
+  row: IntegrationTokenRow,
+): Promise<BackfillOutcome | "failed"> {
+  try {
+    return await backfillRow(sql, row);
+  } catch (error) {
+    console.error(`integration ${row.id} failed to backfill:`, error);
+    return "failed";
+  }
+}
+
 async function main(): Promise<void> {
   const sql = connectToDatabase();
   const rows = await fetchIntegrationTokenRows(sql);
 
   let updatedCount = 0;
   let skippedDueToConcurrentChangeCount = 0;
+  let failedCount = 0;
 
   for (const row of rows) {
-    const outcome = await backfillRow(sql, row);
+    const outcome = await backfillRowReportingFailure(sql, row);
 
     if (outcome === "updated") {
       updatedCount += 1;
@@ -159,14 +179,25 @@ async function main(): Promise<void> {
     if (outcome === "skipped-concurrent-change") {
       skippedDueToConcurrentChangeCount += 1;
     }
+
+    if (outcome === "failed") {
+      failedCount += 1;
+    }
   }
 
   console.log(
     `Scanned ${rows.length} integration row(s); encrypted ${updatedCount} row(s) with legacy plaintext token fields.` +
       (skippedDueToConcurrentChangeCount > 0
         ? ` Skipped ${skippedDueToConcurrentChangeCount} row(s) that changed concurrently — re-run to pick them up.`
+        : "") +
+      (failedCount > 0
+        ? ` ${failedCount} row(s) failed — see errors above; re-run to retry them.`
         : ""),
   );
+
+  if (failedCount > 0) {
+    process.exitCode = 1;
+  }
 }
 
 function isDirectInvocation(): boolean {

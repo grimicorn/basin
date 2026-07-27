@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildTokenUpdate,
   backfillRow,
+  backfillRowReportingFailure,
 } from "../../scripts/backfill-encrypt-tokens";
 import { encryptToken, isEncryptedToken } from "../../server/utils/crypto";
 
@@ -183,5 +184,50 @@ describe("backfillRow", () => {
     const outcome = await backfillRow(fakeSql, row);
 
     expect(outcome).toBe("skipped-concurrent-change");
+  });
+});
+
+describe("backfillRowReportingFailure", () => {
+  beforeEach(() => {
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", VALID_KEY);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns the underlying outcome when the row backfills successfully", async () => {
+    const { fakeSql } = createFakeSql([[{ id: 1 }]]);
+    const row = {
+      id: 1,
+      accessToken: "legacy-plaintext-access",
+      refreshToken: null,
+      tokenSecret: null,
+    };
+
+    const outcome = await backfillRowReportingFailure(fakeSql, row);
+
+    expect(outcome).toBe("updated");
+  });
+
+  it('catches a row-level failure, logs it, and returns "failed" instead of throwing', async () => {
+    const failingSql = vi.fn(async () => {
+      throw new Error("connection reset");
+    });
+    const row = {
+      id: 2,
+      accessToken: "legacy-plaintext-access",
+      refreshToken: null,
+      tokenSecret: null,
+    };
+
+    const outcome = await backfillRowReportingFailure(failingSql, row);
+
+    expect(outcome).toBe("failed");
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("integration 2 failed to backfill"),
+      expect.any(Error),
+    );
   });
 });

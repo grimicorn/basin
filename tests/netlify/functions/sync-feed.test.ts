@@ -570,6 +570,27 @@ describe("sync-feed workload — YouTube source", () => {
     expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
   });
 
+  it("throws ServerConfigError (not IntegrationAuthError, not persisted) when TOKEN_ENCRYPTION_KEY is missing", async () => {
+    // A missing/malformed encryption key is an operator problem, not a sign
+    // this user's connection is broken — same category as the missing
+    // Google OAuth client secret case below, so it must not be persisted as
+    // a feed/integration failure (see recordPermanentFailure's ServerConfigError skip).
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce(
+        makeIntegration({ accessToken: encryptToken("some-access-token") }),
+      );
+
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", "");
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "ServerConfigError" });
+
+    expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
+    expect(mockUpdateWhere).not.toHaveBeenCalled();
+  });
+
   it("throws IntegrationAuthError when the refresh token was revoked (401/400 from Google)", async () => {
     const expiredIntegration = makeIntegration({
       expiresAt: new Date(Date.now() - 1000),
@@ -1038,6 +1059,26 @@ describe("sync-feed workload — Bluesky source", () => {
     await expect(
       (handler as Function)(makeBlueskyEvent()),
     ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    expect(mockFetchNewBlueskyPosts).not.toHaveBeenCalled();
+  });
+
+  it("throws ServerConfigError (not IntegrationAuthError, not persisted) when TOKEN_ENCRYPTION_KEY is missing", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        accessToken: encryptToken("some-access-jwt"),
+        refreshToken: encryptToken("some-refresh-jwt"),
+        tokenSecret: encryptToken("some-app-password"),
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", "");
+
+    await expect(
+      (handler as Function)(makeBlueskyEvent()),
+    ).rejects.toMatchObject({ name: "ServerConfigError" });
 
     expect(mockFetchNewBlueskyPosts).not.toHaveBeenCalled();
   });

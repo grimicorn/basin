@@ -14,13 +14,29 @@ const marketingCss = fileURLToPath(
 // TokenEncryptionKeyError on the first OAuth callback or token refresh.
 const TOKEN_ENCRYPTION_KEY_PATTERN = /^[0-9a-f]{64}$/i;
 
+// `nuxt build` (both npm run build and build:dev — Netlify production and
+// preview both go through this same command) always runs with
+// NODE_ENV=production; only `nuxt dev` doesn't. Hard-failing unconditionally
+// here would also block `nuxt dev`/`nuxt typecheck` for any contributor who
+// hasn't set up a local TOKEN_ENCRYPTION_KEY, even for work that never
+// touches integrations — so the missing/malformed-key guard below only
+// blocks an actual deployable build. server/utils/crypto.ts still throws a
+// precise TokenEncryptionKeyError at the real call site if dev code path
+// ever touches an integration without a key.
+const isProductionBuild = process.env.NODE_ENV === "production";
+
 // A missing or malformed key here would otherwise bake an empty (or invalid)
 // string into the server bundle (see the nitro.replace comment below) and
 // silently ship with integration tokens unencryptable — fail the build
 // instead of the deploy.
 function requireTokenEncryptionKeyForBuild(): string {
-  const key = process.env.TOKEN_ENCRYPTION_KEY;
-  if (!key || !TOKEN_ENCRYPTION_KEY_PATTERN.test(key)) {
+  const key = process.env.TOKEN_ENCRYPTION_KEY ?? "";
+
+  if (!isProductionBuild) {
+    return key;
+  }
+
+  if (!TOKEN_ENCRYPTION_KEY_PATTERN.test(key)) {
     throw new Error(
       "TOKEN_ENCRYPTION_KEY must be set to 64 hex characters (32 bytes) " +
         "before building — integration tokens (YouTube/Bluesky) cannot be " +
@@ -28,6 +44,7 @@ function requireTokenEncryptionKeyForBuild(): string {
         "and add it to this environment's dotenvx file.",
     );
   }
+
   return key;
 }
 

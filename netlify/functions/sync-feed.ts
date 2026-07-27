@@ -18,6 +18,7 @@ import {
   decryptNullableTokenTolerant,
   decryptTokenTolerant,
   encryptToken,
+  TokenEncryptionKeyError,
 } from "../../server/utils/crypto";
 import {
   fetchNewBlueskyPosts,
@@ -68,18 +69,29 @@ async function fetchFeedRecord(
   });
 }
 
-// A decrypt failure (rotated/wrong key, corrupted ciphertext) means this
-// connection's stored credentials are unusable — treat it like a revoked
-// token (IntegrationAuthError) so the row is flagged "needs reconnect"
-// instead of being retried forever as if it were a transient sync failure.
-function mapDecryptFailureToIntegrationAuthError(
-  provider: string,
-  error: unknown,
-): IntegrationAuthError {
-  const message = error instanceof Error ? error.message : String(error);
+// A missing/malformed TOKEN_ENCRYPTION_KEY is a server misconfiguration, not
+// this user's fault — the same category as the missing Google OAuth client
+// secret handled below (ServerConfigError), which persistPermanentSyncFailure
+// deliberately skips persisting. A decrypt failure with a well-formed key
+// (rotated/wrong key, corrupted ciphertext) means this connection's stored
+// credentials are genuinely unusable, so that case is treated like a revoked
+// token (IntegrationAuthError) and flagged "needs reconnect" instead of
+// being retried forever. Either way, the underlying error is logged rather
+// than embedded in the user-facing message, since that message is persisted
+// verbatim to syncError and rendered as a tooltip (see the comment on
+// syncYouTubeFeed's "No YouTube account is connected" message above).
+function mapDecryptFailureToSyncError(provider: string, error: unknown): Error {
+  if (error instanceof TokenEncryptionKeyError) {
+    console.error(`${provider} token decryption misconfigured:`, error);
+    return new ServerConfigError(
+      `TOKEN_ENCRYPTION_KEY is missing or invalid; cannot decrypt ${provider} credentials.`,
+    );
+  }
+
+  console.error(`${provider} token decryption failed:`, error);
   return new IntegrationAuthError(
     provider,
-    `Stored ${provider} credentials could not be decrypted (${message}). Reconnect ${provider} in Settings.`,
+    `Your ${provider} connection could not be verified. Reconnect ${provider} in Settings.`,
   );
 }
 
@@ -111,7 +123,7 @@ async function fetchBlueskyIntegration(userId: number) {
       tokenSecret: decryptNullableTokenTolerant(integration.tokenSecret),
     };
   } catch (error) {
-    throw mapDecryptFailureToIntegrationAuthError("bluesky", error);
+    throw mapDecryptFailureToSyncError("bluesky", error);
   }
 }
 
@@ -180,7 +192,7 @@ async function fetchYouTubeIntegration(userId: number) {
       refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
     };
   } catch (error) {
-    throw mapDecryptFailureToIntegrationAuthError("youtube", error);
+    throw mapDecryptFailureToSyncError("youtube", error);
   }
 }
 

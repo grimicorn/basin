@@ -3,7 +3,7 @@
 // Stripe SDK calls (server/utils/stripe.ts) separate from persistence.
 import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
-import { subscriptions } from "../db/schema";
+import { processedStripeEvents, subscriptions } from "../db/schema";
 import { createStripeCustomer, deleteStripeCustomer } from "./stripe";
 
 export type PlanName = "free" | "pro";
@@ -128,22 +128,67 @@ function currentPeriodEnd(subscription: Stripe.Subscription): Date | null {
   return toDate(item?.current_period_end ?? legacyPeriodEnd);
 }
 
-// An event for a subscription that is no longer the row's active one (e.g. an
-// out-of-order event for a subscription the user already replaced) must not
-// overwrite the current record. Once the stored subscription is no longer
-// "pro" (canceled/expired), a different subscription id is a genuine
-// resubscribe and is allowed through.
+// An event is stale — and must not overwrite the stored row — in two cases:
+//
+// 1. Different subscription id: an out-of-order event for a subscription the
+//    user already replaced. Once the stored subscription is no longer "pro"
+//    (canceled/expired), a different subscription id is a genuine resubscribe
+//    and is allowed through instead.
+// 2. Same subscription id: an event whose Stripe `created` timestamp is not
+//    newer than the last event we already applied to this row. Stripe does
+//    not guarantee webhook delivery order, so a redelivered/delayed older
+//    event (e.g. a stale "past_due" `updated`) arriving after a newer one
+//    (e.g. "active") synced must be dropped rather than overwrite it.
 function isStaleEvent(
-  existing: { stripeSubscriptionId: string | null; plan: string } | undefined,
+  existing:
+    | {
+        stripeSubscriptionId: string | null;
+        plan: string;
+        lastStripeEventAt: Date | null;
+      }
+    | undefined,
   subscription: Stripe.Subscription,
+  eventCreatedAt: Date,
 ): boolean {
   if (!existing?.stripeSubscriptionId) {
     return false;
   }
-  if (existing.stripeSubscriptionId === subscription.id) {
+  if (existing.stripeSubscriptionId !== subscription.id) {
+    return existing.plan === "pro";
+  }
+  if (!existing.lastStripeEventAt) {
     return false;
   }
-  return existing.plan === "pro";
+  return eventCreatedAt <= existing.lastStripeEventAt;
+}
+
+async function wasEventAlreadyProcessed(
+  db: ReturnType<typeof useDb>,
+  stripeEventId: string,
+): Promise<boolean> {
+  const processedEvent = await db.query.processedStripeEvents.findFirst({
+    where: eq(processedStripeEvents.stripeEventId, stripeEventId),
+  });
+  return Boolean(processedEvent);
+}
+
+// Records that an event was applied, so a redelivery of the same event id is
+// a no-op instead of being reapplied. Always called *after* the subscription
+// write below has already succeeded — never before — so a crash between the
+// two can only leave an event applied-but-unmarked (safe: a redelivery just
+// reapplies the same, idempotent write) and never marked-but-unapplied (which
+// would silently drop a real update forever). onConflictDoNothing makes the
+// insert itself race-safe if two deliveries of the same event are in flight
+// concurrently.
+async function markEventProcessed(
+  db: ReturnType<typeof useDb>,
+  stripeEventId: string,
+  eventType: string,
+): Promise<void> {
+  await db
+    .insert(processedStripeEvents)
+    .values({ stripeEventId, eventType })
+    .onConflictDoNothing({ target: processedStripeEvents.stripeEventId });
 }
 
 // Called from the Stripe webhook for customer.subscription.created/updated/deleted.
@@ -152,15 +197,24 @@ function isStaleEvent(
 // in the subscription metadata at checkout time. If neither resolves, the event
 // can't be attributed to a known user and is dropped.
 //
-// Ordering note: Stripe does not guarantee webhook delivery order. Writes are
-// last-write-wins per subscription; the isStaleEvent guard prevents an
-// out-of-order event for a subscription the user already replaced from
-// overwriting the currently-active one. We do not track a full event version
-// beyond that.
+// Duplicate delivery: Stripe explicitly documents that a webhook event may be
+// delivered more than once. wasEventAlreadyProcessed short-circuits a
+// redelivery of an event we already fully applied.
+//
+// Out-of-order delivery: dedup alone doesn't fix this — a *different*, older
+// event can still arrive after a newer one. isStaleEvent guards that using
+// the event's own `created` timestamp compared against the last one applied
+// to this row (see isStaleEvent above).
 export async function upsertSubscriptionFromStripe(
-  subscription: Stripe.Subscription,
+  event: Stripe.Event,
 ): Promise<void> {
   const db = useDb();
+
+  if (await wasEventAlreadyProcessed(db, event.id)) {
+    return;
+  }
+
+  const subscription = event.data.object as Stripe.Subscription;
   const stripeCustomerId = customerIdOf(subscription);
 
   const existingByCustomer = await db.query.subscriptions.findFirst({
@@ -182,7 +236,8 @@ export async function upsertSubscriptionFromStripe(
       where: eq(subscriptions.userId, userId),
     }));
 
-  if (isStaleEvent(existing, subscription)) {
+  const eventCreatedAt = new Date(event.created * 1000);
+  if (isStaleEvent(existing, subscription, eventCreatedAt)) {
     return;
   }
 
@@ -197,6 +252,7 @@ export async function upsertSubscriptionFromStripe(
     currentPeriodEnd: currentPeriodEnd(subscription),
     trialEnd: toDate(subscription.trial_end),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    lastStripeEventAt: eventCreatedAt,
     updatedAt: new Date(),
   };
 
@@ -204,4 +260,8 @@ export async function upsertSubscriptionFromStripe(
     target: subscriptions.userId,
     set: values,
   });
+
+  // Only recorded once the write above has actually succeeded — see
+  // markEventProcessed's comment for why this ordering matters.
+  await markEventProcessed(db, event.id, event.type);
 }

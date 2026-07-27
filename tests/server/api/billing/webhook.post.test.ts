@@ -87,12 +87,18 @@ describe("POST /api/billing/webhook", () => {
     "customer.subscription.deleted",
   ])("persists subscription state for %s", async (type) => {
     const subscription = { id: "sub_123" };
-    mockVerifyWebhookSignature.mockReturnValue({
+    const stripeEvent = {
+      id: "evt_123",
       type,
+      created: 1750000000,
       data: { object: subscription },
-    });
+    };
+    mockVerifyWebhookSignature.mockReturnValue(stripeEvent);
     await handler({});
-    expect(mockUpsertSubscriptionFromStripe).toHaveBeenCalledWith(subscription);
+    // The whole event (not just the subscription object) is forwarded so
+    // upsertSubscriptionFromStripe can dedup on event.id and order on
+    // event.created.
+    expect(mockUpsertSubscriptionFromStripe).toHaveBeenCalledWith(stripeEvent);
   });
 
   it("ignores event types it doesn't handle", async () => {

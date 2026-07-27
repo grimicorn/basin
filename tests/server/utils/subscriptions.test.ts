@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type Stripe from "stripe";
+import {
+  processedStripeEvents,
+  subscriptions,
+} from "../../../server/db/schema";
 
 const { mockCreateStripeCustomer, mockDeleteStripeCustomer } = vi.hoisted(
   () => ({
@@ -13,6 +17,7 @@ vi.mock("../../../server/utils/stripe", () => ({
 }));
 
 const mockFindFirst = vi.fn();
+const mockFindFirstProcessedEvent = vi.fn();
 const mockOnConflictDoUpdate = vi.fn();
 const mockOnConflictDoNothing = vi.fn();
 const mockValues = vi.fn((_values: Record<string, unknown>) => ({
@@ -22,7 +27,10 @@ const mockValues = vi.fn((_values: Record<string, unknown>) => ({
 const mockInsert = vi.fn(() => ({ values: mockValues }));
 
 vi.stubGlobal("useDb", () => ({
-  query: { subscriptions: { findFirst: mockFindFirst } },
+  query: {
+    subscriptions: { findFirst: mockFindFirst },
+    processedStripeEvents: { findFirst: mockFindFirstProcessedEvent },
+  },
   insert: mockInsert,
 }));
 
@@ -149,7 +157,12 @@ describe("getOrCreateStripeCustomerId", () => {
 });
 
 describe("upsertSubscriptionFromStripe", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    // Default: this event id hasn't been seen before. Individual tests
+    // override this to simulate a redelivered/duplicate event.
+    mockFindFirstProcessedEvent.mockResolvedValue(undefined);
+  });
 
   // Only a minimal fake shape is needed for these tests; cast once here so
   // call sites don't need repeated type assertions.
@@ -172,15 +185,30 @@ describe("upsertSubscriptionFromStripe", () => {
     } as unknown as Stripe.Subscription;
   }
 
+  // Wraps a subscription in the Stripe.Event envelope upsertSubscriptionFromStripe
+  // now takes, so dedup (event.id) and ordering (event.created) can be tested.
+  function buildEvent(
+    subscriptionOverrides: Record<string, unknown> = {},
+    eventOverrides: Record<string, unknown> = {},
+  ): Stripe.Event {
+    return {
+      id: "evt_123",
+      type: "customer.subscription.updated",
+      created: 1750000500,
+      data: { object: buildSubscription(subscriptionOverrides) },
+      ...eventOverrides,
+    } as unknown as Stripe.Event;
+  }
+
   it("does nothing when the customer isn't known and metadata has no userId", async () => {
     mockFindFirst.mockResolvedValue(undefined);
-    await upsertSubscriptionFromStripe(buildSubscription());
+    await upsertSubscriptionFromStripe(buildEvent());
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("upserts using the userId from the row matched by customer ID", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(buildSubscription());
+    await upsertSubscriptionFromStripe(buildEvent());
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 9,
@@ -190,6 +218,7 @@ describe("upsertSubscriptionFromStripe", () => {
         plan: "pro",
         status: "trialing",
         cancelAtPeriodEnd: false,
+        lastStripeEventAt: new Date(1750000500 * 1000),
       }),
     );
     expect(mockOnConflictDoUpdate).toHaveBeenCalled();
@@ -198,7 +227,7 @@ describe("upsertSubscriptionFromStripe", () => {
   it("falls back to the metadata userId when no row matches the customer ID", async () => {
     mockFindFirst.mockResolvedValue(undefined);
     await upsertSubscriptionFromStripe(
-      buildSubscription({ metadata: { userId: "5" } }),
+      buildEvent({ metadata: { userId: "5" } }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 5 }),
@@ -207,9 +236,7 @@ describe("upsertSubscriptionFromStripe", () => {
 
   it("maps a canceled subscription to plan 'free'", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(
-      buildSubscription({ status: "canceled" }),
-    );
+    await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ plan: "free", status: "canceled" }),
     );
@@ -222,9 +249,10 @@ describe("upsertSubscriptionFromStripe", () => {
       userId: 9,
       stripeSubscriptionId: "sub_new",
       plan: "pro",
+      lastStripeEventAt: null,
     });
     await upsertSubscriptionFromStripe(
-      buildSubscription({ id: "sub_123", status: "canceled" }),
+      buildEvent({ id: "sub_123", status: "canceled" }),
     );
     expect(mockInsert).not.toHaveBeenCalled();
   });
@@ -234,9 +262,10 @@ describe("upsertSubscriptionFromStripe", () => {
       userId: 9,
       stripeSubscriptionId: "sub_123",
       plan: "pro",
+      lastStripeEventAt: null,
     });
     await upsertSubscriptionFromStripe(
-      buildSubscription({ id: "sub_123", status: "canceled" }),
+      buildEvent({ id: "sub_123", status: "canceled" }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ plan: "free", status: "canceled" }),
@@ -250,9 +279,10 @@ describe("upsertSubscriptionFromStripe", () => {
       userId: 9,
       stripeSubscriptionId: "sub_old",
       plan: "free",
+      lastStripeEventAt: null,
     });
     await upsertSubscriptionFromStripe(
-      buildSubscription({ id: "sub_new", status: "active" }),
+      buildEvent({ id: "sub_new", status: "active" }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -265,7 +295,7 @@ describe("upsertSubscriptionFromStripe", () => {
 
   it("converts unix timestamps to Date objects", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(buildSubscription());
+    await upsertSubscriptionFromStripe(buildEvent());
     const values = mockValues.mock.calls[0][0] as {
       trialEnd: Date;
       currentPeriodEnd: Date;
@@ -276,7 +306,7 @@ describe("upsertSubscriptionFromStripe", () => {
 
   it("handles a null trial_end", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
-    await upsertSubscriptionFromStripe(buildSubscription({ trial_end: null }));
+    await upsertSubscriptionFromStripe(buildEvent({ trial_end: null }));
     const values = mockValues.mock.calls[0][0] as { trialEnd: Date | null };
     expect(values.trialEnd).toBeNull();
   });
@@ -284,7 +314,7 @@ describe("upsertSubscriptionFromStripe", () => {
   it("resolves the object form (not just a string) of subscription.customer", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
     await upsertSubscriptionFromStripe(
-      buildSubscription({ customer: { id: "cus_obj" } }),
+      buildEvent({ customer: { id: "cus_obj" } }),
     );
     expect(mockValues).toHaveBeenCalledWith(
       expect.objectContaining({ stripeCustomerId: "cus_obj" }),
@@ -294,12 +324,104 @@ describe("upsertSubscriptionFromStripe", () => {
   it("falls back to the legacy top-level current_period_end when the item lacks it", async () => {
     mockFindFirst.mockResolvedValue({ userId: 9 });
     await upsertSubscriptionFromStripe(
-      buildSubscription({
+      buildEvent({
         current_period_end: 1760000000,
         items: { data: [{ price: { id: "price_yearly" } }] },
       }),
     );
     const values = mockValues.mock.calls[0][0] as { currentPeriodEnd: Date };
     expect(values.currentPeriodEnd).toEqual(new Date(1760000000 * 1000));
+  });
+
+  describe("duplicate delivery (dedup on event id)", () => {
+    it("applies a first-seen event and records it as processed", async () => {
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockOnConflictDoUpdate).toHaveBeenCalled();
+      expect(mockInsert).toHaveBeenCalledWith(processedStripeEvents);
+      expect(mockValues).toHaveBeenCalledWith({
+        stripeEventId: "evt_123",
+        eventType: "customer.subscription.updated",
+      });
+      expect(mockOnConflictDoNothing).toHaveBeenCalledWith({
+        target: processedStripeEvents.stripeEventId,
+      });
+    });
+
+    it("is a no-op the second time the same event id is delivered", async () => {
+      mockFindFirst.mockResolvedValue({ userId: 9 });
+
+      // First delivery: not yet processed, applies normally.
+      mockFindFirstProcessedEvent.mockResolvedValueOnce(undefined);
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockInsert).toHaveBeenCalledWith(subscriptions);
+
+      // Second delivery of the identical event id: already recorded as
+      // processed, so the subscription table must not be written to again.
+      mockInsert.mockClear();
+      mockFindFirstProcessedEvent.mockResolvedValueOnce({ id: 1 });
+      await upsertSubscriptionFromStripe(buildEvent());
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("out-of-order delivery (event timestamp ordering)", () => {
+    it("does not overwrite state written by a newer event when an older one for the same subscription arrives later", async () => {
+      // The stored row already reflects a newer event (e.g. "active" at
+      // t=2_000_000); a redelivered/delayed older event for the same
+      // subscription (e.g. a stale "past_due" at t=1_000_000) must be dropped.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        plan: "pro",
+        lastStripeEventAt: new Date(2_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "past_due" },
+          { id: "evt_old", created: 1_000_000 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
+
+    it("applies a genuinely newer event for the same subscription", async () => {
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        plan: "pro",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "active" },
+          { id: "evt_new", created: 2_000_000 },
+        ),
+      );
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "active",
+          lastStripeEventAt: new Date(2_000_000 * 1000),
+        }),
+      );
+    });
+
+    it("treats an event with the exact same timestamp as the stored one as stale", async () => {
+      // Ties are not newer: without this, a same-timestamp redelivery for a
+      // different event id would slip past the dedup table and reapply.
+      mockFindFirst.mockResolvedValue({
+        userId: 9,
+        stripeSubscriptionId: "sub_123",
+        plan: "pro",
+        lastStripeEventAt: new Date(1_000_000 * 1000),
+      });
+      await upsertSubscriptionFromStripe(
+        buildEvent(
+          { id: "sub_123", status: "past_due" },
+          { id: "evt_tie", created: 1_000_000 },
+        ),
+      );
+      expect(mockInsert).not.toHaveBeenCalled();
+    });
   });
 });

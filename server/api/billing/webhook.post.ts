@@ -49,9 +49,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (SUBSCRIPTION_EVENT_TYPES.has(stripeEvent.type)) {
-    await upsertSubscriptionFromStripe(
-      stripeEvent.data.object as Stripe.Subscription,
-    );
+    await upsertSubscriptionFromStripe(stripeEvent);
   }
 
   return { received: true };

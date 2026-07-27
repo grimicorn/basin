@@ -549,6 +549,27 @@ describe("sync-feed workload — YouTube source", () => {
     );
   });
 
+  it("throws IntegrationAuthError (not a raw crypto error) when the stored access token was encrypted with a different key", async () => {
+    // A well-shaped but undecryptable value (wrong/rotated key, or corrupted
+    // ciphertext) must not surface as a bare crypto error that gets retried
+    // forever — it means this connection needs to be re-established.
+    const encryptedWithDifferentKey = encryptToken("some-access-token");
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce(
+        makeIntegration({ accessToken: encryptedWithDifferentKey }),
+      );
+
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", randomBytes(32).toString("hex"));
+
+    await expect(
+      (handler as Function)(makeYouTubeEvent()),
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    expect(mockFetchNewUploadsForChannel).not.toHaveBeenCalled();
+  });
+
   it("throws IntegrationAuthError when the refresh token was revoked (401/400 from Google)", async () => {
     const expiredIntegration = makeIntegration({
       expiresAt: new Date(Date.now() - 1000),
@@ -995,5 +1016,29 @@ describe("sync-feed workload — Bluesky source", () => {
       expect.any(Date),
       { includeReposts: false, includeReplies: false },
     );
+  });
+
+  it("throws IntegrationAuthError (not a raw crypto error) when the stored app password was encrypted with a different key", async () => {
+    // Same reasoning as the YouTube case: a well-shaped but undecryptable
+    // value must be flagged as "needs reconnect", not retried forever.
+    const encryptedWithDifferentKey = encryptToken("some-app-password");
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        accessToken: encryptToken("some-access-jwt"),
+        refreshToken: encryptToken("some-refresh-jwt"),
+        tokenSecret: encryptedWithDifferentKey,
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", randomBytes(32).toString("hex"));
+
+    await expect(
+      (handler as Function)(makeBlueskyEvent()),
+    ).rejects.toMatchObject({ name: "IntegrationAuthError" });
+
+    expect(mockFetchNewBlueskyPosts).not.toHaveBeenCalled();
   });
 });

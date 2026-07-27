@@ -7,6 +7,7 @@ import {
   decryptTokenTolerant,
   decryptNullableTokenTolerant,
   TokenEncryptionKeyError,
+  InvalidEncryptedValueError,
 } from "../../../server/utils/crypto";
 
 // 32 bytes of hex — a valid AES-256-GCM key.
@@ -78,6 +79,15 @@ describe("server/utils/crypto", () => {
       const tampered = [iv, tamperedLastChar, ciphertext].join(":");
 
       expect(() => decryptToken(tampered)).toThrow();
+    });
+
+    it("throws InvalidEncryptedValueError (not a bare TypeError) for a malformed stored value", () => {
+      expect(() => decryptToken("not-encrypted-at-all")).toThrow(
+        InvalidEncryptedValueError,
+      );
+      expect(() => decryptToken("also:not:right:shape")).toThrow(
+        InvalidEncryptedValueError,
+      );
     });
   });
 

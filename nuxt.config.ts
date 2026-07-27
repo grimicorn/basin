@@ -8,17 +8,24 @@ const marketingCss = fileURLToPath(
   new URL("./app/assets/css/marketing.css", import.meta.url),
 );
 
-// A missing key here would otherwise bake an empty string into the server
-// bundle (see the nitro.replace comment below) and silently ship with
-// integration tokens unencryptable — fail the build instead of the deploy.
+// Must match the key shape server/utils/crypto.ts requires (32 bytes of hex
+// = 64 hex characters) — checked again here so a malformed (not just
+// missing) key also fails the build instead of shipping and throwing
+// TokenEncryptionKeyError on the first OAuth callback or token refresh.
+const TOKEN_ENCRYPTION_KEY_PATTERN = /^[0-9a-f]{64}$/i;
+
+// A missing or malformed key here would otherwise bake an empty (or invalid)
+// string into the server bundle (see the nitro.replace comment below) and
+// silently ship with integration tokens unencryptable — fail the build
+// instead of the deploy.
 function requireTokenEncryptionKeyForBuild(): string {
   const key = process.env.TOKEN_ENCRYPTION_KEY;
-  if (!key) {
+  if (!key || !TOKEN_ENCRYPTION_KEY_PATTERN.test(key)) {
     throw new Error(
-      "TOKEN_ENCRYPTION_KEY must be set before building — integration " +
-        "tokens (YouTube/Bluesky) cannot be encrypted without it. Generate " +
-        "one with `openssl rand -hex 32` and add it to this environment's " +
-        "dotenvx file.",
+      "TOKEN_ENCRYPTION_KEY must be set to 64 hex characters (32 bytes) " +
+        "before building — integration tokens (YouTube/Bluesky) cannot be " +
+        "encrypted without it. Generate one with `openssl rand -hex 32` " +
+        "and add it to this environment's dotenvx file.",
     );
   }
   return key;

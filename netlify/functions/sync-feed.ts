@@ -68,6 +68,21 @@ async function fetchFeedRecord(
   });
 }
 
+// A decrypt failure (rotated/wrong key, corrupted ciphertext) means this
+// connection's stored credentials are unusable — treat it like a revoked
+// token (IntegrationAuthError) so the row is flagged "needs reconnect"
+// instead of being retried forever as if it were a transient sync failure.
+function mapDecryptFailureToIntegrationAuthError(
+  provider: string,
+  error: unknown,
+): IntegrationAuthError {
+  const message = error instanceof Error ? error.message : String(error);
+  return new IntegrationAuthError(
+    provider,
+    `Stored ${provider} credentials could not be decrypted (${message}). Reconnect ${provider} in Settings.`,
+  );
+}
+
 async function fetchBlueskyIntegration(userId: number) {
   const db = createDb();
   const integration = await db.query.integrations.findFirst({
@@ -88,12 +103,16 @@ async function fetchBlueskyIntegration(userId: number) {
     return integration;
   }
 
-  return {
-    ...integration,
-    accessToken: decryptTokenTolerant(integration.accessToken),
-    refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
-    tokenSecret: decryptNullableTokenTolerant(integration.tokenSecret),
-  };
+  try {
+    return {
+      ...integration,
+      accessToken: decryptTokenTolerant(integration.accessToken),
+      refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
+      tokenSecret: decryptNullableTokenTolerant(integration.tokenSecret),
+    };
+  } catch (error) {
+    throw mapDecryptFailureToIntegrationAuthError("bluesky", error);
+  }
 }
 
 function isWithinDebounceWindow(lastFetched: Date | null): boolean {
@@ -154,11 +173,15 @@ async function fetchYouTubeIntegration(userId: number) {
     return integration;
   }
 
-  return {
-    ...integration,
-    accessToken: decryptTokenTolerant(integration.accessToken),
-    refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
-  };
+  try {
+    return {
+      ...integration,
+      accessToken: decryptTokenTolerant(integration.accessToken),
+      refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
+    };
+  } catch (error) {
+    throw mapDecryptFailureToIntegrationAuthError("youtube", error);
+  }
 }
 
 async function persistRefreshedToken(

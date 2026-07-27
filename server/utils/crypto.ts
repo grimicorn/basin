@@ -24,6 +24,7 @@ const ENCRYPTED_VALUE_PATTERN = new RegExp(
 );
 
 export class TokenEncryptionKeyError extends Error {}
+export class InvalidEncryptedValueError extends Error {}
 
 function getEncryptionKey(): Buffer {
   const hexKey = process.env.TOKEN_ENCRYPTION_KEY;
@@ -68,10 +69,18 @@ export function isEncryptedToken(storedValue: string): boolean {
   return ENCRYPTED_VALUE_PATTERN.test(storedValue);
 }
 
-// Throws (TokenEncryptionKeyError for a bad key, or the native decipher
-// error for a tampered/corrupt value) rather than swallowing the failure —
-// callers should let this propagate.
+// Throws (TokenEncryptionKeyError for a bad key, InvalidEncryptedValueError
+// for a malformed stored value, or the native decipher error for a
+// tampered/corrupt-but-well-shaped value) rather than swallowing the
+// failure — callers should let this propagate.
 export function decryptToken(storedValue: string): string {
+  if (!isEncryptedToken(storedValue)) {
+    throw new InvalidEncryptedValueError(
+      "Stored value is not in iv:authTag:ciphertext form — pass it through " +
+        "decryptTokenTolerant if it might be legacy plaintext.",
+    );
+  }
+
   const key = getEncryptionKey();
   const [ivHex, authTagHex, ciphertextHex] = storedValue.split(
     STORED_VALUE_SEPARATOR,

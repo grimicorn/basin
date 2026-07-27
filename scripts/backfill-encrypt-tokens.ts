@@ -28,6 +28,13 @@ type TokenFieldUpdate = Partial<
   Pick<IntegrationTokenRow, "accessToken" | "refreshToken" | "tokenSecret">
 >;
 
+// Structural type for neon's tagged-template SQL client — loose enough that
+// tests can substitute a fake without needing a real Neon connection.
+type SqlTag = (
+  _strings: TemplateStringsArray,
+  ..._values: unknown[]
+) => Promise<unknown[]>;
+
 type EncryptResult<T> = { value: T; changed: boolean };
 
 // Encrypts a legacy plaintext value; leaves an already-encrypted value as-is.
@@ -71,7 +78,7 @@ export function buildTokenUpdate(row: IntegrationTokenRow): TokenFieldUpdate {
   return update;
 }
 
-function connectToDatabase() {
+function connectToDatabase(): SqlTag {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
@@ -80,11 +87,11 @@ function connectToDatabase() {
     );
   }
 
-  return neon(databaseUrl);
+  return neon(databaseUrl) as unknown as SqlTag;
 }
 
 async function fetchIntegrationTokenRows(
-  sql: ReturnType<typeof connectToDatabase>,
+  sql: SqlTag,
 ): Promise<IntegrationTokenRow[]> {
   const rows = await sql`
     SELECT
@@ -104,8 +111,8 @@ type BackfillOutcome =
 // if a user reconnected (re-encrypting the row for real) between the SELECT
 // above and this write, the WHERE clause no longer matches and the stale
 // backfill write becomes a no-op instead of clobbering the fresh value.
-async function backfillRow(
-  sql: ReturnType<typeof connectToDatabase>,
+export async function backfillRow(
+  sql: SqlTag,
   row: IntegrationTokenRow,
 ): Promise<BackfillOutcome> {
   const update = buildTokenUpdate(row);
@@ -172,7 +179,7 @@ function isDirectInvocation(): boolean {
 
 if (isDirectInvocation()) {
   main().catch((error) => {
-    console.error(`backfill-encrypt-tokens failed: ${error.message}`);
+    console.error("backfill-encrypt-tokens failed:", error);
     process.exit(1);
   });
 }

@@ -1,7 +1,29 @@
 import { randomBytes } from "node:crypto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildTokenUpdate } from "../../scripts/backfill-encrypt-tokens";
+import {
+  buildTokenUpdate,
+  backfillRow,
+} from "../../scripts/backfill-encrypt-tokens";
 import { encryptToken, isEncryptedToken } from "../../server/utils/crypto";
+
+// A minimal stand-in for neon's tagged-template SQL client: records the
+// interpolated values from each call and returns a canned result, so
+// backfillRow's UPDATE logic can be tested without a real DB connection.
+function createFakeSql(results: unknown[][]) {
+  const calls: unknown[][] = [];
+  let callIndex = 0;
+
+  const fakeSql = vi.fn(
+    async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+      calls.push(values);
+      const result = results[callIndex] ?? [];
+      callIndex += 1;
+      return result;
+    },
+  );
+
+  return { fakeSql, calls };
+}
 
 const VALID_KEY = randomBytes(32).toString("hex");
 
@@ -85,5 +107,81 @@ describe("buildTokenUpdate", () => {
 
     expect(update.refreshToken).toBeUndefined();
     expect(isEncryptedToken(update.tokenSecret!)).toBe(true);
+  });
+});
+
+describe("backfillRow", () => {
+  beforeEach(() => {
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", VALID_KEY);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns already-encrypted and never touches the DB when nothing is legacy plaintext", async () => {
+    const { fakeSql } = createFakeSql([]);
+    const row = {
+      id: 9,
+      accessToken: encryptToken("already-encrypted"),
+      refreshToken: null,
+      tokenSecret: null,
+    };
+
+    const outcome = await backfillRow(fakeSql, row);
+
+    expect(outcome).toBe("already-encrypted");
+    expect(fakeSql).not.toHaveBeenCalled();
+  });
+
+  it("returns updated and guards the WHERE clause with the row's original values, including nulls", async () => {
+    const { fakeSql, calls } = createFakeSql([[{ id: 7 }]]); // RETURNING id — one row matched
+
+    const row = {
+      id: 7,
+      accessToken: "legacy-plaintext-access",
+      refreshToken: null,
+      tokenSecret: null,
+    };
+
+    const outcome = await backfillRow(fakeSql, row);
+
+    expect(outcome).toBe("updated");
+    expect(fakeSql).toHaveBeenCalledTimes(1);
+
+    const [
+      nextAccessToken,
+      nextRefreshToken,
+      nextTokenSecret,
+      whereId,
+      whereAccessToken,
+      whereRefreshToken,
+      whereTokenSecret,
+    ] = calls[0];
+    expect(isEncryptedToken(nextAccessToken as string)).toBe(true);
+    expect(nextRefreshToken).toBeNull();
+    expect(nextTokenSecret).toBeNull();
+    expect(whereId).toBe(7);
+    expect(whereAccessToken).toBe("legacy-plaintext-access");
+    expect(whereRefreshToken).toBeNull();
+    expect(whereTokenSecret).toBeNull();
+  });
+
+  it("returns skipped-concurrent-change when the WHERE guard matches no rows (RETURNING comes back empty)", async () => {
+    // Simulates a user reconnecting between the SELECT and this UPDATE: the
+    // row's live values no longer match what backfillRow read, so the guard
+    // doesn't match and the stale write becomes a no-op.
+    const { fakeSql } = createFakeSql([[]]);
+
+    const row = {
+      id: 8,
+      accessToken: "legacy-plaintext-access",
+      refreshToken: "legacy-plaintext-refresh",
+      tokenSecret: null,
+    };
+
+    const outcome = await backfillRow(fakeSql, row);
+
+    expect(outcome).toBe("skipped-concurrent-change");
   });
 });

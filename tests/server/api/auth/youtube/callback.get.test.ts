@@ -165,6 +165,10 @@ describe("GET /api/auth/youtube/callback", () => {
   });
 
   it("stores a null refreshToken as null (no encryption of a missing value)", async () => {
+    // This documents pre-existing behavior, not something introduced by
+    // encryption: Google only returns refresh_token on first consent, so a
+    // reconnect without a fresh refresh_token already nulled this column
+    // before this change. Out of scope here — see PR description.
     const event = { context: { user: { id: 1 } } };
     mockGetQuery.mockReturnValue({ code: "auth-code", state: "state123" });
     mockGetCookie.mockReturnValue("state123");

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const {
@@ -14,6 +15,7 @@ const {
   mockFetchNewUploadsForChannel,
   mockIsTokenExpired,
   mockRefreshAccessToken,
+  mockFetchNewBlueskyPosts,
 } = vi.hoisted(() => ({
   mockFindFirst: vi.fn(),
   mockUpdate: vi.fn(),
@@ -28,6 +30,7 @@ const {
   mockFetchNewUploadsForChannel: vi.fn(),
   mockIsTokenExpired: vi.fn(),
   mockRefreshAccessToken: vi.fn(),
+  mockFetchNewBlueskyPosts: vi.fn(),
 }));
 
 vi.mock("../../../netlify/functions/db", () => ({
@@ -40,6 +43,13 @@ vi.mock("../../../netlify/functions/db", () => ({
     insert: mockInsert,
   })),
 }));
+
+// 32 bytes of hex — a valid AES-256-GCM key. sync-feed.ts imports crypto.ts
+// explicitly (it's a standalone Netlify Function, not a Nitro server route,
+// so it has no auto-import), and here we let the real encrypt/decrypt run
+// end-to-end rather than mocking the module, so the tests below prove tokens
+// round-trip correctly through the actual DB read/write path.
+const TEST_TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("hex");
 
 vi.mock("../../../server/utils/rssAdapter", () => ({
   parseRssFeed: mockParseRssFeed,
@@ -63,6 +73,12 @@ vi.mock("../../../server/utils/youtubeAdapter", () => ({
   },
 }));
 
+vi.mock("../../../server/utils/blueskyAdapter", () => ({
+  fetchNewBlueskyPosts: mockFetchNewBlueskyPosts,
+  BLUESKY_SOURCE: "bluesky",
+  DEFAULT_POST_FILTER_POLICY: { includeReposts: false, includeReplies: false },
+}));
+
 // Mock async-workloads — asyncWorkloadFn is an identity wrapper in tests
 vi.mock("@netlify/async-workloads", () => ({
   asyncWorkloadFn: (fn: Function) => fn,
@@ -82,6 +98,11 @@ vi.mock("@netlify/async-workloads", () => ({
 
 import handler from "../../../netlify/functions/sync-feed";
 import { TokenRefreshAuthError } from "../../../server/utils/youtubeAdapter";
+import {
+  encryptToken,
+  decryptToken,
+  isEncryptedToken,
+} from "../../../server/utils/crypto";
 
 function recentFetch() {
   return new Date(Date.now() - 60_000); // 1 minute ago
@@ -439,6 +460,7 @@ describe("sync-feed workload — YouTube source", () => {
 
     mockIsTokenExpired.mockReturnValue(false);
     mockFetchNewUploadsForChannel.mockResolvedValue([makeVideoItem()]);
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", TEST_TOKEN_ENCRYPTION_KEY);
   });
 
   it("syncs a YouTube feed when the integration exists and token is valid", async () => {
@@ -483,9 +505,28 @@ describe("sync-feed workload — YouTube source", () => {
       "test-client-id",
       "test-client-secret",
     );
-    expect(mockUpdateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: "fresh-token" }),
-    );
+    // The refreshed token must be encrypted before it's persisted — never
+    // written back to the DB in plaintext.
+    const persistedAccessToken = mockUpdateSet.mock.calls[0][0].accessToken;
+    expect(persistedAccessToken).not.toBe("fresh-token");
+    expect(isEncryptedToken(persistedAccessToken)).toBe(true);
+    expect(decryptToken(persistedAccessToken)).toBe("fresh-token");
+    expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
+  });
+
+  it("decrypts an already-encrypted stored access token before using it", async () => {
+    const encryptedAccessToken = encryptToken("real-plaintext-access-token");
+    mockFindFirst
+      .mockResolvedValueOnce(makeYouTubeFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce(
+        makeIntegration({ accessToken: encryptedAccessToken }),
+      );
+
+    await (handler as Function)(makeYouTubeEvent());
+
+    // isTokenExpired is false in this describe's default beforeEach, so no
+    // refresh/persist happens — this only proves the read path decrypts
+    // rather than leaking ciphertext downstream.
     expect(mockFetchNewUploadsForChannel).toHaveBeenCalled();
   });
 
@@ -822,5 +863,118 @@ describe("sync-feed workload — permanent failure persistence", () => {
       name: "ErrorDoNotRetry",
       message: expect.stringContaining("Source mismatch"),
     });
+  });
+});
+
+// --- Bluesky branch (issue #120: encrypted-at-rest tokens) ---
+
+describe("sync-feed workload — Bluesky source", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockUpdate.mockReturnValue({ set: mockUpdateSet });
+    mockUpdateSet.mockReturnValue({ where: mockUpdateWhere });
+    mockUpdateWhere.mockResolvedValue(undefined);
+
+    mockInsert.mockReturnValue({ values: mockInsertValues });
+    mockInsertValues.mockReturnValue({
+      onConflictDoNothing: mockInsertOnConflict,
+    });
+    mockInsertOnConflict.mockReturnValue({ returning: mockInsertReturning });
+    mockInsertReturning.mockResolvedValue([]);
+
+    mockFetchNewBlueskyPosts.mockResolvedValue([]);
+    vi.stubEnv("TOKEN_ENCRYPTION_KEY", TEST_TOKEN_ENCRYPTION_KEY);
+  });
+
+  function makeBlueskyFeed(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 3,
+      url: "bluesky:you.bsky.social",
+      title: "Bluesky timeline",
+      source: "bluesky",
+      lastFetched: null,
+      ...overrides,
+    };
+  }
+
+  function makeBlueskyEvent(overrides: Record<string, unknown> = {}) {
+    return {
+      eventName: "sync-feed" as const,
+      eventData: {
+        userId: 1,
+        feedId: 3,
+        sourceType: "bluesky" as const,
+        mode: "scheduled" as const,
+      },
+      eventId: "evt-3",
+      attempt: 0,
+      ...overrides,
+    };
+  }
+
+  it("decrypts the stored access JWT, refresh JWT, and app password before building credentials", async () => {
+    const plaintextAccessJwt = "real-access-jwt";
+    const plaintextRefreshJwt = "real-refresh-jwt";
+    const plaintextAppPassword = "real-app-password";
+
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        accessToken: encryptToken(plaintextAccessJwt),
+        refreshToken: encryptToken(plaintextRefreshJwt),
+        tokenSecret: encryptToken(plaintextAppPassword),
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    await (handler as Function)(makeBlueskyEvent());
+
+    expect(mockFetchNewBlueskyPosts).toHaveBeenCalledWith(
+      {
+        identifier: "you.bsky.social",
+        appPassword: plaintextAppPassword,
+        accessJwt: plaintextAccessJwt,
+        refreshJwt: plaintextRefreshJwt,
+        did: "did:plc:abc123",
+      },
+      3,
+      expect.any(Date),
+      { includeReposts: false, includeReplies: false },
+    );
+  });
+
+  it("tolerates legacy plaintext rows written before encryption existed", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        accessToken: "legacy-plaintext-access-jwt",
+        refreshToken: "legacy-plaintext-refresh-jwt",
+        tokenSecret: "legacy-plaintext-app-password",
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    await (handler as Function)(makeBlueskyEvent());
+
+    expect(mockFetchNewBlueskyPosts).toHaveBeenCalledWith(
+      {
+        identifier: "you.bsky.social",
+        appPassword: "legacy-plaintext-app-password",
+        accessJwt: "legacy-plaintext-access-jwt",
+        refreshJwt: "legacy-plaintext-refresh-jwt",
+        did: "did:plc:abc123",
+      },
+      3,
+      expect.any(Date),
+      { includeReposts: false, includeReplies: false },
+    );
   });
 });

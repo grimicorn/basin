@@ -15,6 +15,11 @@ import {
   TokenRefreshAuthError,
 } from "../../server/utils/youtubeAdapter";
 import {
+  decryptNullableTokenTolerant,
+  decryptTokenTolerant,
+  encryptToken,
+} from "../../server/utils/crypto";
+import {
   fetchNewBlueskyPosts,
   BLUESKY_SOURCE,
   DEFAULT_POST_FILTER_POLICY,
@@ -65,7 +70,7 @@ async function fetchFeedRecord(
 
 async function fetchBlueskyIntegration(userId: number) {
   const db = createDb();
-  return db.query.integrations.findFirst({
+  const integration = await db.query.integrations.findFirst({
     where: and(
       eq(integrations.userId, userId),
       eq(integrations.provider, "bluesky"),
@@ -78,6 +83,17 @@ async function fetchBlueskyIntegration(userId: number) {
       providerUsername: true,
     },
   });
+
+  if (!integration) {
+    return integration;
+  }
+
+  return {
+    ...integration,
+    accessToken: decryptTokenTolerant(integration.accessToken),
+    refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
+    tokenSecret: decryptNullableTokenTolerant(integration.tokenSecret),
+  };
 }
 
 function isWithinDebounceWindow(lastFetched: Date | null): boolean {
@@ -121,7 +137,7 @@ async function syncPodcastFeed(
 
 async function fetchYouTubeIntegration(userId: number) {
   const db = createDb();
-  return db.query.integrations.findFirst({
+  const integration = await db.query.integrations.findFirst({
     where: and(
       eq(integrations.userId, userId),
       eq(integrations.provider, "youtube"),
@@ -133,6 +149,16 @@ async function fetchYouTubeIntegration(userId: number) {
       expiresAt: true,
     },
   });
+
+  if (!integration) {
+    return integration;
+  }
+
+  return {
+    ...integration,
+    accessToken: decryptTokenTolerant(integration.accessToken),
+    refreshToken: decryptNullableTokenTolerant(integration.refreshToken),
+  };
 }
 
 async function persistRefreshedToken(
@@ -143,7 +169,11 @@ async function persistRefreshedToken(
   const db = createDb();
   await db
     .update(integrations)
-    .set({ accessToken, expiresAt, updatedAt: new Date() })
+    .set({
+      accessToken: encryptToken(accessToken),
+      expiresAt,
+      updatedAt: new Date(),
+    })
     .where(eq(integrations.id, integrationId));
 }
 

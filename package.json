@@ -23,6 +23,7 @@
     "db:migrate:production": "dotenvx run -f .env.production -- drizzle-kit migrate",
     "db:push": "dotenvx run -f .env -- drizzle-kit push",
     "db:studio": "dotenvx run -f .env -- drizzle-kit studio",
+    "tokens:backfill": "dotenvx run -f .env -- node scripts/backfill-encrypt-tokens.ts",
     "e2e": "dotenvx run -f .env.e2e -- playwright test",
     "e2e:headed": "dotenvx run -f .env.e2e -- playwright test --headed",
     "e2e:ui": "dotenvx run -f .env.e2e -- playwright test --ui",

@@ -29,26 +29,35 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // Encrypt once and reuse for both the insert and the conflict-update
+  // branch below, rather than re-encrypting (and paying a fresh-IV cost)
+  // twice for the same value. The app password is the most sensitive value
+  // here — it's still needed in tokenSecret for the sync worker's fallback
+  // re-auth (see comment below), so it must be encrypted like the tokens.
+  const encryptedAccessToken = encryptToken(session.accessJwt);
+  const encryptedRefreshToken = encryptToken(session.refreshJwt);
+  const encryptedAppPassword = encryptToken(appPassword);
+
   const db = useDb();
   await db
     .insert(integrations)
     .values({
       userId: user.id,
       provider: "bluesky",
-      accessToken: session.accessJwt,
-      refreshToken: session.refreshJwt,
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
       // App password stored in tokenSecret so the sync worker can re-authenticate
       // when both the access and refresh JWTs have expired.
-      tokenSecret: appPassword,
+      tokenSecret: encryptedAppPassword,
       providerAccountId: session.did,
       providerUsername: session.handle,
     })
     .onConflictDoUpdate({
       target: [integrations.userId, integrations.provider],
       set: {
-        accessToken: session.accessJwt,
-        refreshToken: session.refreshJwt,
-        tokenSecret: appPassword,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        tokenSecret: encryptedAppPassword,
         providerAccountId: session.did,
         providerUsername: session.handle,
         // A successful (re)connect clears any stale "needs reconnect" state

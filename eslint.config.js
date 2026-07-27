@@ -68,6 +68,7 @@ const nitroGlobals = {
   exchangeCodeForTokens: "readonly",
   getYouTubeChannelHandle: "readonly",
   createBlueskySession: "readonly",
+  encryptToken: "readonly",
 };
 
 export default [

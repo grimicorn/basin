@@ -56,8 +56,17 @@ export default defineNuxtConfig({
     // before useRuntimeConfig() is available), and dotenvx does NOT run in the
     // deployed function. Statically bake the build-time value into the server
     // bundle so SENTRY_DSN stays sourced only from the dotenvx files.
+    //
+    // server/utils/crypto.ts reads TOKEN_ENCRYPTION_KEY the same way (raw
+    // process.env, per docs/api-auth-storage.md) so it can also be called
+    // from netlify/functions/sync-feed.ts, which decrypts its own env at
+    // runtime via loadEnv() and never goes through this Nitro build. Baking
+    // it here covers the server/api/* (Nitro) call sites the same way.
     replace: {
       "process.env.SENTRY_DSN": JSON.stringify(process.env.SENTRY_DSN || ""),
+      "process.env.TOKEN_ENCRYPTION_KEY": JSON.stringify(
+        process.env.TOKEN_ENCRYPTION_KEY || "",
+      ),
     },
   },
   css: [mainCss, marketingCss],

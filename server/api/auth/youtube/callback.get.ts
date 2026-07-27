@@ -27,14 +27,22 @@ export default defineEventHandler(async (event) => {
 
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
+  // Encrypt once and reuse for both the insert and the conflict-update
+  // branch below, rather than re-encrypting (and paying a fresh-IV cost)
+  // twice for the same value.
+  const encryptedAccessToken = encryptToken(tokens.access_token);
+  const encryptedRefreshToken = tokens.refresh_token
+    ? encryptToken(tokens.refresh_token)
+    : null;
+
   const db = useDb();
   await db
     .insert(integrations)
     .values({
       userId: event.context.user.id,
       provider: "youtube",
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token ?? null,
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
       expiresAt,
       scopes: tokens.scope.split(" "),
       providerUsername: handle,
@@ -42,8 +50,8 @@ export default defineEventHandler(async (event) => {
     .onConflictDoUpdate({
       target: [integrations.userId, integrations.provider],
       set: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token ?? null,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         expiresAt,
         scopes: tokens.scope.split(" "),
         providerUsername: handle,

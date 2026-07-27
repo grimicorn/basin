@@ -45,43 +45,40 @@ export const integrations = pgTable(
 ## Encryption (non-negotiable)
 
 Tokens should never touch the DB as plain text. AES-256-GCM is the right choice —
-authenticated encryption, so you also detect tampering:
+authenticated encryption, so you also detect tampering. Implemented in
+[`server/utils/crypto.ts`](../server/utils/crypto.ts):
 
-```ts
-// server/utils/crypto.ts
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+- `encryptToken(plaintext)` / `decryptToken(stored)` — the core encrypt/decrypt
+  pair, storing `iv:authTag:ciphertext` as hex so decrypt is self-contained.
+- `isEncryptedToken(stored)` — detects the `iv:authTag:ciphertext` shape (fixed
+  IV/auth-tag lengths), used to tell ciphertext apart from legacy plaintext.
+- `decryptTokenTolerant(stored)` / `decryptNullableTokenTolerant(stored)` —
+  read-path wrappers that pass a legacy plaintext value through unchanged
+  instead of throwing, so rows written before encryption existed keep working.
+  Run `npm run tokens:backfill` (see below) to migrate them to ciphertext.
+- `TokenEncryptionKeyError` — thrown when `TOKEN_ENCRYPTION_KEY` is missing or
+  isn't 32 bytes of hex.
 
-const KEY = Buffer.from(process.env.TOKEN_ENCRYPTION_KEY!, "hex"); // 32 bytes
-
-export function encrypt(text: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", KEY, iv);
-  const encrypted = Buffer.concat([
-    cipher.update(text, "utf8"),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
-  // Store iv + tag + ciphertext together so decrypt is self-contained
-  return [iv, tag, encrypted].map((b) => b.toString("hex")).join(":");
-}
-
-export function decrypt(stored: string): string {
-  const [ivHex, tagHex, dataHex] = stored.split(":");
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    KEY,
-    Buffer.from(ivHex, "hex"),
-  );
-  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-  return decipher.update(Buffer.from(dataHex, "hex")) + decipher.final("utf8");
-}
-```
-
-Generate your key once and store it in your environment:
+Generate your key once per environment and store it in your environment (see
+`.env.example`) — don't reuse the same key across environments:
 
 ```bash
 openssl rand -hex 32
 ```
+
+### Migrating existing plaintext rows
+
+Rows written before this encryption existed are read tolerantly (see
+`decryptTokenTolerant` above) so nothing breaks, but they still hold plaintext
+until backfilled. Run once per environment:
+
+```bash
+npm run tokens:backfill                      # local (.env)
+dotenvx run -f .env.production -- node scripts/backfill-encrypt-tokens.ts
+```
+
+It's idempotent — already-encrypted fields (detected via `isEncryptedToken`)
+are left untouched, so it's safe to re-run.
 
 ---
 

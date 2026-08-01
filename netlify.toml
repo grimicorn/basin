@@ -20,3 +20,6 @@
 [functions]
   directory = "netlify/functions"
   included_files = [".env.production", ".env.dev"]
+
+[context.production]
+  ignore = "if [ -n \"$INCOMING_HOOK_TITLE\" ]; then exit 1; else exit 0; fi"

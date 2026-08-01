@@ -31,6 +31,7 @@ export const useFeedStore = defineStore("feed", () => {
     detail: null,
   };
   let initialized = false;
+  let refreshing = false;
 
   const filterDefs = [
     { id: "all", label: "All", c: "var(--accent)" },
@@ -78,12 +79,14 @@ export const useFeedStore = defineStore("feed", () => {
     state.unreadOnly = settings.showUnreadOnly ?? false;
   }
 
+  async function buildAuthHeaders(): Promise<Record<string, string>> {
+    const token = await getToken.value();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   async function loadItems(params: { limit?: number; offset?: number } = {}) {
     const { showToast } = useToast();
-    const token = await getToken.value();
-    const headers: Record<string, string> = token
-      ? { Authorization: `Bearer ${token}` }
-      : {};
+    const headers = await buildAuthHeaders();
 
     const query: Record<string, string> = {};
     if (params.limit !== undefined) {
@@ -143,23 +146,66 @@ export const useFeedStore = defineStore("feed", () => {
     }, 650);
   }
 
+  function revealAfterLoad() {
+    state.loading = false;
+    if (timers.reveal) {
+      clearTimeout(timers.reveal);
+    }
+    timers.reveal = setTimeout(() => {
+      state.revealDone = true;
+    }, 950);
+  }
+
   function runFeedLoad(ms = 650) {
     state.loading = true;
     state.revealDone = false;
     if (timers.load) clearTimeout(timers.load);
-    timers.load = setTimeout(() => {
-      state.loading = false;
-      if (timers.reveal) clearTimeout(timers.reveal);
-      timers.reveal = setTimeout(() => {
-        state.revealDone = true;
-      }, 950);
-    }, ms);
+    timers.load = setTimeout(revealAfterLoad, ms);
   }
 
-  function refresh() {
+  const REFRESH_ERROR_MESSAGE = "Could not refresh feeds — please try again";
+
+  async function triggerFeedSync(): Promise<number> {
+    const headers = await buildAuthHeaders();
+    const result = await $fetch<{ queued?: number }>("/api/feed-sync", {
+      method: "POST",
+      headers,
+    });
+    const queued = Number(result?.queued);
+    return Number.isFinite(queued) && queued > 0 ? queued : 0;
+  }
+
+  function syncToastMessage(queued: number): string {
+    if (queued === 0) {
+      return "No feeds to check yet";
+    }
+    return `Checking ${queued} feed${queued === 1 ? "" : "s"}…`;
+  }
+
+  async function refresh() {
+    if (refreshing) {
+      return;
+    }
+    refreshing = true;
     const { showToast } = useToast();
-    runFeedLoad(800);
-    showToast("Checking all feeds…");
+    if (timers.load) {
+      clearTimeout(timers.load);
+    }
+    if (timers.reveal) {
+      clearTimeout(timers.reveal);
+    }
+    state.loading = true;
+    state.revealDone = false;
+    try {
+      const queued = await triggerFeedSync();
+      showToast(syncToastMessage(queued));
+      await loadItems();
+    } catch {
+      showToast(REFRESH_ERROR_MESSAGE);
+    } finally {
+      refreshing = false;
+      revealAfterLoad();
+    }
   }
 
   function countFor(id: string) {

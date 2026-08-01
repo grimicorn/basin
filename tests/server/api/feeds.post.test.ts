@@ -17,16 +17,22 @@ vi.mock("../../../server/utils/feedSourceDetector", () => ({
   detectFeedSource: vi.fn(),
 }));
 
+vi.mock("../../../server/utils/feedLimit", () => ({
+  assertWithinFeedLimit: vi.fn(),
+}));
+
 import handler from "../../../server/api/feeds.post";
 import {
   validateFeedContent,
   fetchFeedBody,
 } from "../../../server/utils/feedValidator";
 import { detectFeedSource } from "../../../server/utils/feedSourceDetector";
+import { assertWithinFeedLimit } from "../../../server/utils/feedLimit";
 
 const mockValidateFeedContent = vi.mocked(validateFeedContent);
 const mockFetchFeedBody = vi.mocked(fetchFeedBody);
 const mockDetectFeedSource = vi.mocked(detectFeedSource);
+const mockAssertWithinFeedLimit = vi.mocked(assertWithinFeedLimit);
 
 const RSS_BODY = `<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title></channel></rss>`;
 
@@ -47,6 +53,21 @@ describe("POST /api/feeds", () => {
     mockValidateFeedContent.mockResolvedValue(true);
     mockFetchFeedBody.mockResolvedValue(RSS_BODY);
     mockDetectFeedSource.mockReturnValue("rss");
+    mockAssertWithinFeedLimit.mockResolvedValue(undefined);
+  });
+
+  it("propagates a 403 when the plan cap is exceeded, without inserting", async () => {
+    mockAssertWithinFeedLimit.mockRejectedValue(
+      Object.assign(new Error("The Free plan is limited to 10 sources."), {
+        statusCode: 403,
+      }),
+    );
+    const event = {
+      context: { user: { id: 1 } },
+      body: { url: "https://example.com/feed.xml" },
+    };
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("throws 401 when unauthenticated", async () => {

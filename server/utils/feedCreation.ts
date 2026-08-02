@@ -4,6 +4,7 @@
 // index). Both POST /api/feeds and the OPML import route call this so the
 // two entry points can never drift on validation or dedupe behavior.
 import { feeds } from "../db/schema";
+import { assertWithinFeedLimit } from "./feedLimit";
 import { fetchFeedBody, validateFeedContent } from "./feedValidator";
 import { detectFeedSource } from "./feedSourceDetector";
 
@@ -60,8 +61,9 @@ async function validateWithTimeout(url: string): Promise<FeedSource> {
 /**
  * Validates and adds a single feed for a user, reusing the exact SSRF
  * validation and dedupe rules the single-feed add form uses. Throws an h3
- * error (with statusCode) on validation/timeout failure — callers that need
- * to continue past a single bad URL (e.g. OPML import) must catch per call.
+ * error (with statusCode) on plan-cap (403), validation, or timeout failure —
+ * callers that need to continue past a single rejected URL (e.g. OPML import)
+ * must catch per call. The plan cap is checked first, before any network work.
  *
  * Note on re-adding an already-subscribed URL: the upsert re-detects the
  * source and, when `sourceOverride` isn't passed, resets any existing
@@ -77,6 +79,10 @@ export async function createFeedForUser(
   url: string,
   sourceOverride?: FeedSource,
 ): Promise<CreatedFeed> {
+  // Enforce the plan cap before any network work so a Free user over the limit
+  // fails fast instead of paying for a feed fetch that would be rejected.
+  await assertWithinFeedLimit(userId, url);
+
   let detectedSource: FeedSource;
   try {
     detectedSource = await validateWithTimeout(url);

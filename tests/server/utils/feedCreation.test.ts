@@ -17,16 +17,22 @@ vi.mock("../../../server/utils/feedSourceDetector", () => ({
   detectFeedSource: vi.fn(),
 }));
 
+vi.mock("../../../server/utils/feedLimit", () => ({
+  assertWithinFeedLimit: vi.fn(),
+}));
+
 import { createFeedForUser } from "../../../server/utils/feedCreation";
 import {
   validateFeedContent,
   fetchFeedBody,
 } from "../../../server/utils/feedValidator";
 import { detectFeedSource } from "../../../server/utils/feedSourceDetector";
+import { assertWithinFeedLimit } from "../../../server/utils/feedLimit";
 
 const mockValidateFeedContent = vi.mocked(validateFeedContent);
 const mockFetchFeedBody = vi.mocked(fetchFeedBody);
 const mockDetectFeedSource = vi.mocked(detectFeedSource);
+const mockAssertWithinFeedLimit = vi.mocked(assertWithinFeedLimit);
 
 const RSS_BODY = `<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title></channel></rss>`;
 
@@ -48,11 +54,23 @@ describe("createFeedForUser", () => {
     mockFetchFeedBody.mockResolvedValue(RSS_BODY);
     mockDetectFeedSource.mockReturnValue("rss");
     mockReturning.mockResolvedValue([mockFeed]);
+    mockAssertWithinFeedLimit.mockResolvedValue(undefined);
   });
 
   it("inserts the feed and returns it with detectedSource", async () => {
     const result = await createFeedForUser(1, "https://example.com/feed.xml");
     expect(result).toMatchObject({ ...mockFeed, detectedSource: "rss" });
+  });
+
+  it("enforces the plan cap before any feed insert", async () => {
+    mockAssertWithinFeedLimit.mockRejectedValue(
+      Object.assign(new Error("over limit"), { statusCode: 403 }),
+    );
+    await expect(
+      createFeedForUser(1, "https://example.com/feed.xml"),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockValidateFeedContent).not.toHaveBeenCalled();
   });
 
   it("throws 422 when the URL does not point to a valid feed", async () => {

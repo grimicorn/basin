@@ -6,8 +6,11 @@ vi.mock("../../../../server/utils/feedCreation", () => ({
 
 import handler from "../../../../server/api/feeds/import.post";
 import { createFeedForUser } from "../../../../server/utils/feedCreation";
+import { FREE_PLAN_FEED_LIMIT } from "../../../../server/utils/feedLimit";
 
 const mockCreateFeedForUser = vi.mocked(createFeedForUser);
+
+const CAP_MESSAGE = `Free plan is limited to ${FREE_PLAN_FEED_LIMIT} sources; upgrade to Pro for unlimited sources`;
 
 const defaultReadBody = globalThis.readBody;
 
@@ -118,6 +121,37 @@ describe("POST /api/feeds/import", () => {
       },
     ]);
     expect(result.truncatedCount).toBe(0);
+  });
+
+  it("surfaces a cap-rejected add's statusMessage as the skip reason", async () => {
+    mockCreateFeedForUser.mockImplementation(async (userId, url) => {
+      if (url.includes("two")) {
+        throw Object.assign(new Error("Free plan limit"), {
+          statusCode: 403,
+          statusMessage: CAP_MESSAGE,
+        });
+      }
+      return {
+        id: 1,
+        userId,
+        url,
+        title: null,
+        source: "rss",
+        sourceOverride: null,
+        detectedSource: "rss",
+      };
+    });
+
+    const result = await handler(makeEvent({ id: 1 }, { opml: VALID_OPML }));
+
+    expect(result.imported).toHaveLength(1);
+    expect(result.skipped).toEqual([
+      {
+        url: "https://two.example.com/feed.xml",
+        title: "Feed Two",
+        reason: CAP_MESSAGE,
+      },
+    ]);
   });
 
   it("returns an empty result for OPML with no feed outlines", async () => {

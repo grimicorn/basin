@@ -545,4 +545,148 @@ describe("useFeedStore", () => {
       });
     });
   });
+
+  describe("refresh", () => {
+    let showToast: ReturnType<typeof vi.fn>;
+
+    const stubFetch = (
+      syncResponse: unknown,
+      reloadItems: Record<string, unknown>[] = [],
+    ) => {
+      vi.mocked(globalThis.$fetch).mockImplementation((url: string) => {
+        if (url === "/api/feed-sync") {
+          return Promise.resolve(syncResponse);
+        }
+        return Promise.resolve({
+          items: reloadItems,
+          total: reloadItems.length,
+          nextOffset: null,
+        });
+      });
+    };
+
+    beforeEach(() => {
+      vi.mocked(globalThis.$fetch).mockReset();
+      showToast = vi.fn();
+      vi.stubGlobal(
+        "useToast",
+        vi.fn(() => ({ showToast })),
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("POSTs to /api/feed-sync and reloads items afterward", async () => {
+      stubFetch({ queued: 2, eventIds: ["e1", "e2"] }, [
+        item({ id: 201 }),
+        item({ id: 202 }),
+      ]);
+
+      await feed.refresh();
+
+      const calls = vi.mocked(globalThis.$fetch).mock.calls;
+      expect(calls[0][0]).toBe("/api/feed-sync");
+      expect(calls[0][1]).toMatchObject({ method: "POST" });
+      expect(calls[1][0]).toBe("/api/feed-items");
+      expect(state.items.map((i) => i.id)).toEqual([201, 202]);
+    });
+
+    it("sends the auth token on the sync request when signed in", async () => {
+      vi.stubGlobal(
+        "useAuth",
+        vi.fn(() => ({
+          getToken: { value: vi.fn().mockResolvedValue("test-token") },
+        })),
+      );
+      setActivePinia(createPinia());
+      const signedInFeed = useFeedStore();
+      stubFetch({ queued: 1, eventIds: ["a"] });
+
+      await signedInFeed.refresh();
+
+      const syncCall = vi
+        .mocked(globalThis.$fetch)
+        .mock.calls.find((call) => call[0] === "/api/feed-sync");
+      expect(syncCall![1]).toMatchObject({
+        method: "POST",
+        headers: { Authorization: "Bearer test-token" },
+      });
+    });
+
+    it("shows a pluralized count toast reflecting queued feeds", async () => {
+      stubFetch({ queued: 3, eventIds: ["a", "b", "c"] });
+
+      await feed.refresh();
+
+      expect(showToast).toHaveBeenCalledWith("Checking 3 feeds…");
+    });
+
+    it("shows a singular count toast when one feed is queued", async () => {
+      stubFetch({ queued: 1, eventIds: ["a"] });
+
+      await feed.refresh();
+
+      expect(showToast).toHaveBeenCalledWith("Checking 1 feed…");
+    });
+
+    it("shows an empty-state toast when no feeds are queued", async () => {
+      stubFetch({ queued: 0, eventIds: [] });
+
+      await feed.refresh();
+
+      expect(showToast).toHaveBeenCalledWith("No feeds to check yet");
+    });
+
+    it("shows an error toast and does not reload items when the sync request fails", async () => {
+      vi.mocked(globalThis.$fetch).mockImplementation((url: string) => {
+        if (url === "/api/feed-sync") {
+          return Promise.reject(new Error("network"));
+        }
+        return Promise.resolve({ items: [], total: 0, nextOffset: null });
+      });
+
+      await expect(feed.refresh()).resolves.toBeUndefined();
+      expect(showToast).toHaveBeenCalledWith(
+        "Could not refresh feeds — please try again",
+      );
+      const itemsCall = vi
+        .mocked(globalThis.$fetch)
+        .mock.calls.find((call) => call[0] === "/api/feed-items");
+      expect(itemsCall).toBeUndefined();
+      expect(state.loading).toBe(false);
+
+      stubFetch({ queued: 1, eventIds: ["a"] });
+      await feed.refresh();
+      const syncCalls = vi
+        .mocked(globalThis.$fetch)
+        .mock.calls.filter((call) => call[0] === "/api/feed-sync");
+      expect(syncCalls).toHaveLength(2);
+    });
+
+    it("treats a malformed sync response as no feeds queued", async () => {
+      stubFetch({});
+
+      await feed.refresh();
+
+      expect(showToast).toHaveBeenCalledWith("No feeds to check yet");
+    });
+
+    it("ignores a second refresh while one is already in flight", async () => {
+      stubFetch({ queued: 1, eventIds: ["a"] });
+
+      const first = feed.refresh();
+      const second = feed.refresh();
+      expect(state.loading).toBe(true);
+
+      await Promise.all([first, second]);
+
+      const syncCalls = vi
+        .mocked(globalThis.$fetch)
+        .mock.calls.filter((call) => call[0] === "/api/feed-sync");
+      expect(syncCalls).toHaveLength(1);
+      expect(state.loading).toBe(false);
+    });
+  });
 });

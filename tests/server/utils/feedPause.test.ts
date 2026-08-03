@@ -43,10 +43,26 @@ describe("pauseFeedsOverFreeLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     feedsInDb(0);
+    // Default: the update reports no rows changed; tests that expect a write
+    // override this to reflect the rows returning() would yield.
+    mockUpdateReturning.mockResolvedValue([]);
+  });
+
+  it("scopes the candidate query to the user", async () => {
+    feedsInDb(FREE_PLAN_FEED_LIMIT + 1);
+    mockUpdateReturning.mockResolvedValue([{ id: FREE_PLAN_FEED_LIMIT + 1 }]);
+    await pauseFeedsOverFreeLimit(USER_ID);
+
+    const { sql, params } = dialect.sqlToQuery(
+      mockSelectWhere.mock.calls[0][0],
+    );
+    expect(sql).toContain('"feeds"."user_id" =');
+    expect(params).toContain(USER_ID);
   });
 
   it("orders candidates oldest-first by created_at then id", async () => {
     feedsInDb(FREE_PLAN_FEED_LIMIT + 1);
+    mockUpdateReturning.mockResolvedValue([{ id: FREE_PLAN_FEED_LIMIT + 1 }]);
     await pauseFeedsOverFreeLimit(USER_ID);
 
     const orderByArgs = mockOrderBy.mock.calls[0];
@@ -69,6 +85,10 @@ describe("pauseFeedsOverFreeLimit", () => {
 
   it("pauses only the sources beyond the cap, keeping the oldest N active", async () => {
     feedsInDb(FREE_PLAN_FEED_LIMIT + 2);
+    mockUpdateReturning.mockResolvedValue([
+      { id: FREE_PLAN_FEED_LIMIT + 1 },
+      { id: FREE_PLAN_FEED_LIMIT + 2 },
+    ]);
     const result = await pauseFeedsOverFreeLimit(USER_ID);
 
     expect(result).toEqual({ pausedCount: 2 });
@@ -76,8 +96,13 @@ describe("pauseFeedsOverFreeLimit", () => {
       expect.objectContaining({ paused: true }),
     );
 
-    // The two newest feeds (ids 11 and 12) are paused; the oldest ten survive.
-    const { params } = dialect.sqlToQuery(mockUpdateWhere.mock.calls[0][0]);
+    // The two newest feeds (ids 11 and 12) are paused; the oldest ten survive,
+    // and the write is scoped to this user.
+    const { sql, params } = dialect.sqlToQuery(
+      mockUpdateWhere.mock.calls[0][0],
+    );
+    expect(sql).toContain('"feeds"."user_id" =');
+    expect(params).toContain(USER_ID);
     expect(params).toContain(FREE_PLAN_FEED_LIMIT + 1);
     expect(params).toContain(FREE_PLAN_FEED_LIMIT + 2);
     expect(params).not.toContain(1);
@@ -95,6 +120,7 @@ describe("pauseFeedsOverFreeLimit", () => {
   it("pauses only the still-active over-cap sources on a partial re-run", async () => {
     // Feed 11 was paused by a prior run; feed 12 was added since and is active.
     feedsInDb(FREE_PLAN_FEED_LIMIT + 2, [FREE_PLAN_FEED_LIMIT + 1]);
+    mockUpdateReturning.mockResolvedValue([{ id: FREE_PLAN_FEED_LIMIT + 2 }]);
     const result = await pauseFeedsOverFreeLimit(USER_ID);
 
     expect(result).toEqual({ pausedCount: 1 });
@@ -118,6 +144,16 @@ describe("reactivateAllFeeds", () => {
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({ paused: false }),
     );
+
+    // Scoped to this user and to already-paused rows, so it can never clear
+    // another tenant's feeds or thrash active ones.
+    const { sql, params } = dialect.sqlToQuery(
+      mockUpdateWhere.mock.calls[0][0],
+    );
+    expect(sql).toContain('"feeds"."user_id" =');
+    expect(sql).toContain('"feeds"."paused" =');
+    expect(params).toContain(USER_ID);
+    expect(params).toContain(true);
   });
 
   it("is a no-op when nothing is paused", async () => {

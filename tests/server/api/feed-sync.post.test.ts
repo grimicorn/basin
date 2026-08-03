@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const { mockSend, mockFindMany } = vi.hoisted(() => ({
   mockSend: vi.fn(),
@@ -65,6 +66,17 @@ describe("POST /api/feed-sync", () => {
       data: { userId: 5, feedId: 1, sourceType: "rss", mode: "on-demand" },
       priority: 25,
     });
+  });
+
+  it("excludes paused feeds from the on-demand queue", async () => {
+    mockFindMany.mockResolvedValue([RSS_FEED]);
+
+    await handler(makeEvent({ id: 5 }));
+
+    const [callArgs] = mockFindMany.mock.calls[0];
+    const { sql, params } = new PgDialect().sqlToQuery(callArgs.where);
+    expect(sql).toContain('"feeds"."paused" =');
+    expect(params).toContain(false);
   });
 
   it("throws when the client returns a failed sendStatus", async () => {

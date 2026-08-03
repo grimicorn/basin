@@ -119,6 +119,7 @@ function makeFeed(overrides: Record<string, unknown> = {}) {
     title: null,
     source: "rss",
     lastFetched: null,
+    paused: false,
     ...overrides,
   };
 }
@@ -130,6 +131,7 @@ function makeYouTubeFeed(overrides: Record<string, unknown> = {}) {
     title: "Test Channel",
     source: "youtube",
     lastFetched: null,
+    paused: false,
     ...overrides,
   };
 }
@@ -298,6 +300,37 @@ describe("sync-feed workload", () => {
     );
 
     expect(mockParseRssFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a paused feed on scheduled sync without pulling content", async () => {
+    mockFindFirst.mockResolvedValue(
+      makeFeed({ paused: true, lastFetched: staleFetch() }),
+    );
+
+    await (handler as Function)(makeEvent());
+
+    expect(mockParseRssFeed).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("skips a paused feed even on an on-demand refresh (pause is not bypassable)", async () => {
+    mockFindFirst.mockResolvedValue(
+      makeFeed({ paused: true, lastFetched: recentFetch() }),
+    );
+
+    await (handler as Function)(
+      makeEvent({
+        eventData: {
+          userId: 1,
+          feedId: 1,
+          sourceType: "rss",
+          mode: "on-demand",
+        },
+      }),
+    );
+
+    expect(mockParseRssFeed).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("throws ErrorDoNotRetry for an unsupported sourceType", async () => {
@@ -962,6 +995,7 @@ describe("sync-feed workload — Bluesky source", () => {
       title: "Bluesky timeline",
       source: "bluesky",
       lastFetched: null,
+      paused: false,
       ...overrides,
     };
   }

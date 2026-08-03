@@ -45,12 +45,22 @@ export async function pauseFeedsOverFreeLimit(
     return { pausedCount: 0 };
   }
 
-  await db
+  // The paused=false guard makes the write safe against a concurrent pause
+  // landing between the select and this update, and returning() reports the
+  // rows actually changed rather than the intended count.
+  const paused = await db
     .update(feeds)
     .set({ paused: true, updatedAt: new Date() })
-    .where(and(eq(feeds.userId, userId), inArray(feeds.id, idsToPause)));
+    .where(
+      and(
+        eq(feeds.userId, userId),
+        eq(feeds.paused, false),
+        inArray(feeds.id, idsToPause),
+      ),
+    )
+    .returning({ id: feeds.id });
 
-  return { pausedCount: idsToPause.length };
+  return { pausedCount: paused.length };
 }
 
 // Reactivates every paused source for the user. Called when an account moves

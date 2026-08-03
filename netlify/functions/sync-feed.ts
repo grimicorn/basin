@@ -321,7 +321,7 @@ async function syncYouTubeFeed(
 // tokens never triggers a needless update.
 async function persistBlueskySession(
   integrationId: number,
-  previous: BlueskyCredentials,
+  previous: BlueskySessionTokens,
   tokens: BlueskySessionTokens,
 ): Promise<void> {
   const tokensUnchanged =
@@ -387,7 +387,14 @@ async function syncBlueskyFeed(
     DEFAULT_POST_FILTER_POLICY,
     {
       persistSession: (tokens) =>
-        persistBlueskySession(integration.id, credentials, tokens),
+        persistBlueskySession(
+          integration.id,
+          {
+            accessJwt: credentials.accessJwt,
+            refreshJwt: credentials.refreshJwt,
+          },
+          tokens,
+        ),
     },
   );
 

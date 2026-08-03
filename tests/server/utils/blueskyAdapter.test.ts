@@ -884,6 +884,32 @@ describe("fetchNewBlueskyPosts", () => {
     expect(items).toHaveLength(1);
   });
 
+  it("persists the session once, before pagination, even when the timeline fetch fails", async () => {
+    // Pins the openSession ordering guarantee: tokens are mirrored right after
+    // the session opens, so a failing timeline still leaves resumable JWTs.
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+    mockDeps.createSession.mockResolvedValue({
+      agent: {},
+      tokens: {
+        accessJwt: "fresh-access-jwt",
+        refreshJwt: "fresh-refresh-jwt",
+      },
+    });
+    mockDeps.getTimeline.mockRejectedValue(new Error("upstream 502"));
+
+    await expect(
+      fetchNewBlueskyPosts(
+        makeCredentials(),
+        FEED_ID,
+        new Date(),
+        DEFAULT_POST_FILTER_POLICY,
+        { ...mockDeps, persistSession },
+      ),
+    ).rejects.toThrow("upstream 502");
+
+    expect(persistSession).toHaveBeenCalledTimes(1);
+  });
+
   it("stops fetching after 100 pages to prevent serverless timeout", async () => {
     const watermark = new Date("2020-01-01T00:00:00.000Z");
 

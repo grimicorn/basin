@@ -270,9 +270,13 @@ async function openSession(
   const { agent, tokens } = await deps.createSession(credentials);
 
   if (deps.persistSession && tokens) {
-    await deps.persistSession(tokens).catch((error) => {
+    // try/catch (not .catch) so an injected sink that throws synchronously is
+    // caught too — the seam is public, and no failure here may sink the sync.
+    try {
+      await deps.persistSession(tokens);
+    } catch (error) {
       console.error("Failed to persist refreshed Bluesky session:", error);
-    });
+    }
   }
 
   return agent;

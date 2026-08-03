@@ -96,8 +96,11 @@ vi.mock("@netlify/async-workloads", () => ({
   },
 }));
 
+import { eq } from "drizzle-orm";
 import handler from "../../../netlify/functions/sync-feed";
+import { integrations } from "../../../server/db/schema";
 import { TokenRefreshAuthError } from "../../../server/utils/youtubeAdapter";
+import type { BlueskySessionTokens } from "../../../server/utils/blueskyAdapter";
 import {
   encryptToken,
   decryptToken,
@@ -981,6 +984,38 @@ describe("sync-feed workload — Bluesky source", () => {
     };
   }
 
+  const INTEGRATION_ID = 42;
+
+  function makeBlueskyIntegration(overrides: Record<string, unknown> = {}) {
+    return {
+      id: INTEGRATION_ID,
+      accessToken: encryptToken("old-access-jwt"),
+      refreshToken: encryptToken("old-refresh-jwt"),
+      tokenSecret: encryptToken("app-password"),
+      providerAccountId: "did:plc:abc123",
+      providerUsername: "you.bsky.social",
+      ...overrides,
+    };
+  }
+
+  // Stubs the (mocked) adapter so it invokes the persistSession sink the worker
+  // injects, mirroring how the real adapter calls it after opening a session.
+  function drivePersistSession(tokens: BlueskySessionTokens) {
+    mockFetchNewBlueskyPosts.mockImplementation(async (..._args: unknown[]) => {
+      const overrides = _args[4] as {
+        persistSession: (_tokens: BlueskySessionTokens) => Promise<void>;
+      };
+      await overrides.persistSession(tokens);
+      return [];
+    });
+  }
+
+  function findTokenWrite() {
+    return mockUpdateSet.mock.calls.find(
+      ([set]) => set && "accessToken" in set && "refreshToken" in set,
+    );
+  }
+
   it("decrypts the stored access JWT, refresh JWT, and app password before building credentials", async () => {
     const plaintextAccessJwt = "real-access-jwt";
     const plaintextRefreshJwt = "real-refresh-jwt";
@@ -1013,47 +1048,28 @@ describe("sync-feed workload — Bluesky source", () => {
     );
   });
 
-  it("persists the fresh session tokens (encrypted) back to the integration after createAgentSession", async () => {
+  it("persists the fresh session tokens (encrypted) to the integration row after createAgentSession", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
-      .mockResolvedValueOnce({
-        id: 42,
-        accessToken: encryptToken("old-access-jwt"),
-        refreshToken: encryptToken("old-refresh-jwt"),
-        tokenSecret: encryptToken("app-password"),
-        providerAccountId: "did:plc:abc123",
-        providerUsername: "you.bsky.social",
-      });
+      .mockResolvedValueOnce(makeBlueskyIntegration());
 
-    // Drive the persistSession callback the worker injects with rotated tokens.
-    mockFetchNewBlueskyPosts.mockImplementation(
-      async (
-        _credentials: unknown,
-        _feedId: unknown,
-        _lastFetched: unknown,
-        _policy: unknown,
-        overrides: {
-          persistSession: (_tokens: {
-            accessJwt: string;
-            refreshJwt: string;
-          }) => Promise<void>;
-        },
-      ) => {
-        await overrides.persistSession({
-          accessJwt: "fresh-access-jwt",
-          refreshJwt: "fresh-refresh-jwt",
-        });
-        return [];
-      },
-    );
+    drivePersistSession({
+      accessJwt: "fresh-access-jwt",
+      refreshJwt: "fresh-refresh-jwt",
+    });
 
     await (handler as Function)(makeBlueskyEvent());
 
-    const tokenWrite = mockUpdateSet.mock.calls.find(
-      ([set]) => set && "accessToken" in set && "refreshToken" in set,
-    );
+    const tokenWrite = findTokenWrite();
 
     expect(tokenWrite).toBeDefined();
+    // Targets the integrations row by primary key — proves the `id` selection
+    // is threaded through, not a wrong/undefined predicate.
+    expect(mockUpdate).toHaveBeenCalledWith(integrations);
+    expect(mockUpdateWhere).toHaveBeenCalledWith(
+      eq(integrations.id, INTEGRATION_ID),
+    );
+
     const [writtenSet] = tokenWrite!;
     expect(isEncryptedToken(writtenSet.accessToken)).toBe(true);
     expect(isEncryptedToken(writtenSet.refreshToken)).toBe(true);
@@ -1064,84 +1080,42 @@ describe("sync-feed workload — Bluesky source", () => {
   it("does not write session tokens back when they are unchanged", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
-      .mockResolvedValueOnce({
-        id: 42,
-        accessToken: encryptToken("same-access-jwt"),
-        refreshToken: encryptToken("same-refresh-jwt"),
-        tokenSecret: encryptToken("app-password"),
-        providerAccountId: "did:plc:abc123",
-        providerUsername: "you.bsky.social",
-      });
+      .mockResolvedValueOnce(
+        makeBlueskyIntegration({
+          accessToken: encryptToken("same-access-jwt"),
+          refreshToken: encryptToken("same-refresh-jwt"),
+        }),
+      );
 
-    mockFetchNewBlueskyPosts.mockImplementation(
-      async (
-        _credentials: unknown,
-        _feedId: unknown,
-        _lastFetched: unknown,
-        _policy: unknown,
-        overrides: {
-          persistSession: (_tokens: {
-            accessJwt: string;
-            refreshJwt: string;
-          }) => Promise<void>;
-        },
-      ) => {
-        await overrides.persistSession({
-          accessJwt: "same-access-jwt",
-          refreshJwt: "same-refresh-jwt",
-        });
-        return [];
-      },
-    );
+    drivePersistSession({
+      accessJwt: "same-access-jwt",
+      refreshJwt: "same-refresh-jwt",
+    });
 
     await (handler as Function)(makeBlueskyEvent());
 
-    const tokenWrite = mockUpdateSet.mock.calls.find(
-      ([set]) => set && "accessToken" in set && "refreshToken" in set,
-    );
-
-    expect(tokenWrite).toBeUndefined();
+    expect(findTokenWrite()).toBeUndefined();
   });
 
   it("writes back when only one of the two JWTs changed", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
-      .mockResolvedValueOnce({
-        id: 42,
-        accessToken: encryptToken("same-access-jwt"),
-        refreshToken: encryptToken("old-refresh-jwt"),
-        tokenSecret: encryptToken("app-password"),
-        providerAccountId: "did:plc:abc123",
-        providerUsername: "you.bsky.social",
-      });
+      .mockResolvedValueOnce(
+        makeBlueskyIntegration({
+          accessToken: encryptToken("same-access-jwt"),
+          refreshToken: encryptToken("old-refresh-jwt"),
+        }),
+      );
 
     // Only the refresh JWT rotated; the guard must not treat this as unchanged.
-    mockFetchNewBlueskyPosts.mockImplementation(
-      async (
-        _credentials: unknown,
-        _feedId: unknown,
-        _lastFetched: unknown,
-        _policy: unknown,
-        overrides: {
-          persistSession: (_tokens: {
-            accessJwt: string;
-            refreshJwt: string;
-          }) => Promise<void>;
-        },
-      ) => {
-        await overrides.persistSession({
-          accessJwt: "same-access-jwt",
-          refreshJwt: "new-refresh-jwt",
-        });
-        return [];
-      },
-    );
+    drivePersistSession({
+      accessJwt: "same-access-jwt",
+      refreshJwt: "new-refresh-jwt",
+    });
 
     await (handler as Function)(makeBlueskyEvent());
 
-    const tokenWrite = mockUpdateSet.mock.calls.find(
-      ([set]) => set && "accessToken" in set && "refreshToken" in set,
-    );
+    const tokenWrite = findTokenWrite();
 
     expect(tokenWrite).toBeDefined();
     const [writtenSet] = tokenWrite!;

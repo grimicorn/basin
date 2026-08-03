@@ -16,18 +16,17 @@ describe("$fetchWithTimeout", () => {
     vi.mocked(globalThis.$fetch).mockResolvedValue({ queued: 3 });
 
     await expect(
-      $fetchWithTimeout("/api/feed-sync", { method: "POST" }, TIMEOUT_MS),
+      $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, { method: "POST" }),
     ).resolves.toEqual({ queued: 3 });
   });
 
   it("forwards the request options and an abort signal to $fetch", async () => {
     vi.mocked(globalThis.$fetch).mockResolvedValue({ queued: 1 });
 
-    await $fetchWithTimeout(
-      "/api/feed-sync",
-      { method: "POST", headers: { Authorization: "Bearer t" } },
-      TIMEOUT_MS,
-    );
+    await $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, {
+      method: "POST",
+      headers: { Authorization: "Bearer t" },
+    });
 
     expect(globalThis.$fetch).toHaveBeenCalledWith(
       "/api/feed-sync",
@@ -45,11 +44,9 @@ describe("$fetchWithTimeout", () => {
       () => new Promise(() => {}),
     );
 
-    const pending = $fetchWithTimeout(
-      "/api/feed-sync",
-      { method: "POST" },
-      TIMEOUT_MS,
-    );
+    const pending = $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, {
+      method: "POST",
+    });
     const rejection = expect(pending).rejects.toBeInstanceOf(FetchTimeoutError);
 
     await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
@@ -66,11 +63,9 @@ describe("$fetchWithTimeout", () => {
       },
     );
 
-    const pending = $fetchWithTimeout(
-      "/api/feed-sync",
-      { method: "POST" },
-      TIMEOUT_MS,
-    );
+    const pending = $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, {
+      method: "POST",
+    });
     pending.catch(() => {});
 
     await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
@@ -88,9 +83,68 @@ describe("$fetchWithTimeout", () => {
       },
     );
 
-    await $fetchWithTimeout("/api/feed-sync", { method: "POST" }, TIMEOUT_MS);
+    await $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, { method: "POST" });
     await vi.advanceTimersByTimeAsync(TIMEOUT_MS * 2);
 
     expect(capturedSignal?.aborted).toBe(false);
+  });
+
+  it("propagates a non-timeout error unchanged and clears the timeout", async () => {
+    vi.useFakeTimers();
+    let capturedSignal: AbortSignal | undefined;
+    const failure = new Error("network down");
+    vi.mocked(globalThis.$fetch).mockImplementation(
+      (_request: unknown, options: { signal?: AbortSignal }) => {
+        capturedSignal = options.signal;
+        return Promise.reject(failure);
+      },
+    );
+
+    await expect(
+      $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, { method: "POST" }),
+    ).rejects.toBe(failure);
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS * 2);
+
+    expect(capturedSignal?.aborted).toBe(false);
+  });
+
+  it("aborts the request when a caller-supplied signal is already aborted", async () => {
+    vi.mocked(globalThis.$fetch).mockResolvedValue({ queued: 1 });
+    const controller = new AbortController();
+    controller.abort();
+    let capturedSignal: AbortSignal | undefined;
+    vi.mocked(globalThis.$fetch).mockImplementation(
+      (_request: unknown, options: { signal?: AbortSignal }) => {
+        capturedSignal = options.signal;
+        return Promise.resolve({ queued: 1 });
+      },
+    );
+
+    await $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, {
+      method: "POST",
+      signal: controller.signal,
+    });
+
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it("aborts the request when a caller-supplied signal fires later", async () => {
+    const controller = new AbortController();
+    let capturedSignal: AbortSignal | undefined;
+    vi.mocked(globalThis.$fetch).mockImplementation(
+      (_request: unknown, options: { signal?: AbortSignal }) => {
+        capturedSignal = options.signal;
+        return new Promise(() => {});
+      },
+    );
+
+    const pending = $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, {
+      method: "POST",
+      signal: controller.signal,
+    });
+    pending.catch(() => {});
+    controller.abort();
+
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });

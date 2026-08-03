@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { useFeedStore } from "~/stores/feed";
+import { useFeedStore, FEED_SYNC_TIMEOUT_MS } from "~/stores/feed";
 import { makeFeed, makeConnection } from "../fixtures";
 
 const item = (overrides: Record<string, unknown> = {}) => ({
@@ -689,10 +689,8 @@ describe("useFeedStore", () => {
       expect(state.loading).toBe(false);
     });
 
-    // Mirrors FEED_SYNC_TIMEOUT_MS in app/stores/feed.ts. A never-settling
-    // sync request must time out rather than wedge loading forever.
-    const FEED_SYNC_TIMEOUT_MS = 15000;
-
+    // A never-settling sync request must time out rather than wedge loading
+    // forever; advancing by the store's own constant proves the coupling.
     it("times out a never-settling sync request, surfacing an error and clearing loading", async () => {
       vi.mocked(globalThis.$fetch).mockImplementation((url: string) => {
         if (url === "/api/feed-sync") {

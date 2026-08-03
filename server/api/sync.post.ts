@@ -23,10 +23,10 @@ function assertBoolean(value: unknown, field: string): boolean {
   return value;
 }
 
-// Falsy values fall back to the handler's default; a truthy value must parse
-// to a real date, otherwise it would persist as Invalid Date.
+// Absent (undefined/null) values fall back to the handler's default; any other
+// value must parse to a real date, otherwise it would persist as Invalid Date.
 function parseOptionalDate(value: unknown, field: string): Date | null {
-  if (!value) {
+  if (value === undefined || value === null) {
     return null;
   }
   if (typeof value !== "string" && typeof value !== "number") {

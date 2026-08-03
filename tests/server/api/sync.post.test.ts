@@ -167,6 +167,27 @@ describe("POST /api/sync", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  it("persists a valid savedAt date", async () => {
+    const iso = "2026-01-02T03:04:05.000Z";
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: iso,
+    });
+    await handler(event);
+    expect(mockSet).toHaveBeenCalledWith({ savedAt: new Date(iso) });
+  });
+
+  it("throws 400 when savedAt is an empty string", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: "",
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   it("throws 400 when readAt is a malformed date string", async () => {
     const event = makeEvent({ id: 1 }, "markRead", {
       feedId: 1,

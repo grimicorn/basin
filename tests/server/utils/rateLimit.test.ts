@@ -156,6 +156,26 @@ describe("resolveRateLimit", () => {
     });
   });
 
+  it("does not sweep sibling routes that merely share a sensitive prefix", () => {
+    // Directory-boundary match: /api/authors and /api/billing/checkout-history
+    // are NOT the sensitive /api/auth or /api/billing/checkout routes.
+    expect(resolveRateLimit("/api/authors")).toEqual({
+      tier: "default",
+      limit: DEFAULT_RATE_LIMIT,
+    });
+    expect(resolveRateLimit("/api/billing/checkout-history")).toEqual({
+      tier: "default",
+      limit: DEFAULT_RATE_LIMIT,
+    });
+  });
+
+  it("applies the sensitive tier to the bare /api/auth path", () => {
+    expect(resolveRateLimit("/api/auth")).toEqual({
+      tier: "sensitive",
+      limit: SENSITIVE_RATE_LIMIT,
+    });
+  });
+
   it("applies the sensitive tier to the Bluesky auth endpoint", () => {
     expect(resolveRateLimit("/api/auth/bluesky")).toEqual({
       tier: "sensitive",

@@ -72,13 +72,15 @@ export type RateLimitStore = Map<string, RateLimitWindow>;
 // in beforeEach — so no suite leaks counters into another.
 export const rateLimitStore: RateLimitStore = new Map();
 
-// Route prefixes that get the sensitive tier. Prefix-matched, and deliberately
-// broad on `/api/auth` so a future auth provider (login, callback, refresh)
-// inherits the strict tier by default rather than silently landing on the loose
-// one. `/api/billing/checkout` is listed specifically because it's the costly
-// write; the cheap, high-frequency `/api/billing/plan` read stays on the
-// default tier. A new costly billing write should be added here explicitly.
-const SENSITIVE_ROUTE_PREFIXES = ["/api/auth", "/api/billing/checkout"];
+// Route bases that get the sensitive tier. Deliberately broad on `/api/auth` so
+// a future auth provider (login, callback, refresh) inherits the strict tier by
+// default rather than silently landing on the loose one. `/api/billing/checkout`
+// is listed specifically because it's the costly write; the cheap,
+// high-frequency `/api/billing/plan` read stays on the default tier. A new
+// costly billing write should be added here explicitly. Matched on a directory
+// boundary (see matchesRoute) so a sibling like /api/authors or
+// /api/billing/checkout-history is NOT swept into the strict tier.
+const SENSITIVE_ROUTE_BASES = ["/api/auth", "/api/billing/checkout"];
 
 // Machine-to-machine endpoints that must never be rate limited: Stripe delivers
 // webhooks from its own IP pool and retries aggressively, and the handler
@@ -87,8 +89,10 @@ const SENSITIVE_ROUTE_PREFIXES = ["/api/auth", "/api/billing/checkout"];
 // become an unlimited hole.
 const RATE_LIMIT_EXEMPT_PATHS = ["/api/billing/webhook"];
 
-function hasPrefix(path: string, prefixes: string[]): boolean {
-  return prefixes.some((prefix) => path.startsWith(prefix));
+// True when `path` is one of `bases` exactly or a child route under it
+// (`base/…`), but not a sibling that merely shares a string prefix.
+function matchesRoute(path: string, bases: string[]): boolean {
+  return bases.some((base) => path === base || path.startsWith(`${base}/`));
 }
 
 // Returns the policy to apply, or null when the path is not a rate-limited API
@@ -100,7 +104,7 @@ export function resolveRateLimit(path: string): RateLimitPolicy | null {
   if (RATE_LIMIT_EXEMPT_PATHS.includes(path)) {
     return null;
   }
-  if (hasPrefix(path, SENSITIVE_ROUTE_PREFIXES)) {
+  if (matchesRoute(path, SENSITIVE_ROUTE_BASES)) {
     return { tier: "sensitive", limit: SENSITIVE_RATE_LIMIT };
   }
   return { tier: "default", limit: DEFAULT_RATE_LIMIT };

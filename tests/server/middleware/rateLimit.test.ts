@@ -203,6 +203,28 @@ describe("server/middleware/rateLimit", () => {
     expect(mockGetRequestIP).not.toHaveBeenCalled();
   });
 
+  it("keys anonymous default-tier traffic by IP", () => {
+    setPath("/api/search");
+    mockGetRequestIP.mockReturnValue("203.0.113.77");
+    rateLimitMiddleware(makeEvent());
+    expect(rateLimitStore.has(`default:ip:203.0.113.77`)).toBe(true);
+  });
+
+  it("gives two different IPs independent buckets", () => {
+    setPath("/api/auth/youtube/callback");
+    mockGetRequestIP.mockReturnValue("1.1.1.1");
+    for (let attempt = 0; attempt <= SENSITIVE_RATE_LIMIT; attempt += 1) {
+      try {
+        rateLimitMiddleware(makeEvent());
+      } catch {
+        // Ignore the first IP's rejection.
+      }
+    }
+    // A request from a different IP is unaffected by the first IP's exhaustion.
+    mockGetRequestIP.mockReturnValue("2.2.2.2");
+    expect(() => rateLimitMiddleware(makeEvent())).not.toThrow();
+  });
+
   it("uses the shared unknown bucket when no IP can be resolved", () => {
     // Documents the fail-closed choice: an unresolvable IP shares one bucket
     // rather than getting a free pass. On Netlify the trusted header makes this

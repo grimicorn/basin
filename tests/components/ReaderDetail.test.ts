@@ -3,6 +3,7 @@ import { shallowMount } from "@vue/test-utils";
 import ReaderDetail from "~/components/ReaderDetail.vue";
 import { useFeedStore } from "~/stores/feed";
 import { makeArticle, makeVideo, makePodcast, makeTweet } from "../fixtures";
+import { isPlayableUrl } from "~/composables/usePodcastPlayer";
 
 describe("ReaderDetail", () => {
   let state: ReturnType<typeof useFeedStore>["state"];
@@ -146,7 +147,36 @@ describe("ReaderDetail", () => {
   });
 
   describe("podcast play button", () => {
-    it("opens mediaUrl in a new tab when mediaUrl is present", async () => {
+    // Stub the shared player so we can assert on control calls without a real
+    // <audio> element; canPlay uses the genuine URL-safety check.
+    function stubPlayer() {
+      const toggle = vi.fn();
+      const player = {
+        state: {
+          currentUrl: null,
+          playing: false,
+          currentTime: 0,
+          duration: 0,
+        },
+        progress: 0,
+        seekStep: 15,
+        play: vi.fn(),
+        pause: vi.fn(),
+        toggle,
+        seekBy: vi.fn(),
+        seekToFraction: vi.fn(),
+        scrubTo: vi.fn(),
+        isActive: () => false,
+        isPlaying: () => false,
+        canPlay: (url: string | null) => isPlayableUrl(url),
+        formatTime: () => "0:00",
+      };
+      vi.stubGlobal("usePodcastPlayer", () => player);
+      return { player, toggle };
+    }
+
+    it("plays the episode in-app instead of opening a new tab", async () => {
+      const { toggle } = stubPlayer();
       state.activeItem = makePodcast({
         mediaUrl: "https://podcast.example.com/episode-1.mp3",
         url: "https://podcast.example.com/episode-1",
@@ -154,17 +184,16 @@ describe("ReaderDetail", () => {
       const wrapper = shallowMount(ReaderDetail);
       await wrapper.vm.$nextTick();
 
-      const playButton = wrapper.find(".pod-play");
-      await playButton.trigger("click");
+      await wrapper.find(".pod-play").trigger("click");
 
-      expect(window.open).toHaveBeenCalledWith(
+      expect(toggle).toHaveBeenCalledWith(
         "https://podcast.example.com/episode-1.mp3",
-        "_blank",
-        "noopener,noreferrer",
       );
+      expect(window.open).not.toHaveBeenCalled();
     });
 
-    it("falls back to url when mediaUrl is absent", async () => {
+    it("disables the play button when mediaUrl is absent", async () => {
+      stubPlayer();
       state.activeItem = makePodcast({
         mediaUrl: null,
         url: "https://podcast.example.com/episode-1",
@@ -172,17 +201,11 @@ describe("ReaderDetail", () => {
       const wrapper = shallowMount(ReaderDetail);
       await wrapper.vm.$nextTick();
 
-      const playButton = wrapper.find(".pod-play");
-      await playButton.trigger("click");
-
-      expect(window.open).toHaveBeenCalledWith(
-        "https://podcast.example.com/episode-1",
-        "_blank",
-        "noopener,noreferrer",
-      );
+      expect(wrapper.find(".pod-play").attributes("disabled")).toBeDefined();
     });
 
-    it("falls back to url when mediaUrl is unsafe", async () => {
+    it("disables the play button when mediaUrl is unsafe", async () => {
+      stubPlayer();
       state.activeItem = makePodcast({
         mediaUrl: "javascript:alert(1)",
         url: "https://podcast.example.com/episode-1",
@@ -190,23 +213,16 @@ describe("ReaderDetail", () => {
       const wrapper = shallowMount(ReaderDetail);
       await wrapper.vm.$nextTick();
 
-      const playButton = wrapper.find(".pod-play");
-      await playButton.trigger("click");
-
-      expect(window.open).toHaveBeenCalledWith(
-        "https://podcast.example.com/episode-1",
-        "_blank",
-        "noopener,noreferrer",
-      );
+      expect(wrapper.find(".pod-play").attributes("disabled")).toBeDefined();
     });
 
-    it("does nothing when both mediaUrl and url are absent", async () => {
+    it("never opens an external tab from the play button", async () => {
+      stubPlayer();
       state.activeItem = makePodcast({ mediaUrl: null, url: null }) as never;
       const wrapper = shallowMount(ReaderDetail);
       await wrapper.vm.$nextTick();
 
-      const playButton = wrapper.find(".pod-play");
-      await playButton.trigger("click");
+      await wrapper.find(".pod-play").trigger("click");
 
       expect(window.open).not.toHaveBeenCalled();
     });

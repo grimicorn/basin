@@ -10,12 +10,14 @@ import { FREE_ACCOUNT_PLAN } from "../app/composables/useBilling.ts";
 import { useAppearanceStore } from "../app/stores/appearance.ts";
 import { useFeedStore } from "../app/stores/feed.ts";
 import { useInputValidation } from "../app/composables/useInputValidation.ts";
+import { usePodcastPlayer } from "../app/composables/usePodcastPlayer.ts";
 
 globalThis.useToast = useToast;
 globalThis.useSearch = useSearch;
 globalThis.useAppearanceStore = useAppearanceStore;
 globalThis.useFeedStore = useFeedStore;
 globalThis.useInputValidation = useInputValidation;
+globalThis.usePodcastPlayer = usePodcastPlayer;
 
 // Default stub for useUserSettings — returns defaults, no-ops on save.
 // Individual tests can override this with vi.stubGlobal if needed.

@@ -1,8 +1,49 @@
 <script setup>
+import { computed } from "vue";
+
 const props = defineProps({ item: { type: Object, required: true } });
 defineEmits(["save", "open"]);
 
-const pct = () => Math.round((props.item.progress || 0) * 100);
+const player = usePodcastPlayer();
+
+const mediaUrl = computed(() => props.item.mediaUrl || null);
+const canPlay = computed(() => player.canPlay(mediaUrl.value));
+const active = computed(() => player.isActive(mediaUrl.value));
+const playing = computed(() => player.isPlaying(mediaUrl.value));
+
+const progressPct = computed(() =>
+  active.value ? Math.round(player.progress * 100) : 0,
+);
+
+const totalSeconds = computed(() => {
+  if (active.value && player.state.duration > 0) {
+    return player.state.duration;
+  }
+  return Number(props.item.mediaDuration) || 0;
+});
+
+const totalLabel = computed(() =>
+  totalSeconds.value > 0
+    ? player.formatTime(totalSeconds.value)
+    : props.item.meta || "",
+);
+
+const durationLabel = computed(() =>
+  active.value
+    ? `${player.formatTime(player.state.currentTime)} / ${totalLabel.value}`
+    : totalLabel.value,
+);
+
+function togglePlay() {
+  player.toggle(mediaUrl.value);
+}
+
+function onScrub(event) {
+  if (!active.value) {
+    return;
+  }
+  player.scrubTo(event);
+}
 </script>
 
 <template>
@@ -25,13 +66,22 @@ const pct = () => Math.round((props.item.progress || 0) * 100);
       </div>
     </div>
     <div class="pod-player">
-      <button class="pod-play" title="Play episode" @click.stop>
-        <RIcon name="play" :size="15" />
-      </button>
-      <div class="pod-bar"><i :style="{ width: pct() + '%' }"></i></div>
-      <span class="pod-dur"
-        >{{ item.progress ? pct() + "% · " : "" }}{{ item.meta }}</span
+      <button
+        class="pod-play"
+        :title="playing ? 'Pause episode' : 'Play episode'"
+        :disabled="!canPlay"
+        @click.stop="togglePlay"
       >
+        <RIcon :name="playing ? 'pause' : 'play'" :size="15" />
+      </button>
+      <div
+        class="pod-bar"
+        :class="{ 'pod-bar-seekable': active }"
+        @click.stop="onScrub"
+      >
+        <i :style="{ width: progressPct + '%' }"></i>
+      </div>
+      <span class="pod-dur">{{ durationLabel }}</span>
     </div>
   </article>
 </template>
@@ -72,8 +122,12 @@ const pct = () => Math.round((props.item.progress || 0) * 100);
   place-items: center;
   transition: transform 0.15s var(--ease);
 }
-.pod-play:hover {
+.pod-play:hover:not(:disabled) {
   transform: scale(1.08);
+}
+.pod-play:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .pod-bar {
   flex: 1;
@@ -81,6 +135,9 @@ const pct = () => Math.round((props.item.progress || 0) * 100);
   border-radius: 999px;
   background: var(--surface-2);
   overflow: hidden;
+}
+.pod-bar-seekable {
+  cursor: pointer;
 }
 .pod-bar i {
   display: block;

@@ -18,7 +18,7 @@ exports[`PodcastCard > matches snapshot 1`] = `
   <div class="pod-player"><button class="pod-play" title="Play episode">
       <r-icon-stub name="play" size="15"></r-icon-stub>
     </button>
-    <div class="pod-bar"><i style="width: 30%;"></i></div><span class="pod-dur">30% · 45:00</span>
+    <div class="pod-bar"><i style="width: 0%;"></i></div><span class="pod-dur">45:00</span>
   </div>
 </article>"
 `;

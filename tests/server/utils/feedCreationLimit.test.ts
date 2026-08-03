@@ -36,7 +36,7 @@ vi.mock("../../../server/utils/feedSourceDetector", () => ({
 }));
 
 import { createFeedForUser } from "../../../server/utils/feedCreation";
-import { FREE_PLAN_FEED_LIMIT } from "../../../server/utils/feedLimit";
+import { FREE_PLAN_FEED_LIMIT } from "../../../server/utils/planLimits";
 import { getAccountPlan } from "../../../server/utils/subscriptions";
 import {
   validateFeedContent,

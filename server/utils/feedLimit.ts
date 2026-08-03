@@ -13,10 +13,11 @@ import { feeds } from "../db/schema";
 import { FREE_PLAN_FEED_LIMIT } from "./planLimits";
 import { getAccountPlan } from "./subscriptions";
 
-// Re-exported so existing importers of the cap keep working now that the
-// constant lives in its own leaf module (see planLimits.ts for why).
-export { FREE_PLAN_FEED_LIMIT };
-
+// Counts every source the user owns, including paused ones: a paused source
+// (over-cap after a downgrade — see feedPause.ts) still occupies a slot toward
+// the "up to 10 sources" cap, so a Free user must delete or upgrade before
+// adding more. @todo Reconcile paused rows when a source is deleted so an
+// account that drops back under the cap can un-pause a source without upgrading.
 async function countUserFeeds(userId: number): Promise<number> {
   const [row] = await useDb()
     .select({ value: count() })

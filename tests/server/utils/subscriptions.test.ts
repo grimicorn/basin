@@ -412,6 +412,20 @@ describe("upsertSubscriptionFromStripe", () => {
 
       expect(callOrder).toEqual(["pause", "markProcessed"]);
     });
+
+    // Locks the self-healing guarantee: a failing pause must propagate so the
+    // event is never marked processed and Stripe retries it. Guards against a
+    // future try/catch that would swallow the pause and silently seal the event.
+    it("propagates a pause failure and leaves the event unmarked", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("pro"));
+      mockPauseFeedsOverFreeLimit.mockRejectedValue(new Error("db down"));
+
+      await expect(
+        upsertSubscriptionFromStripe(buildEvent({ status: "canceled" })),
+      ).rejects.toThrow("db down");
+
+      expect(mockInsert).not.toHaveBeenCalledWith(processedStripeEvents);
+    });
   });
 
   describe("duplicate delivery (dedup on event id)", () => {

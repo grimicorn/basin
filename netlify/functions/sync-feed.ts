@@ -316,8 +316,9 @@ async function syncYouTubeFeed(
 
 // Mirrors persistRefreshedToken (YouTube) for Bluesky: writes the fresh
 // session JWTs back to the integrations row so the next sync resumes instead
-// of re-authenticating with the app password. Skips the write when the tokens
-// are unchanged (a resume that didn't rotate) to avoid a needless update.
+// of re-authenticating with the app password. A defensive equality guard skips
+// the write when neither JWT changed, so a caller that hands back identical
+// tokens never triggers a needless update.
 async function persistBlueskySession(
   integrationId: number,
   previous: BlueskyCredentials,

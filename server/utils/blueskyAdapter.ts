@@ -26,13 +26,11 @@ export interface BlueskyCredentials {
   did: string;
 }
 
-// The current session tokens after a resume/login, mirrored back to the DB so
-// the next sync can resume instead of falling back to a full app-password login.
+// The current session JWTs after a resume/login, mirrored back to the DB so the
+// next sync can resume instead of falling back to a full app-password login.
 export interface BlueskySessionTokens {
   accessJwt: string;
   refreshJwt: string;
-  did: string;
-  handle: string;
 }
 
 // createAgentSession returns both the ready-to-use agent and the fresh session
@@ -200,23 +198,21 @@ function isPostAfterWatermark(
   return postDate >= watermark;
 }
 
-// Reads the tokens the CredentialSession settled on after resume/login. Returns
-// null when the session never populated (e.g. a mocked session in unit tests),
-// so callers skip persistence rather than writing empty tokens.
+// Reads the JWTs the CredentialSession settled on after resume/login. Returns
+// null when the session was never populated (resume and login both failed to
+// establish one), so callers skip persistence rather than writing empty tokens.
 function extractSessionTokens(
   session: CredentialSession,
 ): BlueskySessionTokens | null {
-  const data = session.session;
+  const sessionData = session.session;
 
-  if (!data) {
+  if (!sessionData) {
     return null;
   }
 
   return {
-    accessJwt: data.accessJwt,
-    refreshJwt: data.refreshJwt,
-    did: data.did,
-    handle: data.handle,
+    accessJwt: sessionData.accessJwt,
+    refreshJwt: sessionData.refreshJwt,
   };
 }
 
@@ -262,6 +258,11 @@ export async function fetchTimelinePage(
 // Opens the session and mirrors the fresh tokens back to storage right away, so
 // a later timeline failure still leaves the DB with resumable JWTs for the next
 // sync. Kept separate from fetchNewBlueskyPosts so each stays small and focused.
+//
+// Persistence is a best-effort optimization: a failed token write (transient DB
+// blip, missing encryption key) must not fail an otherwise-successful sync — the
+// next run just re-authenticates with the app password. So the write is awaited
+// but its rejection is logged and swallowed rather than propagated.
 async function openSession(
   deps: BlueskyAdapterDeps,
   credentials: BlueskyCredentials,
@@ -269,7 +270,9 @@ async function openSession(
   const { agent, tokens } = await deps.createSession(credentials);
 
   if (deps.persistSession && tokens) {
-    await deps.persistSession(tokens);
+    await deps.persistSession(tokens).catch((error) => {
+      console.error("Failed to persist refreshed Bluesky session:", error);
+    });
   }
 
   return agent;

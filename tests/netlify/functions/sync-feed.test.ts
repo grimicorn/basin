@@ -1036,16 +1036,12 @@ describe("sync-feed workload — Bluesky source", () => {
           persistSession: (_tokens: {
             accessJwt: string;
             refreshJwt: string;
-            did: string;
-            handle: string;
           }) => Promise<void>;
         },
       ) => {
         await overrides.persistSession({
           accessJwt: "fresh-access-jwt",
           refreshJwt: "fresh-refresh-jwt",
-          did: "did:plc:abc123",
-          handle: "you.bsky.social",
         });
         return [];
       },
@@ -1087,16 +1083,12 @@ describe("sync-feed workload — Bluesky source", () => {
           persistSession: (_tokens: {
             accessJwt: string;
             refreshJwt: string;
-            did: string;
-            handle: string;
           }) => Promise<void>;
         },
       ) => {
         await overrides.persistSession({
           accessJwt: "same-access-jwt",
           refreshJwt: "same-refresh-jwt",
-          did: "did:plc:abc123",
-          handle: "you.bsky.social",
         });
         return [];
       },

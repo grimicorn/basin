@@ -364,39 +364,45 @@ describe("createAgentSession", () => {
     });
   });
 
-  it("returns the fresh tokens the CredentialSession settled on after resume", async () => {
-    const settled = {
+  it("returns the fresh JWTs the CredentialSession settled on after resume", async () => {
+    // The client rotates tokens during resume; the settled session carries the
+    // new pair plus identity fields we deliberately do not mirror.
+    mockResumeSession.mockImplementation(() => {
+      mockSessionHolder.current = {
+        accessJwt: "settled-access-jwt",
+        refreshJwt: "settled-refresh-jwt",
+        did: "did:plc:settled",
+        handle: "alice.bsky.social",
+      };
+      return Promise.resolve(undefined);
+    });
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toEqual({
       accessJwt: "settled-access-jwt",
       refreshJwt: "settled-refresh-jwt",
-      did: "did:plc:settled",
-      handle: "alice.bsky.social",
-    };
-    mockResumeSession.mockImplementation(() => {
-      mockSessionHolder.current = settled;
-      return Promise.resolve(undefined);
     });
-
-    const { tokens } = await createAgentSession(makeCredentials());
-
-    expect(tokens).toEqual(settled);
   });
 
-  it("returns the fresh tokens after a fallback login when resume fails", async () => {
-    const settled = {
-      accessJwt: "login-access-jwt",
-      refreshJwt: "login-refresh-jwt",
-      did: "did:plc:abc123",
-      handle: "alice.bsky.social",
-    };
+  it("returns the fresh JWTs after a fallback login when resume fails", async () => {
     mockResumeSession.mockRejectedValue(new Error("Expired"));
     mockLogin.mockImplementation(() => {
-      mockSessionHolder.current = settled;
+      mockSessionHolder.current = {
+        accessJwt: "login-access-jwt",
+        refreshJwt: "login-refresh-jwt",
+        did: "did:plc:abc123",
+        handle: "alice.bsky.social",
+      };
       return Promise.resolve(undefined);
     });
 
     const { tokens } = await createAgentSession(makeCredentials());
 
-    expect(tokens).toEqual(settled);
+    expect(tokens).toEqual({
+      accessJwt: "login-access-jwt",
+      refreshJwt: "login-refresh-jwt",
+    });
   });
 
   it("returns null tokens when the session never populated", async () => {
@@ -440,13 +446,13 @@ describe("fetchNewBlueskyPosts", () => {
   }
 
   const mockDeps = {
-    createSession: vi.fn().mockResolvedValue({}),
+    createSession: vi.fn().mockResolvedValue({ agent: {}, tokens: null }),
     getTimeline: vi.fn(),
   };
 
   beforeEach(() => {
     vi.resetAllMocks();
-    mockDeps.createSession.mockResolvedValue({});
+    mockDeps.createSession.mockResolvedValue({ agent: {}, tokens: null });
   });
 
   it("returns only posts after the watermark", async () => {
@@ -809,8 +815,6 @@ describe("fetchNewBlueskyPosts", () => {
     const freshTokens = {
       accessJwt: "fresh-access-jwt",
       refreshJwt: "fresh-refresh-jwt",
-      did: "did:plc:abc123",
-      handle: "alice.bsky.social",
     };
     mockDeps.createSession.mockResolvedValue({
       agent: {},
@@ -843,6 +847,35 @@ describe("fetchNewBlueskyPosts", () => {
     );
 
     expect(persistSession).not.toHaveBeenCalled();
+  });
+
+  it("still returns fetched items when persisting the session fails", async () => {
+    // Token mirroring is best-effort: a failed write must not sink a sync that
+    // otherwise succeeded — the next run just re-authenticates.
+    const persistSession = vi
+      .fn()
+      .mockRejectedValue(new Error("integrations write failed"));
+    mockDeps.createSession.mockResolvedValue({
+      agent: {},
+      tokens: {
+        accessJwt: "fresh-access-jwt",
+        refreshJwt: "fresh-refresh-jwt",
+      },
+    });
+    mockDeps.getTimeline.mockResolvedValueOnce(
+      makePagedTimeline(["2024-06-01T10:00:00.000Z"]),
+    );
+
+    const items = await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      new Date("2024-05-31T00:00:00.000Z"),
+      DEFAULT_POST_FILTER_POLICY,
+      { ...mockDeps, persistSession },
+    );
+
+    expect(persistSession).toHaveBeenCalled();
+    expect(items).toHaveLength(1);
   });
 
   it("stops fetching after 100 pages to prevent serverless timeout", async () => {

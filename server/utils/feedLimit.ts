@@ -5,17 +5,17 @@
 // funnel through createFeedForUser — share one plan/count check that can be
 // unit-tested on its own.
 //
-// @todo Pro→Free downgrade does not yet pause sources over the cap
-// (pricing.vue promises "sources beyond the free limit are paused"); this only
-// gates new adds.
+// The complementary Pro→Free downgrade path (pausing sources already over the
+// cap, which pricing.vue promises) lives in server/utils/feedPause.ts; both
+// reuse FREE_PLAN_FEED_LIMIT from planLimits.ts.
 import { count, eq } from "drizzle-orm";
 import { feeds } from "../db/schema";
+import { FREE_PLAN_FEED_LIMIT } from "./planLimits";
 import { getAccountPlan } from "./subscriptions";
 
-// The Free plan's advertised source cap — the server-side source of truth for
-// enforcement. Must stay in sync with the "Up to 10 sources" copy on the
-// pricing page (app/pages/pricing.vue), which states the number in prose.
-export const FREE_PLAN_FEED_LIMIT = 10;
+// Re-exported so existing importers of the cap keep working now that the
+// constant lives in its own leaf module (see planLimits.ts for why).
+export { FREE_PLAN_FEED_LIMIT };
 
 async function countUserFeeds(userId: number): Promise<number> {
   const [row] = await useDb()

@@ -4,6 +4,7 @@
 import { and, eq, isNull, lte, ne, or } from "drizzle-orm";
 import type Stripe from "stripe";
 import { processedStripeEvents, subscriptions } from "../db/schema";
+import { pauseFeedsOverFreeLimit, reactivateAllFeeds } from "./feedPause";
 import { createStripeCustomer, deleteStripeCustomer } from "./stripe";
 
 export type PlanName = "free" | "pro";
@@ -14,6 +15,39 @@ const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["trialing", "active"]);
 
 export function planForStatus(status: string): PlanName {
   return ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "pro" : "free";
+}
+
+function isDowngradeToFree(
+  previousPlan: string | undefined,
+  nextPlan: PlanName,
+): boolean {
+  return previousPlan === "pro" && nextPlan === "free";
+}
+
+function isUpgradeToPro(
+  previousPlan: string | undefined,
+  nextPlan: PlanName,
+): boolean {
+  return previousPlan !== "pro" && nextPlan === "pro";
+}
+
+// Applies the pricing page's downgrade/upgrade source promise after a plan
+// change is persisted: a Pro→Free downgrade pauses sources over the Free cap,
+// and a return to Pro reactivates them. Runs before the event is marked
+// processed so a failure here leaves the event unmarked and Stripe's retry
+// re-runs the (idempotent) pause/reactivate rather than silently dropping it.
+async function applyPlanChangeToFeeds(
+  userId: number,
+  previousPlan: string | undefined,
+  nextPlan: PlanName,
+): Promise<void> {
+  if (isDowngradeToFree(previousPlan, nextPlan)) {
+    await pauseFeedsOverFreeLimit(userId);
+    return;
+  }
+  if (isUpgradeToPro(previousPlan, nextPlan)) {
+    await reactivateAllFeeds(userId);
+  }
 }
 
 export interface AccountPlan {
@@ -304,6 +338,8 @@ export async function upsertSubscriptionFromStripe(
   if (written.length === 0) {
     return;
   }
+
+  await applyPlanChangeToFeeds(userId, existing?.plan, values.plan);
 
   // Only recorded once the write above has actually succeeded — see
   // markEventProcessed's comment for why this ordering matters.

@@ -21,6 +21,17 @@ vi.mock("../../../server/utils/stripe", () => ({
   deleteStripeCustomer: mockDeleteStripeCustomer,
 }));
 
+const { mockPauseFeedsOverFreeLimit, mockReactivateAllFeeds } = vi.hoisted(
+  () => ({
+    mockPauseFeedsOverFreeLimit: vi.fn(),
+    mockReactivateAllFeeds: vi.fn(),
+  }),
+);
+vi.mock("../../../server/utils/feedPause", () => ({
+  pauseFeedsOverFreeLimit: mockPauseFeedsOverFreeLimit,
+  reactivateAllFeeds: mockReactivateAllFeeds,
+}));
+
 // neon() validates the connection string shape eagerly (even though building
 // a client never opens a network connection), so a syntactically valid
 // user:password@host is required here. Built via concatenation, not a single
@@ -319,6 +330,73 @@ describe("upsertSubscriptionFromStripe", () => {
     );
     const values = mockValues.mock.calls[0][0] as { currentPeriodEnd: Date };
     expect(values.currentPeriodEnd).toEqual(new Date(1760000000 * 1000));
+  });
+
+  describe("plan-change feed effects (pause / reactivate)", () => {
+    // A subscription whose stripeSubscriptionId matches the event id, so
+    // isStaleEvent lets it through and the plan transition is applied.
+    function existingRow(plan: string) {
+      return {
+        userId: 9,
+        plan,
+        stripeSubscriptionId: "sub_123",
+        lastStripeEventAt: null,
+      };
+    }
+
+    it("pauses over-cap sources on a Pro→Free downgrade", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("pro"));
+      await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
+      expect(mockPauseFeedsOverFreeLimit).toHaveBeenCalledWith(9);
+      expect(mockReactivateAllFeeds).not.toHaveBeenCalled();
+    });
+
+    it("treats a Pro→past_due transition as a downgrade and pauses", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("pro"));
+      await upsertSubscriptionFromStripe(buildEvent({ status: "past_due" }));
+      expect(mockPauseFeedsOverFreeLimit).toHaveBeenCalledWith(9);
+    });
+
+    it("reactivates paused sources when an account returns to Pro", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("free"));
+      await upsertSubscriptionFromStripe(buildEvent({ status: "active" }));
+      expect(mockReactivateAllFeeds).toHaveBeenCalledWith(9);
+      expect(mockPauseFeedsOverFreeLimit).not.toHaveBeenCalled();
+    });
+
+    it("does nothing to feeds on a Pro→Pro renewal", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("pro"));
+      await upsertSubscriptionFromStripe(buildEvent({ status: "active" }));
+      expect(mockPauseFeedsOverFreeLimit).not.toHaveBeenCalled();
+      expect(mockReactivateAllFeeds).not.toHaveBeenCalled();
+    });
+
+    it("does not touch feeds when the DB blocks the write as stale", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("pro"));
+      mockReturning.mockResolvedValueOnce([]);
+      await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
+      expect(mockPauseFeedsOverFreeLimit).not.toHaveBeenCalled();
+      expect(mockReactivateAllFeeds).not.toHaveBeenCalled();
+    });
+
+    it("pauses before marking the event processed so a retry can re-run it", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("pro"));
+      const callOrder: string[] = [];
+      mockPauseFeedsOverFreeLimit.mockImplementation(() => {
+        callOrder.push("pause");
+        return Promise.resolve({ pausedCount: 1 });
+      });
+      mockInsert.mockImplementation((table: unknown) => {
+        if (table === processedStripeEvents) {
+          callOrder.push("markProcessed");
+        }
+        return { values: mockValues };
+      });
+
+      await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
+
+      expect(callOrder).toEqual(["pause", "markProcessed"]);
+    });
   });
 
   describe("duplicate delivery (dedup on event id)", () => {

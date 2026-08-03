@@ -67,23 +67,25 @@ interface RateLimitWindow {
 
 export type RateLimitStore = Map<string, RateLimitWindow>;
 
-// The production store. Exported so the middleware can share one instance;
-// tests always pass their own Map so they never touch this shared state.
+// The production store. The middleware shares this one instance; the util
+// tests pass their own Map, and the middleware test imports and clears this one
+// in beforeEach — so no suite leaks counters into another.
 export const rateLimitStore: RateLimitStore = new Map();
 
-// Route prefixes that get the sensitive tier. Prefix-matched so nested paths
-// (…/youtube/callback) inherit their parent's tier automatically.
-const SENSITIVE_ROUTE_PREFIXES = [
-  "/api/auth/bluesky",
-  "/api/auth/youtube",
-  "/api/billing/checkout",
-];
+// Route prefixes that get the sensitive tier. Prefix-matched, and deliberately
+// broad on `/api/auth` so a future auth provider (login, callback, refresh)
+// inherits the strict tier by default rather than silently landing on the loose
+// one. `/api/billing/checkout` is listed specifically because it's the costly
+// write; the cheap, high-frequency `/api/billing/plan` read stays on the
+// default tier. A new costly billing write should be added here explicitly.
+const SENSITIVE_ROUTE_PREFIXES = ["/api/auth", "/api/billing/checkout"];
 
-// Machine-to-machine endpoints that must never be rate limited: Stripe
-// delivers webhooks from its own IP pool and retries aggressively, and the
-// handler already verifies the Stripe signature. Throttling it would silently
-// drop legitimate billing events.
-const RATE_LIMIT_EXEMPT_PREFIXES = ["/api/billing/webhook"];
+// Machine-to-machine endpoints that must never be rate limited: Stripe delivers
+// webhooks from its own IP pool and retries aggressively, and the handler
+// already verifies the Stripe signature. Matched exactly (not by prefix) so a
+// look-alike like /api/billing/webhook-test can't inherit the exemption and
+// become an unlimited hole.
+const RATE_LIMIT_EXEMPT_PATHS = ["/api/billing/webhook"];
 
 function hasPrefix(path: string, prefixes: string[]): boolean {
   return prefixes.some((prefix) => path.startsWith(prefix));
@@ -95,7 +97,7 @@ export function resolveRateLimit(path: string): RateLimitPolicy | null {
   if (!path.startsWith("/api/")) {
     return null;
   }
-  if (hasPrefix(path, RATE_LIMIT_EXEMPT_PREFIXES)) {
+  if (RATE_LIMIT_EXEMPT_PATHS.includes(path)) {
     return null;
   }
   if (hasPrefix(path, SENSITIVE_ROUTE_PREFIXES)) {

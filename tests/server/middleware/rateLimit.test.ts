@@ -8,9 +8,11 @@ import {
 
 const mockGetRequestURL = vi.fn();
 const mockGetRequestIP = vi.fn();
+const mockGetHeader = vi.fn();
 const mockSetHeader = vi.fn();
 vi.stubGlobal("getRequestURL", mockGetRequestURL);
 vi.stubGlobal("getRequestIP", mockGetRequestIP);
+vi.stubGlobal("getHeader", mockGetHeader);
 vi.stubGlobal("setHeader", mockSetHeader);
 
 import rateLimitMiddleware from "../../../server/middleware/rateLimit";
@@ -36,6 +38,8 @@ describe("server/middleware/rateLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     rateLimitStore.clear();
+    // Default: no trusted Netlify header, h3 resolves a stable IP.
+    mockGetHeader.mockReturnValue(undefined);
     mockGetRequestIP.mockReturnValue("203.0.113.5");
   });
 
@@ -54,13 +58,23 @@ describe("server/middleware/rateLimit", () => {
   });
 
   it("sets rate-limit headers on an allowed default-tier request", () => {
-    setPath("/api/search");
-    rateLimitMiddleware(makeEvent(1));
-    expect(headerValue("X-RateLimit-Limit")).toBe(String(DEFAULT_RATE_LIMIT));
-    expect(headerValue("X-RateLimit-Remaining")).toBe(
-      String(DEFAULT_RATE_LIMIT - 1),
-    );
-    expect(headerValue("X-RateLimit-Reset")).toBeDefined();
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      setPath("/api/search");
+      rateLimitMiddleware(makeEvent(1));
+      expect(headerValue("X-RateLimit-Limit")).toBe(String(DEFAULT_RATE_LIMIT));
+      expect(headerValue("X-RateLimit-Remaining")).toBe(
+        String(DEFAULT_RATE_LIMIT - 1),
+      );
+      // Reset is the window end expressed in whole epoch seconds, not ms.
+      const expectedReset = Math.ceil(
+        (Date.now() + RATE_LIMIT_WINDOW_MS) / 1000,
+      );
+      expect(headerValue("X-RateLimit-Reset")).toBe(String(expectedReset));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("throws 429 once a sensitive endpoint exceeds its limit", () => {
@@ -74,18 +88,27 @@ describe("server/middleware/rateLimit", () => {
     );
   });
 
-  it("sets a Retry-After header when it rejects", () => {
-    setPath("/api/auth/bluesky");
-    const event = makeEvent(1);
-    for (let attempt = 0; attempt < SENSITIVE_RATE_LIMIT; attempt += 1) {
-      rateLimitMiddleware(event);
-    }
+  it("sets Retry-After to the whole seconds left in the window on reject", () => {
+    vi.useFakeTimers();
     try {
-      rateLimitMiddleware(event);
-    } catch {
-      // Expected — assert on the header the rejection set.
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      setPath("/api/auth/bluesky");
+      const event = makeEvent(1);
+      for (let attempt = 0; attempt < SENSITIVE_RATE_LIMIT; attempt += 1) {
+        rateLimitMiddleware(event);
+      }
+      try {
+        rateLimitMiddleware(event);
+      } catch {
+        // Expected — assert on the header the rejection set.
+      }
+      // Window opened at t0, still t0 when rejected → full 60s remain.
+      expect(headerValue("Retry-After")).toBe(
+        String(RATE_LIMIT_WINDOW_MS / 1000),
+      );
+    } finally {
+      vi.useRealTimers();
     }
-    expect(headerValue("Retry-After")).toBeDefined();
   });
 
   it("blocks a sensitive endpoint exactly at its (stricter) limit", () => {
@@ -160,11 +183,34 @@ describe("server/middleware/rateLimit", () => {
     expect(() => rateLimitMiddleware(makeEvent(2))).not.toThrow();
   });
 
-  it("falls back to client IP when the request is unauthenticated", () => {
+  it("falls back to h3 client IP when no trusted header is present", () => {
     setPath("/api/auth/youtube/callback");
     mockGetRequestIP.mockReturnValue("198.51.100.9");
     rateLimitMiddleware(makeEvent());
     expect(mockGetRequestIP).toHaveBeenCalled();
     expect(rateLimitStore.has(`sensitive:ip:198.51.100.9`)).toBe(true);
+  });
+
+  it("keys on the trusted Netlify IP over a spoofable X-Forwarded-For", () => {
+    setPath("/api/auth/youtube/callback");
+    // Attacker rotates X-Forwarded-For, but the edge-set header is authoritative.
+    mockGetHeader.mockReturnValue("9.9.9.9");
+    mockGetRequestIP.mockReturnValue("1.2.3.4");
+    rateLimitMiddleware(makeEvent());
+    expect(rateLimitStore.has(`sensitive:ip:9.9.9.9`)).toBe(true);
+    expect(rateLimitStore.has(`sensitive:ip:1.2.3.4`)).toBe(false);
+    // h3's XFF-trusting resolver is never consulted when the trusted IP exists.
+    expect(mockGetRequestIP).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared unknown bucket when no IP can be resolved", () => {
+    // Documents the fail-closed choice: an unresolvable IP shares one bucket
+    // rather than getting a free pass. On Netlify the trusted header makes this
+    // effectively unreachable; local/other hosts still resolve via h3.
+    setPath("/api/auth/youtube/callback");
+    mockGetHeader.mockReturnValue(undefined);
+    mockGetRequestIP.mockReturnValue(undefined);
+    rateLimitMiddleware(makeEvent());
+    expect(rateLimitStore.has(`sensitive:ip:unknown`)).toBe(true);
   });
 });

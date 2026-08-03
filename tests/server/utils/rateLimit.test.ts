@@ -131,6 +131,31 @@ describe("resolveRateLimit", () => {
     expect(resolveRateLimit("/api/billing/webhook")).toBeNull();
   });
 
+  it("does not exempt look-alike paths that merely start with the webhook path", () => {
+    // Exact-match guard: /api/billing/webhook-test must NOT inherit the
+    // exemption and become an unlimited hole.
+    expect(resolveRateLimit("/api/billing/webhook-test")).toEqual({
+      tier: "default",
+      limit: DEFAULT_RATE_LIMIT,
+    });
+  });
+
+  it("defaults any new /api/auth route to the sensitive tier (fail-safe)", () => {
+    // A future auth provider/route must inherit the strict tier without anyone
+    // remembering to add it here.
+    expect(resolveRateLimit("/api/auth/some-new-provider")).toEqual({
+      tier: "sensitive",
+      limit: SENSITIVE_RATE_LIMIT,
+    });
+  });
+
+  it("keeps the high-frequency billing plan read on the default tier", () => {
+    expect(resolveRateLimit("/api/billing/plan")).toEqual({
+      tier: "default",
+      limit: DEFAULT_RATE_LIMIT,
+    });
+  });
+
   it("applies the sensitive tier to the Bluesky auth endpoint", () => {
     expect(resolveRateLimit("/api/auth/bluesky")).toEqual({
       tier: "sensitive",

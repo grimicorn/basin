@@ -46,9 +46,21 @@ function buildRateLimitKey(event: H3Event, policy: RateLimitPolicy): string {
   if (userId != null) {
     return `${policy.tier}:user:${userId}`;
   }
-  const clientIp =
-    getRequestIP(event, { xForwardedFor: true }) ?? UNKNOWN_CLIENT;
-  return `${policy.tier}:ip:${clientIp}`;
+  return `${policy.tier}:ip:${resolveClientIp(event)}`;
+}
+
+// Netlify sets x-nf-client-connection-ip to the real edge-observed client IP
+// and strips any client-supplied copy, so it can't be spoofed. Prefer it over
+// h3's X-Forwarded-For resolution, which trusts a header the client controls —
+// without this, an attacker rotating X-Forwarded-For would mint a fresh bucket
+// per request and walk straight past the sensitive tier. Fall back to h3 only
+// when the trusted header is absent (local dev / non-Netlify hosts).
+function resolveClientIp(event: H3Event): string {
+  const trustedIp = getHeader(event, "x-nf-client-connection-ip");
+  if (trustedIp) {
+    return trustedIp;
+  }
+  return getRequestIP(event, { xForwardedFor: true }) ?? UNKNOWN_CLIENT;
 }
 
 function applyRateLimitHeaders(event: H3Event, result: RateLimitResult): void {

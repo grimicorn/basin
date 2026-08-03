@@ -85,6 +85,9 @@ describe("PodcastCard", () => {
     });
 
     expect(wrapper.find(".pod-play").attributes("title")).toBe("Pause episode");
+    expect(wrapper.find(".pod-play r-icon-stub").attributes("name")).toBe(
+      "pause",
+    );
     expect(wrapper.find(".pod-bar i").attributes("style")).toContain(
       "width: 50%",
     );

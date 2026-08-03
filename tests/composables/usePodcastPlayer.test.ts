@@ -180,7 +180,7 @@ describe("createPodcastPlayer", () => {
     expect(player.state.duration).toBe(0);
   });
 
-  it("resets on ended", () => {
+  it("resets state and the element position on ended", () => {
     const { audio, raw, fire } = makeMockAudio();
     const player = createPodcastPlayer(audio);
     player.play(EPISODE_URL);
@@ -189,6 +189,28 @@ describe("createPodcastPlayer", () => {
     fire("ended");
     expect(player.state.playing).toBe(false);
     expect(player.state.currentTime).toBe(0);
+    expect(raw.currentTime).toBe(0);
+  });
+
+  it("clears the playing flag when the media element errors", () => {
+    const { audio, fire } = makeMockAudio();
+    const player = createPodcastPlayer(audio);
+    player.play(EPISODE_URL);
+    fire("play");
+    expect(player.state.playing).toBe(true);
+    fire("error");
+    expect(player.state.playing).toBe(false);
+  });
+
+  it("clears the playing flag when play() is rejected", async () => {
+    const { audio, raw, fire } = makeMockAudio();
+    raw.play = vi.fn(() => Promise.reject(new Error("blocked")));
+    const player = createPodcastPlayer(audio);
+    fire("play"); // element briefly reports playing before the promise settles
+    player.play(EPISODE_URL);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(player.state.playing).toBe(false);
   });
 
   it("seeks by a fraction of the duration", () => {

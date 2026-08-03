@@ -81,7 +81,15 @@ export function createPodcastPlayer(audio: HTMLMediaElement) {
   audio.addEventListener("ended", () => {
     state.playing = false;
     state.currentTime = 0;
+    audio.currentTime = 0;
   });
+  audio.addEventListener("error", () => {
+    state.playing = false;
+  });
+
+  function handlePlaybackError(): void {
+    state.playing = false;
+  }
 
   const progress = computed(() => {
     if (state.duration <= 0) {
@@ -112,7 +120,9 @@ export function createPodcastPlayer(audio: HTMLMediaElement) {
       state.duration = 0;
       audio.src = url;
     }
-    void audio.play();
+    // audio.play() rejects on autoplay blocks and load/network errors; swallow
+    // nothing — reset the playing flag so the UI never sticks on "playing".
+    Promise.resolve(audio.play()).catch(handlePlaybackError);
   }
 
   function pause(): void {
@@ -200,10 +210,13 @@ let sharedPlayer: PodcastPlayer | null = null;
 // between the card and the reader detail. The owned <audio> element persists
 // across component mounts, which is what keeps playback going during navigation.
 export function usePodcastPlayer(): PodcastPlayer {
-  if (sharedPlayer) {
-    return sharedPlayer;
+  if (!import.meta.client) {
+    // Per-request inert player on the server so no playback state leaks
+    // between concurrent SSR requests through the module singleton.
+    return createPodcastPlayer(createInertAudio());
   }
-  const audio = import.meta.client ? new Audio() : createInertAudio();
-  sharedPlayer = createPodcastPlayer(audio);
+  if (!sharedPlayer) {
+    sharedPlayer = createPodcastPlayer(new Audio());
+  }
   return sharedPlayer;
 }

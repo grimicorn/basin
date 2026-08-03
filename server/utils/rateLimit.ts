@@ -12,6 +12,14 @@
 // without adding infrastructure. A hard, global guarantee needs a shared store
 // (e.g. Redis/Upstash); basin's infra has none today, so this documents the
 // weaker per-instance guarantee rather than pretending to a strong one.
+//
+// FIXED-WINDOW BURST: because each window is independent, a caller can send up
+// to 2× the limit across a window boundary (the tail of window N plus the head
+// of window N+1). That's inherent to fixed windows and acceptable here — a
+// sliding window would be a deliberate future change; the tests pin the current
+// boundary behavior so that switch can't happen by accident.
+
+export const MILLISECONDS_PER_SECOND = 1000;
 
 // One rolling window for every tier. Kept as one value (not per-tier) so the
 // limits below read as "N requests per minute" against a single, obvious unit.
@@ -27,9 +35,14 @@ export const SENSITIVE_RATE_LIMIT = 10;
 // (feed lists, search, settings) never trips it.
 export const DEFAULT_RATE_LIMIT = 100;
 
-// Cap on distinct keys held in a single instance's store. Above this we prune
-// expired windows on insert so a long-lived warm instance can't grow the Map
-// without bound. Purely a memory guard; it never rejects a live request.
+// Hard cap on distinct keys held in a single instance's store, so a long-lived
+// warm instance can't grow the Map without bound. On insert we first drop
+// expired windows; if that isn't enough (pathological: this many distinct live
+// clients on one instance inside a single window) we evict oldest-first to keep
+// the bound hard. Eviction can flush a live counter early — which is only
+// reachable by an attacker who can mint this many distinct keys, the same
+// distributed abuse the shared-store note above already defers. Purely a memory
+// guard; it never rejects a live request.
 export const MAX_TRACKED_KEYS = 10_000;
 
 export type RateLimitTier = "sensitive" | "default";
@@ -99,6 +112,28 @@ function pruneExpired(store: RateLimitStore, now: number): void {
   }
 }
 
+// Map preserves insertion order, so its first keys are the oldest windows.
+// Evicts oldest-first until the store is back under the cap.
+function evictOldest(store: RateLimitStore): void {
+  for (const oldestKey of store.keys()) {
+    if (store.size < MAX_TRACKED_KEYS) {
+      return;
+    }
+    store.delete(oldestKey);
+  }
+}
+
+function enforceKeyCap(store: RateLimitStore, now: number): void {
+  if (store.size < MAX_TRACKED_KEYS) {
+    return;
+  }
+  pruneExpired(store, now);
+  if (store.size < MAX_TRACKED_KEYS) {
+    return;
+  }
+  evictOldest(store);
+}
+
 function startWindow(
   store: RateLimitStore,
   key: string,
@@ -106,9 +141,7 @@ function startWindow(
   now: number,
   windowMs: number,
 ): RateLimitResult {
-  if (store.size >= MAX_TRACKED_KEYS) {
-    pruneExpired(store, now);
-  }
+  enforceKeyCap(store, now);
   const resetAt = now + windowMs;
   store.set(key, { count: 1, resetAt });
   return {
@@ -130,7 +163,7 @@ function rejectRequest(
     limit,
     remaining: 0,
     resetAt,
-    retryAfterSeconds: Math.ceil((resetAt - now) / 1000),
+    retryAfterSeconds: Math.ceil((resetAt - now) / MILLISECONDS_PER_SECOND),
   };
 }
 

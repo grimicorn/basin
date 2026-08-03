@@ -53,6 +53,19 @@ describe("checkRateLimit", () => {
     // resetAt stays anchored to the original window, not pushed forward by the
     // rejected hits — a blocked flood can't extend its own penalty box.
     expect(rejected.resetAt).toBe(START + RATE_LIMIT_WINDOW_MS);
+    // The stored count is frozen at the limit, not bumped by rejected hits.
+    expect(store.get(KEY)?.count).toBe(1);
+  });
+
+  it("allows a boundary burst of up to 2x across adjacent windows", () => {
+    // Tail of window N: fill to the limit.
+    checkRateLimit(store, KEY, 2, START);
+    checkRateLimit(store, KEY, 2, START + RATE_LIMIT_WINDOW_MS - 1);
+    // Head of window N+1: a fresh window allows the limit again immediately.
+    const first = checkRateLimit(store, KEY, 2, START + RATE_LIMIT_WINDOW_MS);
+    const second = checkRateLimit(store, KEY, 2, START + RATE_LIMIT_WINDOW_MS);
+    expect(first.allowed).toBe(true);
+    expect(second.allowed).toBe(true);
   });
 
   it("starts a fresh window once the old one has elapsed", () => {
@@ -92,6 +105,19 @@ describe("checkRateLimit", () => {
     // store shouldn't keep growing past the cap.
     checkRateLimit(store, "fresh", 1, START + RATE_LIMIT_WINDOW_MS + 1);
     expect(store.size).toBe(1);
+  });
+
+  it("evicts oldest-first to hold the cap when every window is still live", () => {
+    for (let index = 0; index < MAX_TRACKED_KEYS; index += 1) {
+      checkRateLimit(store, `live:${index}`, 1, START);
+    }
+    // Insert one more within the same (unexpired) window — pruning frees
+    // nothing, so eviction must keep the store from exceeding the cap.
+    checkRateLimit(store, "overflow", 1, START + 1);
+    expect(store.size).toBe(MAX_TRACKED_KEYS);
+    // The newest key survives; the oldest was evicted.
+    expect(store.has("overflow")).toBe(true);
+    expect(store.has("live:0")).toBe(false);
   });
 });
 

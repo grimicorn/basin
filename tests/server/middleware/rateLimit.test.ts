@@ -3,6 +3,7 @@ import {
   rateLimitStore,
   SENSITIVE_RATE_LIMIT,
   DEFAULT_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
 } from "../../../server/utils/rateLimit";
 
 const mockGetRequestURL = vi.fn();
@@ -87,21 +88,47 @@ describe("server/middleware/rateLimit", () => {
     expect(headerValue("Retry-After")).toBeDefined();
   });
 
-  it("blocks a sensitive endpoint well before the default limit", () => {
-    // Sensitive tier must bite far earlier than the default tier — fire more
-    // than the sensitive cap but fewer than the default cap.
+  it("blocks a sensitive endpoint exactly at its (stricter) limit", () => {
+    // A checkout route silently demoted to the default tier is the regression
+    // this guards, so assert it rejects on request SENSITIVE_RATE_LIMIT + 1 —
+    // not merely "somewhere before the default limit".
     setPath("/api/billing/checkout");
     const event = makeEvent(1);
-    let threw = false;
+    let attemptsBeforeThrow = 0;
     for (let attempt = 0; attempt < DEFAULT_RATE_LIMIT; attempt += 1) {
       try {
         rateLimitMiddleware(event);
+        attemptsBeforeThrow += 1;
       } catch {
-        threw = true;
         break;
       }
     }
-    expect(threw).toBe(true);
+    expect(attemptsBeforeThrow).toBe(SENSITIVE_RATE_LIMIT);
+  });
+
+  it("releases a blocked client after the window elapses", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      setPath("/api/auth/bluesky");
+      const event = makeEvent(1);
+      for (let attempt = 0; attempt < SENSITIVE_RATE_LIMIT; attempt += 1) {
+        rateLimitMiddleware(event);
+      }
+      expect(() => rateLimitMiddleware(event)).toThrowError(
+        expect.objectContaining({ statusCode: 429 }),
+      );
+
+      // Advance past the window; the next request opens a fresh one.
+      vi.advanceTimersByTime(RATE_LIMIT_WINDOW_MS);
+      mockSetHeader.mockClear();
+      expect(() => rateLimitMiddleware(event)).not.toThrow();
+      expect(headerValue("X-RateLimit-Remaining")).toBe(
+        String(SENSITIVE_RATE_LIMIT - 1),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps sensitive and default tiers in separate buckets for one user", () => {

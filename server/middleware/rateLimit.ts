@@ -3,6 +3,7 @@ import {
   checkRateLimit,
   rateLimitStore,
   resolveRateLimit,
+  MILLISECONDS_PER_SECOND,
   type RateLimitPolicy,
   type RateLimitResult,
 } from "../utils/rateLimit";
@@ -12,7 +13,6 @@ import {
 const UNKNOWN_CLIENT = "unknown";
 
 const HTTP_TOO_MANY_REQUESTS = 429;
-const MILLISECONDS_PER_SECOND = 1000;
 
 // Runs after server/middleware/auth.ts (Nitro orders middleware by filename,
 // and "auth" < "rateLimit"), so event.context.user is already resolved and we

@@ -1103,6 +1103,51 @@ describe("sync-feed workload — Bluesky source", () => {
     expect(tokenWrite).toBeUndefined();
   });
 
+  it("writes back when only one of the two JWTs changed", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        id: 42,
+        accessToken: encryptToken("same-access-jwt"),
+        refreshToken: encryptToken("old-refresh-jwt"),
+        tokenSecret: encryptToken("app-password"),
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    // Only the refresh JWT rotated; the guard must not treat this as unchanged.
+    mockFetchNewBlueskyPosts.mockImplementation(
+      async (
+        _credentials: unknown,
+        _feedId: unknown,
+        _lastFetched: unknown,
+        _policy: unknown,
+        overrides: {
+          persistSession: (_tokens: {
+            accessJwt: string;
+            refreshJwt: string;
+          }) => Promise<void>;
+        },
+      ) => {
+        await overrides.persistSession({
+          accessJwt: "same-access-jwt",
+          refreshJwt: "new-refresh-jwt",
+        });
+        return [];
+      },
+    );
+
+    await (handler as Function)(makeBlueskyEvent());
+
+    const tokenWrite = mockUpdateSet.mock.calls.find(
+      ([set]) => set && "accessToken" in set && "refreshToken" in set,
+    );
+
+    expect(tokenWrite).toBeDefined();
+    const [writtenSet] = tokenWrite!;
+    expect(decryptToken(writtenSet.refreshToken)).toBe("new-refresh-jwt");
+  });
+
   it("tolerates legacy plaintext rows written before encryption existed", async () => {
     mockFindFirst
       .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))

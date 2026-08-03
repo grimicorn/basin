@@ -45,6 +45,13 @@ import type {
   PostFilterPolicy,
 } from "../../../server/utils/blueskyAdapter";
 
+// The session holder is module-level state, so reset it before every test
+// rather than per-block — otherwise a real-CredentialSession test could inherit
+// whatever the previous test left behind.
+beforeEach(() => {
+  mockSessionHolder.current = undefined;
+});
+
 // ---------------------------------------------------------------------------
 // Test data helpers
 // ---------------------------------------------------------------------------
@@ -314,7 +321,6 @@ describe("shouldIncludePost", () => {
 describe("createAgentSession", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockSessionHolder.current = undefined;
   });
 
   it("calls resumeSession with the stored JWTs", async () => {

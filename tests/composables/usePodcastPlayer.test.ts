@@ -37,6 +37,7 @@ function makeMockAudio() {
 }
 
 const EPISODE_URL = "https://podcast.example.com/episode-1.mp3";
+const OTHER_URL = "https://podcast.example.com/episode-2.mp3";
 
 describe("isPlayableUrl", () => {
   it("accepts http and https URLs", () => {
@@ -211,6 +212,43 @@ describe("createPodcastPlayer", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(player.state.playing).toBe(false);
+  });
+
+  it("switches source and resets position for a different episode", () => {
+    const { audio, raw, fire } = makeMockAudio();
+    const player = createPodcastPlayer(audio);
+    player.play(EPISODE_URL);
+    raw.duration = 100;
+    fire("durationchange");
+    raw.currentTime = 40;
+    fire("timeupdate");
+    player.play(OTHER_URL);
+    expect(raw.src).toBe(OTHER_URL);
+    expect(player.state.currentTime).toBe(0);
+    expect(player.state.duration).toBe(0);
+    expect(player.isActive(EPISODE_URL)).toBe(false);
+  });
+
+  it("ignores a stale rejection from a superseded episode", async () => {
+    const { audio, raw, fire } = makeMockAudio();
+    let rejectFirst: (_reason?: unknown) => void = () => {};
+    raw.play = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((_resolve, reject) => (rejectFirst = reject)),
+      )
+      .mockImplementationOnce(() => Promise.resolve());
+    const player = createPodcastPlayer(audio);
+
+    player.play(EPISODE_URL);
+    player.play(OTHER_URL);
+    fire("play"); // the second episode is now playing
+    rejectFirst(new Error("blocked"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(player.state.playing).toBe(true);
+    expect(player.isActive(OTHER_URL)).toBe(true);
   });
 
   it("seeks by a fraction of the duration", () => {

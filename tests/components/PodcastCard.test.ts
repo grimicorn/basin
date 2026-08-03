@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import PodcastCard from "~/components/PodcastCard.vue";
-import { isPlayableUrl } from "~/composables/usePodcastPlayer";
+import {
+  isPlayableUrl,
+  formatPlaybackTime,
+} from "~/composables/usePodcastPlayer";
 import { makePodcast } from "../fixtures";
 
 // Stub the shared player so play control is asserted without a real <audio>;
@@ -23,7 +26,7 @@ function stubPlayer(overrides: { active?: boolean; progress?: number } = {}) {
     isActive: () => active,
     isPlaying: () => active,
     canPlay: (url: string | null) => isPlayableUrl(url),
-    formatTime: () => "0:00",
+    formatTime: formatPlaybackTime,
   };
   vi.stubGlobal("usePodcastPlayer", () => player);
   return { player, toggle, scrubTo };
@@ -91,6 +94,15 @@ describe("PodcastCard", () => {
     expect(wrapper.find(".pod-bar i").attributes("style")).toContain(
       "width: 50%",
     );
+  });
+
+  it("shows the total duration formatted from mediaDuration when idle", () => {
+    stubPlayer();
+    const wrapper = shallowMount(PodcastCard, {
+      props: { item: makePodcast({ mediaDuration: 3661, meta: "ignored" }) },
+    });
+
+    expect(wrapper.find(".pod-dur").text()).toBe("1:01:01");
   });
 
   it("seeks via the progress bar with the episode media URL", async () => {

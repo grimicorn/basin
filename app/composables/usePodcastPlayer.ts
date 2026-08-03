@@ -87,7 +87,12 @@ export function createPodcastPlayer(audio: HTMLMediaElement) {
     state.playing = false;
   });
 
-  function handlePlaybackError(): void {
+  // Only clears the flag when the failed attempt is still the current episode,
+  // so a late rejection from a previous episode can't stop a newer one.
+  function failPlaybackFor(url: string): void {
+    if (state.currentUrl !== url) {
+      return;
+    }
     state.playing = false;
   }
 
@@ -122,7 +127,7 @@ export function createPodcastPlayer(audio: HTMLMediaElement) {
     }
     // audio.play() rejects on autoplay blocks and load/network errors; swallow
     // nothing — reset the playing flag so the UI never sticks on "playing".
-    Promise.resolve(audio.play()).catch(handlePlaybackError);
+    Promise.resolve(audio.play()).catch(() => failPlaybackFor(url));
   }
 
   function pause(): void {

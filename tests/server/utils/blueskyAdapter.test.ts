@@ -833,7 +833,8 @@ describe("fetchNewBlueskyPosts", () => {
       FEED_ID,
       new Date(),
       DEFAULT_POST_FILTER_POLICY,
-      { ...mockDeps, persistSession },
+      mockDeps,
+      persistSession,
     );
 
     expect(persistSession).toHaveBeenCalledWith(freshTokens);
@@ -849,7 +850,8 @@ describe("fetchNewBlueskyPosts", () => {
       FEED_ID,
       new Date(),
       DEFAULT_POST_FILTER_POLICY,
-      { ...mockDeps, persistSession },
+      mockDeps,
+      persistSession,
     );
 
     expect(persistSession).not.toHaveBeenCalled();
@@ -877,7 +879,8 @@ describe("fetchNewBlueskyPosts", () => {
       FEED_ID,
       new Date("2024-05-31T00:00:00.000Z"),
       DEFAULT_POST_FILTER_POLICY,
-      { ...mockDeps, persistSession },
+      mockDeps,
+      persistSession,
     );
 
     expect(persistSession).toHaveBeenCalled();
@@ -903,7 +906,8 @@ describe("fetchNewBlueskyPosts", () => {
         FEED_ID,
         new Date(),
         DEFAULT_POST_FILTER_POLICY,
-        { ...mockDeps, persistSession },
+        mockDeps,
+        persistSession,
       ),
     ).rejects.toThrow("upstream 502");
 

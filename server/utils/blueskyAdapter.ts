@@ -49,10 +49,15 @@ export interface BlueskyAdapterDeps {
     _agent: Agent,
     _cursor?: string,
   ) => Promise<{ feed: AppBskyFeedDefs.FeedViewPost[]; cursor?: string }>;
-  // Optional sink for the fresh session tokens. The adapter stays DB-agnostic:
-  // the caller (sync worker) injects persistence so it can be tested in isolation.
-  persistSession?: (_tokens: BlueskySessionTokens) => Promise<void>;
 }
+
+// Sink for the fresh session JWTs. Kept out of BlueskyAdapterDeps (which only
+// carries the Bluesky I/O seam, injected all-or-nothing) because persistence is
+// storage, not an external service — and so a partial I/O stub can never
+// silently fall back to the real network.
+export type PersistBlueskySession = (
+  _tokens: BlueskySessionTokens,
+) => Promise<void>;
 
 export interface PostFilterPolicy {
   includeReposts: boolean;
@@ -255,28 +260,33 @@ export async function fetchTimelinePage(
   };
 }
 
+// Best-effort mirror of the fresh JWTs to storage: a failed write (transient DB
+// blip, missing encryption key) must not fail an otherwise-successful sync — the
+// next run just re-authenticates with the app password. try/catch (not .catch)
+// so a sink that throws synchronously is swallowed too, since the seam is public.
+async function mirrorSessionTokens(
+  persistSession: PersistBlueskySession,
+  tokens: BlueskySessionTokens,
+): Promise<void> {
+  try {
+    await persistSession(tokens);
+  } catch (error) {
+    console.error("Failed to persist refreshed Bluesky session:", error);
+  }
+}
+
 // Opens the session and mirrors the fresh tokens back to storage right away, so
 // a later timeline failure still leaves the DB with resumable JWTs for the next
 // sync. Kept separate from fetchNewBlueskyPosts so each stays small and focused.
-//
-// Persistence is a best-effort optimization: a failed token write (transient DB
-// blip, missing encryption key) must not fail an otherwise-successful sync — the
-// next run just re-authenticates with the app password. So the write is awaited
-// but its rejection is logged and swallowed rather than propagated.
 async function openSession(
   deps: BlueskyAdapterDeps,
   credentials: BlueskyCredentials,
+  persistSession?: PersistBlueskySession,
 ): Promise<Agent> {
   const { agent, tokens } = await deps.createSession(credentials);
 
-  if (deps.persistSession && tokens) {
-    // try/catch (not .catch) so an injected sink that throws synchronously is
-    // caught too — the seam is public, and no failure here may sink the sync.
-    try {
-      await deps.persistSession(tokens);
-    } catch (error) {
-      console.error("Failed to persist refreshed Bluesky session:", error);
-    }
+  if (persistSession && tokens) {
+    await mirrorSessionTokens(persistSession, tokens);
   }
 
   return agent;
@@ -287,15 +297,13 @@ export async function fetchNewBlueskyPosts(
   feedId: number,
   lastSyncedAt: Date | null,
   policy: PostFilterPolicy = DEFAULT_POST_FILTER_POLICY,
-  overrides: Partial<BlueskyAdapterDeps> = {},
-): Promise<NewFeedItem[]> {
-  const deps: BlueskyAdapterDeps = {
+  deps: BlueskyAdapterDeps = {
     createSession: createAgentSession,
     getTimeline: fetchTimelinePage,
-    ...overrides,
-  };
-
-  const agent = await openSession(deps, credentials);
+  },
+  persistSession?: PersistBlueskySession,
+): Promise<NewFeedItem[]> {
+  const agent = await openSession(deps, credentials, persistSession);
   const items: NewFeedItem[] = [];
   let cursor: string | undefined;
   let pagesFetched = 0;

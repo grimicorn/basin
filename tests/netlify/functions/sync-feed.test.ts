@@ -999,13 +999,14 @@ describe("sync-feed workload — Bluesky source", () => {
   }
 
   // Stubs the (mocked) adapter so it invokes the persistSession sink the worker
-  // injects, mirroring how the real adapter calls it after opening a session.
+  // injects as the 6th argument, mirroring how the real adapter calls it after
+  // opening a session.
   function drivePersistSession(tokens: BlueskySessionTokens) {
-    mockFetchNewBlueskyPosts.mockImplementation(async (..._args: unknown[]) => {
-      const overrides = _args[4] as {
-        persistSession: (_tokens: BlueskySessionTokens) => Promise<void>;
-      };
-      await overrides.persistSession(tokens);
+    mockFetchNewBlueskyPosts.mockImplementation(async (...args: unknown[]) => {
+      const persistSession = args[5] as (
+        _tokens: BlueskySessionTokens,
+      ) => Promise<void>;
+      await persistSession(tokens);
       return [];
     });
   }
@@ -1044,7 +1045,8 @@ describe("sync-feed workload — Bluesky source", () => {
       3,
       expect.any(Date),
       { includeReposts: false, includeReplies: false },
-      expect.objectContaining({ persistSession: expect.any(Function) }),
+      undefined,
+      expect.any(Function),
     );
   });
 
@@ -1146,7 +1148,8 @@ describe("sync-feed workload — Bluesky source", () => {
       3,
       expect.any(Date),
       { includeReposts: false, includeReplies: false },
-      expect.objectContaining({ persistSession: expect.any(Function) }),
+      undefined,
+      expect.any(Function),
     );
   });
 

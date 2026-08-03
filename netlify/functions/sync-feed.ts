@@ -385,17 +385,18 @@ async function syncBlueskyFeed(
     feedId,
     lastFetched,
     DEFAULT_POST_FILTER_POLICY,
-    {
-      persistSession: (tokens) =>
-        persistBlueskySession(
-          integration.id,
-          {
-            accessJwt: credentials.accessJwt,
-            refreshJwt: credentials.refreshJwt,
-          },
-          tokens,
-        ),
-    },
+    // Use the adapter's default Bluesky I/O deps (undefined), and inject only
+    // the storage sink so a refreshed session is mirrored back to this row.
+    undefined,
+    (tokens) =>
+      persistBlueskySession(
+        integration.id,
+        {
+          accessJwt: credentials.accessJwt,
+          refreshJwt: credentials.refreshJwt,
+        },
+        tokens,
+      ),
   );
 
   return upsertFeedItems(feedId, items);

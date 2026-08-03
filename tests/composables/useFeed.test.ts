@@ -688,5 +688,33 @@ describe("useFeedStore", () => {
       expect(syncCalls).toHaveLength(1);
       expect(state.loading).toBe(false);
     });
+
+    // Mirrors FEED_SYNC_TIMEOUT_MS in app/stores/feed.ts. A never-settling
+    // sync request must time out rather than wedge loading forever.
+    const FEED_SYNC_TIMEOUT_MS = 15000;
+
+    it("times out a never-settling sync request, surfacing an error and clearing loading", async () => {
+      vi.mocked(globalThis.$fetch).mockImplementation((url: string) => {
+        if (url === "/api/feed-sync") {
+          return new Promise(() => {});
+        }
+        return Promise.resolve({ items: [], total: 0, nextOffset: null });
+      });
+
+      const refreshing = feed.refresh();
+      expect(state.loading).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(FEED_SYNC_TIMEOUT_MS);
+      await refreshing;
+
+      expect(showToast).toHaveBeenCalledWith(
+        "Could not refresh feeds — please try again",
+      );
+      const itemsCall = vi
+        .mocked(globalThis.$fetch)
+        .mock.calls.find((call) => call[0] === "/api/feed-items");
+      expect(itemsCall).toBeUndefined();
+      expect(state.loading).toBe(false);
+    });
   });
 });

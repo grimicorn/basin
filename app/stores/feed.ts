@@ -5,6 +5,7 @@ import {
   connections as seedConnections,
 } from "~/data/mock";
 import { SOURCES } from "~/lib/icons";
+import { $fetchWithTimeout } from "~/utils/fetchWithTimeout";
 
 const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 
@@ -164,13 +165,15 @@ export const useFeedStore = defineStore("feed", () => {
   }
 
   const REFRESH_ERROR_MESSAGE = "Could not refresh feeds — please try again";
+  const FEED_SYNC_TIMEOUT_MS = 15000;
 
   async function triggerFeedSync(): Promise<number> {
     const headers = await buildAuthHeaders();
-    const result = await $fetch<{ queued?: number }>("/api/feed-sync", {
-      method: "POST",
-      headers,
-    });
+    const result = await $fetchWithTimeout<{ queued?: number }>(
+      "/api/feed-sync",
+      { method: "POST", headers },
+      FEED_SYNC_TIMEOUT_MS,
+    );
     const queued = Number(result?.queued);
     return Number.isFinite(queued) && queued > 0 ? queued : 0;
   }

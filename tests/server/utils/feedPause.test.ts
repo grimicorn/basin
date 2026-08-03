@@ -50,8 +50,9 @@ describe("pauseFeedsOverFreeLimit", () => {
     await pauseFeedsOverFreeLimit(USER_ID);
 
     const orderByArgs = mockOrderBy.mock.calls[0];
+    // NULLS FIRST keeps anomalous null-created_at rows oldest (active), not paused.
     expect(dialect.sqlToQuery(orderByArgs[0]).sql).toContain(
-      '"feeds"."created_at" asc',
+      '"feeds"."created_at" asc nulls first',
     );
     expect(dialect.sqlToQuery(orderByArgs[1]).sql).toContain(
       '"feeds"."id" asc',

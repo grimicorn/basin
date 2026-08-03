@@ -146,7 +146,10 @@ describe("scheduled-feed-sync", () => {
     expect(sql).toContain('"feeds"."last_fetched" <');
     // Paused sources (over the Free cap after a downgrade) are excluded so they
     // stop pulling new content — see netlify/functions/scheduled-feed-sync.ts.
+    // Assert the bound value is `false` so the filter can't silently invert to
+    // syncing only paused feeds.
     expect(sql).toContain('"feeds"."paused" =');
+    expect(params).toContain(false);
     expect(params.slice(0, 4)).toEqual([
       "rss",
       "podcast",

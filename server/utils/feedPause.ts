@@ -3,7 +3,7 @@
 // whenever you upgrade again." Called from the Stripe subscription webhook
 // handler (server/utils/subscriptions.ts) on plan transitions. Isolated here so
 // the pause/reactivate decisions are unit-testable without Stripe or a live DB.
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { feeds } from "../db/schema";
 import { FREE_PLAN_FEED_LIMIT } from "./planLimits";
 
@@ -19,7 +19,9 @@ export interface ReactivateResult {
 // the oldest FREE_PLAN_FEED_LIMIT sources (ordered by created_at ascending,
 // then id ascending as a stable tiebreak for rows sharing a timestamp) remain
 // active; every source after them is paused. Oldest-first means the user keeps
-// the feeds they have followed longest.
+// the feeds they have followed longest. created_at is nullable, so NULLS FIRST
+// treats any anomalous null-timestamp row as oldest — kept active rather than
+// paused for a data quirk.
 //
 // Idempotent: only over-cap sources that are not already paused are written, so
 // a redelivered downgrade event pauses nothing new. Sources already within the
@@ -32,7 +34,7 @@ export async function pauseFeedsOverFreeLimit(
     .select({ id: feeds.id, paused: feeds.paused })
     .from(feeds)
     .where(eq(feeds.userId, userId))
-    .orderBy(asc(feeds.createdAt), asc(feeds.id));
+    .orderBy(sql`${feeds.createdAt} asc nulls first`, asc(feeds.id));
 
   const overCapFeeds = userFeeds.slice(FREE_PLAN_FEED_LIMIT);
   const idsToPause = overCapFeeds

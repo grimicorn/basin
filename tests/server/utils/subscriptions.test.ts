@@ -190,6 +190,10 @@ describe("upsertSubscriptionFromStripe", () => {
     // i.e. the database agreed the event wasn't stale. Individual tests
     // override this to simulate the database blocking a stale write.
     mockReturning.mockResolvedValue([{ id: 1 }]);
+    // The feed-effect helpers return their counts; default to no-ops so the
+    // handler can destructure them.
+    mockPauseFeedsOverFreeLimit.mockResolvedValue({ pausedCount: 0 });
+    mockReactivateAllFeeds.mockResolvedValue({ reactivatedCount: 0 });
   });
 
   // Only a minimal fake shape is needed for these tests; cast once here so
@@ -334,7 +338,7 @@ describe("upsertSubscriptionFromStripe", () => {
 
   describe("plan-change feed effects (pause / reactivate)", () => {
     // A subscription whose stripeSubscriptionId matches the event id, so
-    // isStaleEvent lets it through and the plan transition is applied.
+    // isStaleEvent lets it through and the plan change is applied.
     function existingRow(plan: string) {
       return {
         userId: 9,
@@ -344,31 +348,42 @@ describe("upsertSubscriptionFromStripe", () => {
       };
     }
 
-    it("pauses over-cap sources on a Pro→Free downgrade", async () => {
+    it("pauses over-cap sources when the resulting plan is Free (downgrade)", async () => {
       mockFindFirst.mockResolvedValue(existingRow("pro"));
       await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
       expect(mockPauseFeedsOverFreeLimit).toHaveBeenCalledWith(9);
       expect(mockReactivateAllFeeds).not.toHaveBeenCalled();
     });
 
-    it("treats a Pro→past_due transition as a downgrade and pauses", async () => {
+    it("pauses when a Pro subscription lapses to past_due (Free access)", async () => {
       mockFindFirst.mockResolvedValue(existingRow("pro"));
       await upsertSubscriptionFromStripe(buildEvent({ status: "past_due" }));
       expect(mockPauseFeedsOverFreeLimit).toHaveBeenCalledWith(9);
     });
 
-    it("reactivates paused sources when an account returns to Pro", async () => {
+    it("reactivates paused sources when the resulting plan is Pro", async () => {
       mockFindFirst.mockResolvedValue(existingRow("free"));
       await upsertSubscriptionFromStripe(buildEvent({ status: "active" }));
       expect(mockReactivateAllFeeds).toHaveBeenCalledWith(9);
       expect(mockPauseFeedsOverFreeLimit).not.toHaveBeenCalled();
     });
 
-    it("does nothing to feeds on a Pro→Pro renewal", async () => {
+    // Keyed off the resulting plan, not the delta, so it runs on every applied
+    // Pro event; reactivateAllFeeds is idempotent (a no-op with nothing paused).
+    it("reactivates idempotently on a Pro→Pro renewal", async () => {
       mockFindFirst.mockResolvedValue(existingRow("pro"));
       await upsertSubscriptionFromStripe(buildEvent({ status: "active" }));
+      expect(mockReactivateAllFeeds).toHaveBeenCalledWith(9);
       expect(mockPauseFeedsOverFreeLimit).not.toHaveBeenCalled();
-      expect(mockReactivateAllFeeds).not.toHaveBeenCalled();
+    });
+
+    // The self-healing property: on a Stripe retry the persisted row already
+    // reads "free", yet the pause must still run. A delta-based check would see
+    // free→free and skip it, permanently losing a pause whose first try failed.
+    it("still pauses on retry when the row already reads Free", async () => {
+      mockFindFirst.mockResolvedValue(existingRow("free"));
+      await upsertSubscriptionFromStripe(buildEvent({ status: "canceled" }));
+      expect(mockPauseFeedsOverFreeLimit).toHaveBeenCalledWith(9);
     });
 
     it("does not touch feeds when the DB blocks the write as stale", async () => {

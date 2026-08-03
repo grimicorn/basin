@@ -17,37 +17,39 @@ export function planForStatus(status: string): PlanName {
   return ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "pro" : "free";
 }
 
-function isDowngradeToFree(
-  previousPlan: string | undefined,
-  nextPlan: PlanName,
-): boolean {
-  return previousPlan === "pro" && nextPlan === "free";
-}
-
-function isUpgradeToPro(
-  previousPlan: string | undefined,
-  nextPlan: PlanName,
-): boolean {
-  return previousPlan !== "pro" && nextPlan === "pro";
-}
-
-// Applies the pricing page's downgrade/upgrade source promise after a plan
-// change is persisted: a Pro→Free downgrade pauses sources over the Free cap,
-// and a return to Pro reactivates them. Runs before the event is marked
-// processed so a failure here leaves the event unmarked and Stripe's retry
-// re-runs the (idempotent) pause/reactivate rather than silently dropping it.
-async function applyPlanChangeToFeeds(
+function logFeedPauseChange(
   userId: number,
-  previousPlan: string | undefined,
-  nextPlan: PlanName,
-): Promise<void> {
-  if (isDowngradeToFree(previousPlan, nextPlan)) {
-    await pauseFeedsOverFreeLimit(userId);
+  action: "paused" | "reactivated",
+  count: number,
+): void {
+  if (count === 0) {
     return;
   }
-  if (isUpgradeToPro(previousPlan, nextPlan)) {
-    await reactivateAllFeeds(userId);
+  console.log(
+    JSON.stringify({ event: `subscription.feeds-${action}`, userId, count }),
+  );
+}
+
+// Applies the pricing page's source promise after a plan change is persisted,
+// keyed off the *resulting* plan rather than the pro→free delta so it is
+// self-healing: the persisted row is already updated by the time this runs, so
+// on a Stripe retry a delta check would see free→free and skip the effect,
+// permanently losing a pause whose first attempt failed. Deriving the action
+// from the resulting plan instead means the retry re-runs the same idempotent
+// effect. Free accounts pause every source beyond the cap; Pro accounts
+// (unlimited) reactivate any paused source. Both are idempotent, so running
+// them on every applied event — including free→free and pro→pro — is safe.
+async function applyPlanChangeToFeeds(
+  userId: number,
+  plan: PlanName,
+): Promise<void> {
+  if (plan === "free") {
+    const { pausedCount } = await pauseFeedsOverFreeLimit(userId);
+    logFeedPauseChange(userId, "paused", pausedCount);
+    return;
   }
+  const { reactivatedCount } = await reactivateAllFeeds(userId);
+  logFeedPauseChange(userId, "reactivated", reactivatedCount);
 }
 
 export interface AccountPlan {
@@ -339,7 +341,10 @@ export async function upsertSubscriptionFromStripe(
     return;
   }
 
-  await applyPlanChangeToFeeds(userId, existing?.plan, values.plan);
+  // Runs before markEventProcessed so a failure here leaves the event unmarked
+  // and Stripe's retry re-runs the (idempotent) effect — see
+  // applyPlanChangeToFeeds for why this is keyed off the resulting plan.
+  await applyPlanChangeToFeeds(userId, values.plan);
 
   // Only recorded once the write above has actually succeeded — see
   // markEventProcessed's comment for why this ordering matters.

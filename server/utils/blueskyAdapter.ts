@@ -26,12 +26,34 @@ export interface BlueskyCredentials {
   did: string;
 }
 
+// The current session tokens after a resume/login, mirrored back to the DB so
+// the next sync can resume instead of falling back to a full app-password login.
+export interface BlueskySessionTokens {
+  accessJwt: string;
+  refreshJwt: string;
+  did: string;
+  handle: string;
+}
+
+// createAgentSession returns both the ready-to-use agent and the fresh session
+// tokens the underlying CredentialSession settled on (which may differ from the
+// stored ones after a refresh or a fallback login).
+export interface BlueskyAgentSession {
+  agent: Agent;
+  tokens: BlueskySessionTokens | null;
+}
+
 export interface BlueskyAdapterDeps {
-  createSession: (_credentials: BlueskyCredentials) => Promise<Agent>;
+  createSession: (
+    _credentials: BlueskyCredentials,
+  ) => Promise<BlueskyAgentSession>;
   getTimeline: (
     _agent: Agent,
     _cursor?: string,
   ) => Promise<{ feed: AppBskyFeedDefs.FeedViewPost[]; cursor?: string }>;
+  // Optional sink for the fresh session tokens. The adapter stays DB-agnostic:
+  // the caller (sync worker) injects persistence so it can be tested in isolation.
+  persistSession?: (_tokens: BlueskySessionTokens) => Promise<void>;
 }
 
 export interface PostFilterPolicy {
@@ -178,9 +200,29 @@ function isPostAfterWatermark(
   return postDate >= watermark;
 }
 
+// Reads the tokens the CredentialSession settled on after resume/login. Returns
+// null when the session never populated (e.g. a mocked session in unit tests),
+// so callers skip persistence rather than writing empty tokens.
+function extractSessionTokens(
+  session: CredentialSession,
+): BlueskySessionTokens | null {
+  const data = session.session;
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    accessJwt: data.accessJwt,
+    refreshJwt: data.refreshJwt,
+    did: data.did,
+    handle: data.handle,
+  };
+}
+
 export async function createAgentSession(
   credentials: BlueskyCredentials,
-): Promise<Agent> {
+): Promise<BlueskyAgentSession> {
   const session = new CredentialSession(new URL("https://bsky.social"));
 
   try {
@@ -199,7 +241,7 @@ export async function createAgentSession(
     });
   }
 
-  return new Agent(session);
+  return { agent: new Agent(session), tokens: extractSessionTokens(session) };
 }
 
 export async function fetchTimelinePage(
@@ -217,17 +259,36 @@ export async function fetchTimelinePage(
   };
 }
 
+// Opens the session and mirrors the fresh tokens back to storage right away, so
+// a later timeline failure still leaves the DB with resumable JWTs for the next
+// sync. Kept separate from fetchNewBlueskyPosts so each stays small and focused.
+async function openSession(
+  deps: BlueskyAdapterDeps,
+  credentials: BlueskyCredentials,
+): Promise<Agent> {
+  const { agent, tokens } = await deps.createSession(credentials);
+
+  if (deps.persistSession && tokens) {
+    await deps.persistSession(tokens);
+  }
+
+  return agent;
+}
+
 export async function fetchNewBlueskyPosts(
   credentials: BlueskyCredentials,
   feedId: number,
   lastSyncedAt: Date | null,
   policy: PostFilterPolicy = DEFAULT_POST_FILTER_POLICY,
-  deps: BlueskyAdapterDeps = {
+  overrides: Partial<BlueskyAdapterDeps> = {},
+): Promise<NewFeedItem[]> {
+  const deps: BlueskyAdapterDeps = {
     createSession: createAgentSession,
     getTimeline: fetchTimelinePage,
-  },
-): Promise<NewFeedItem[]> {
-  const agent = await deps.createSession(credentials);
+    ...overrides,
+  };
+
+  const agent = await openSession(deps, credentials);
   const items: NewFeedItem[] = [];
   let cursor: string | undefined;
   let pagesFetched = 0;

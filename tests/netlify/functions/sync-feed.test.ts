@@ -1009,7 +1009,106 @@ describe("sync-feed workload — Bluesky source", () => {
       3,
       expect.any(Date),
       { includeReposts: false, includeReplies: false },
+      expect.objectContaining({ persistSession: expect.any(Function) }),
     );
+  });
+
+  it("persists the fresh session tokens (encrypted) back to the integration after createAgentSession", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        id: 42,
+        accessToken: encryptToken("old-access-jwt"),
+        refreshToken: encryptToken("old-refresh-jwt"),
+        tokenSecret: encryptToken("app-password"),
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    // Drive the persistSession callback the worker injects with rotated tokens.
+    mockFetchNewBlueskyPosts.mockImplementation(
+      async (
+        _credentials: unknown,
+        _feedId: unknown,
+        _lastFetched: unknown,
+        _policy: unknown,
+        overrides: {
+          persistSession: (_tokens: {
+            accessJwt: string;
+            refreshJwt: string;
+            did: string;
+            handle: string;
+          }) => Promise<void>;
+        },
+      ) => {
+        await overrides.persistSession({
+          accessJwt: "fresh-access-jwt",
+          refreshJwt: "fresh-refresh-jwt",
+          did: "did:plc:abc123",
+          handle: "you.bsky.social",
+        });
+        return [];
+      },
+    );
+
+    await (handler as Function)(makeBlueskyEvent());
+
+    const tokenWrite = mockUpdateSet.mock.calls.find(
+      ([set]) => set && "accessToken" in set && "refreshToken" in set,
+    );
+
+    expect(tokenWrite).toBeDefined();
+    const [writtenSet] = tokenWrite!;
+    expect(isEncryptedToken(writtenSet.accessToken)).toBe(true);
+    expect(isEncryptedToken(writtenSet.refreshToken)).toBe(true);
+    expect(decryptToken(writtenSet.accessToken)).toBe("fresh-access-jwt");
+    expect(decryptToken(writtenSet.refreshToken)).toBe("fresh-refresh-jwt");
+  });
+
+  it("does not write session tokens back when they are unchanged", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(makeBlueskyFeed({ lastFetched: staleFetch() }))
+      .mockResolvedValueOnce({
+        id: 42,
+        accessToken: encryptToken("same-access-jwt"),
+        refreshToken: encryptToken("same-refresh-jwt"),
+        tokenSecret: encryptToken("app-password"),
+        providerAccountId: "did:plc:abc123",
+        providerUsername: "you.bsky.social",
+      });
+
+    mockFetchNewBlueskyPosts.mockImplementation(
+      async (
+        _credentials: unknown,
+        _feedId: unknown,
+        _lastFetched: unknown,
+        _policy: unknown,
+        overrides: {
+          persistSession: (_tokens: {
+            accessJwt: string;
+            refreshJwt: string;
+            did: string;
+            handle: string;
+          }) => Promise<void>;
+        },
+      ) => {
+        await overrides.persistSession({
+          accessJwt: "same-access-jwt",
+          refreshJwt: "same-refresh-jwt",
+          did: "did:plc:abc123",
+          handle: "you.bsky.social",
+        });
+        return [];
+      },
+    );
+
+    await (handler as Function)(makeBlueskyEvent());
+
+    const tokenWrite = mockUpdateSet.mock.calls.find(
+      ([set]) => set && "accessToken" in set && "refreshToken" in set,
+    );
+
+    expect(tokenWrite).toBeUndefined();
   });
 
   it("tolerates legacy plaintext rows written before encryption existed", async () => {
@@ -1036,6 +1135,7 @@ describe("sync-feed workload — Bluesky source", () => {
       3,
       expect.any(Date),
       { includeReposts: false, includeReplies: false },
+      expect.objectContaining({ persistSession: expect.any(Function) }),
     );
   });
 

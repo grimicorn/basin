@@ -4,11 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockLogin = vi.fn();
 const mockResumeSession = vi.fn();
 const mockGetTimeline = vi.fn();
+// Holds the tokens a mocked resume/login "settles" on, exposed via the
+// CredentialSession.session getter the same way the real client populates it.
+const mockSessionHolder: { current: unknown } = { current: undefined };
 
 vi.mock("@atproto/api", () => {
   class MockCredentialSession {
     login = mockLogin;
     resumeSession = mockResumeSession;
+
+    get session() {
+      return mockSessionHolder.current;
+    }
   }
 
   class MockAgent {
@@ -307,6 +314,7 @@ describe("shouldIncludePost", () => {
 describe("createAgentSession", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockSessionHolder.current = undefined;
   });
 
   it("calls resumeSession with the stored JWTs", async () => {
@@ -354,6 +362,49 @@ describe("createAgentSession", () => {
       identifier: "alice.bsky.social",
       password: "my-app-password",
     });
+  });
+
+  it("returns the fresh tokens the CredentialSession settled on after resume", async () => {
+    const settled = {
+      accessJwt: "settled-access-jwt",
+      refreshJwt: "settled-refresh-jwt",
+      did: "did:plc:settled",
+      handle: "alice.bsky.social",
+    };
+    mockResumeSession.mockImplementation(() => {
+      mockSessionHolder.current = settled;
+      return Promise.resolve(undefined);
+    });
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toEqual(settled);
+  });
+
+  it("returns the fresh tokens after a fallback login when resume fails", async () => {
+    const settled = {
+      accessJwt: "login-access-jwt",
+      refreshJwt: "login-refresh-jwt",
+      did: "did:plc:abc123",
+      handle: "alice.bsky.social",
+    };
+    mockResumeSession.mockRejectedValue(new Error("Expired"));
+    mockLogin.mockImplementation(() => {
+      mockSessionHolder.current = settled;
+      return Promise.resolve(undefined);
+    });
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toEqual(settled);
+  });
+
+  it("returns null tokens when the session never populated", async () => {
+    mockResumeSession.mockResolvedValue(undefined);
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toBeNull();
   });
 });
 
@@ -751,6 +802,47 @@ describe("fetchNewBlueskyPosts", () => {
     );
 
     expect(items).toHaveLength(1);
+  });
+
+  it("persists the fresh session tokens returned by createSession", async () => {
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+    const freshTokens = {
+      accessJwt: "fresh-access-jwt",
+      refreshJwt: "fresh-refresh-jwt",
+      did: "did:plc:abc123",
+      handle: "alice.bsky.social",
+    };
+    mockDeps.createSession.mockResolvedValue({
+      agent: {},
+      tokens: freshTokens,
+    });
+    mockDeps.getTimeline.mockResolvedValueOnce({ feed: [] });
+
+    await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      new Date(),
+      DEFAULT_POST_FILTER_POLICY,
+      { ...mockDeps, persistSession },
+    );
+
+    expect(persistSession).toHaveBeenCalledWith(freshTokens);
+  });
+
+  it("does not call persistSession when createSession returns no tokens", async () => {
+    const persistSession = vi.fn();
+    mockDeps.createSession.mockResolvedValue({ agent: {}, tokens: null });
+    mockDeps.getTimeline.mockResolvedValueOnce({ feed: [] });
+
+    await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      new Date(),
+      DEFAULT_POST_FILTER_POLICY,
+      { ...mockDeps, persistSession },
+    );
+
+    expect(persistSession).not.toHaveBeenCalled();
   });
 
   it("stops fetching after 100 pages to prevent serverless timeout", async () => {

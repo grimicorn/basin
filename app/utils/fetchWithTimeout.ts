@@ -24,24 +24,32 @@ export function $fetchWithTimeout<T>(
   timeoutMs: number,
   options: FetchOptions = {},
 ): Promise<T> {
+  const callerSignal = options.signal;
+  if (callerSignal?.aborted) {
+    return Promise.reject(callerSignal.reason);
+  }
+
   const controller = new AbortController();
+
+  // Dispatch before arming the timer so a synchronous throw from $fetch
+  // surfaces without leaving a dangling timeout behind.
+  const response = $fetch<T>(request, {
+    ...options,
+    signal: controller.signal,
+  });
 
   let timeoutId: ReturnType<typeof setTimeout>;
   let detachCallerAbort = () => {};
 
   const guard = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(() => {
+      const error = new FetchTimeoutError(timeoutMs);
       // Reject before aborting so the race settles as a timeout even if the
       // transport rejects synchronously the moment the signal aborts.
-      reject(new FetchTimeoutError(timeoutMs));
-      controller.abort();
+      reject(error);
+      controller.abort(error);
     }, timeoutMs);
-    detachCallerAbort = relayAbort(options.signal, controller, reject);
-  });
-
-  const response = $fetch<T>(request, {
-    ...options,
-    signal: controller.signal,
+    detachCallerAbort = relayAbort(callerSignal, controller, reject);
   });
 
   return Promise.race([response, guard]).finally(() => {
@@ -51,9 +59,10 @@ export function $fetchWithTimeout<T>(
 }
 
 // Mirror a caller's abort onto our own controller and reject the guard promptly,
-// so the returned promise settles even if the transport ignores the signal.
-// Returns a teardown so a reused, long-lived caller signal never accumulates
-// listeners across requests.
+// so the returned promise settles even if the transport ignores the signal. The
+// pre-aborted case is handled by the early return above, so the signal is live
+// here. Returns a teardown so a reused, long-lived caller signal never
+// accumulates listeners across requests.
 function relayAbort(
   callerSignal: CallerSignal,
   controller: AbortController,
@@ -63,20 +72,9 @@ function relayAbort(
     return () => {};
   }
   const onAbort = () => {
-    reject(abortReason(callerSignal));
-    controller.abort();
+    reject(callerSignal.reason);
+    controller.abort(callerSignal.reason);
   };
-  if (callerSignal.aborted) {
-    onAbort();
-    return () => {};
-  }
   callerSignal.addEventListener("abort", onAbort);
   return () => callerSignal.removeEventListener("abort", onAbort);
-}
-
-function abortReason(signal: AbortSignal): unknown {
-  if (signal.reason !== undefined) {
-    return signal.reason;
-  }
-  return new DOMException("Request aborted", "AbortError");
 }

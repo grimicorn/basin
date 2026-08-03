@@ -71,6 +71,7 @@ describe("$fetchWithTimeout", () => {
     await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
 
     expect(capturedSignal?.aborted).toBe(true);
+    expect(capturedSignal?.reason).toBeInstanceOf(FetchTimeoutError);
   });
 
   it("reports a timeout even when the transport rejects synchronously on abort", async () => {
@@ -128,14 +129,8 @@ describe("$fetchWithTimeout", () => {
     expect(capturedSignal?.aborted).toBe(false);
   });
 
-  it("rejects and aborts immediately when a caller-supplied signal is already aborted", async () => {
-    let capturedSignal: AbortSignal | undefined;
-    vi.mocked(globalThis.$fetch).mockImplementation(
-      (_request: unknown, options: { signal?: AbortSignal }) => {
-        capturedSignal = options.signal;
-        return new Promise(() => {});
-      },
-    );
+  it("rejects with the abort reason and never dispatches when the caller signal is already aborted", async () => {
+    vi.mocked(globalThis.$fetch).mockResolvedValue({ queued: 1 });
     const controller = new AbortController();
     controller.abort();
 
@@ -144,11 +139,11 @@ describe("$fetchWithTimeout", () => {
         method: "POST",
         signal: controller.signal,
       }),
-    ).rejects.toBeDefined();
-    expect(capturedSignal?.aborted).toBe(true);
+    ).rejects.toBe(controller.signal.reason);
+    expect(globalThis.$fetch).not.toHaveBeenCalled();
   });
 
-  it("rejects promptly when a caller-supplied signal aborts a transport that ignores it", async () => {
+  it("rejects with the caller's abort reason when its signal aborts a transport that ignores it", async () => {
     vi.mocked(globalThis.$fetch).mockImplementation(
       () => new Promise(() => {}),
     );
@@ -158,9 +153,23 @@ describe("$fetchWithTimeout", () => {
       method: "POST",
       signal: controller.signal,
     });
-    const rejection = expect(pending).rejects.toBeDefined();
+    pending.catch(() => {});
     controller.abort();
 
-    await rejection;
+    await expect(pending).rejects.toBe(controller.signal.reason);
+    await expect(pending).rejects.not.toBeInstanceOf(FetchTimeoutError);
+  });
+
+  it("removes its abort listener once the request settles", async () => {
+    vi.mocked(globalThis.$fetch).mockResolvedValue({ queued: 1 });
+    const controller = new AbortController();
+    const removeSpy = vi.spyOn(controller.signal, "removeEventListener");
+
+    await $fetchWithTimeout("/api/feed-sync", TIMEOUT_MS, {
+      method: "POST",
+      signal: controller.signal,
+    });
+
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 });

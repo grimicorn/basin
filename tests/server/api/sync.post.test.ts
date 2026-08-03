@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockUpdate = vi.fn();
 const mockSet = vi.fn();
@@ -33,6 +33,10 @@ describe("POST /api/sync", () => {
     mockWhere.mockResolvedValue(undefined);
     // Default: user owns the feed
     mockFindFirst.mockResolvedValue({ id: 1 });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("throws 401 when unauthenticated", async () => {
@@ -111,7 +115,19 @@ describe("POST /api/sync", () => {
     });
     await handler(event);
     expect(mockSet).toHaveBeenCalledWith({ readAt: now });
-    vi.useRealTimers();
+  });
+
+  it("defaults readAt to now when explicitly null", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-02T03:04:05.000Z");
+    vi.setSystemTime(now);
+    const event = makeEvent({ id: 1 }, "markRead", {
+      feedId: 1,
+      guid: "item-1",
+      readAt: null,
+    });
+    await handler(event);
+    expect(mockSet).toHaveBeenCalledWith({ readAt: now });
   });
 
   it("applies star and returns ok", async () => {
@@ -165,6 +181,17 @@ describe("POST /api/sync", () => {
 
   it("applies save with no savedAt and persists null", async () => {
     const event = makeEvent({ id: 1 }, "save", { feedId: 1, guid: "item-1" });
+    const result = await handler(event);
+    expect(result).toEqual({ ok: true });
+    expect(mockSet).toHaveBeenCalledWith({ savedAt: null });
+  });
+
+  it("applies save with explicit null savedAt and persists null", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: null,
+    });
     const result = await handler(event);
     expect(result).toEqual({ ok: true });
     expect(mockSet).toHaveBeenCalledWith({ savedAt: null });

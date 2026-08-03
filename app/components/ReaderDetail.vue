@@ -33,13 +33,6 @@ function togglePodcast() {
   player.toggle(podcastMediaUrl.value);
 }
 
-function onPodcastScrub(event) {
-  if (!podcastActive.value) {
-    return;
-  }
-  player.scrubTo(event);
-}
-
 const ALLOWED_URL_PROTOCOLS = ["https:", "http:"];
 
 function isSafeUrl(url) {
@@ -243,7 +236,7 @@ function openOriginal() {
                   <div
                     class="scrubber"
                     :class="{ 'scrubber-seekable': podcastActive }"
-                    @click="onPodcastScrub"
+                    @click="player.scrubTo(podcastMediaUrl, $event)"
                   >
                     <i :style="{ width: podcastProgressPct + '%' }"></i>
                   </div>

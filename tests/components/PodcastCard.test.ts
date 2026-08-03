@@ -6,25 +6,27 @@ import { makePodcast } from "../fixtures";
 
 // Stub the shared player so play control is asserted without a real <audio>;
 // canPlay uses the genuine URL-safety check to drive the disabled state.
-function stubPlayer() {
+function stubPlayer(overrides: { active?: boolean; progress?: number } = {}) {
+  const active = overrides.active ?? false;
   const toggle = vi.fn();
+  const scrubTo = vi.fn();
   const player = {
-    state: { currentUrl: null, playing: false, currentTime: 0, duration: 0 },
-    progress: 0,
+    state: { currentUrl: null, playing: active, currentTime: 0, duration: 0 },
+    progress: overrides.progress ?? 0,
     seekStep: 15,
     play: vi.fn(),
     pause: vi.fn(),
     toggle,
     seekBy: vi.fn(),
     seekToFraction: vi.fn(),
-    scrubTo: vi.fn(),
-    isActive: () => false,
-    isPlaying: () => false,
+    scrubTo,
+    isActive: () => active,
+    isPlaying: () => active,
     canPlay: (url: string | null) => isPlayableUrl(url),
     formatTime: () => "0:00",
   };
   vi.stubGlobal("usePodcastPlayer", () => player);
-  return { player, toggle };
+  return { player, toggle, scrubTo };
 }
 
 describe("PodcastCard", () => {
@@ -70,5 +72,39 @@ describe("PodcastCard", () => {
     });
 
     expect(wrapper.find(".pod-play").attributes("disabled")).toBeDefined();
+  });
+
+  it("shows the pause affordance and live progress while playing", () => {
+    stubPlayer({ active: true, progress: 0.5 });
+    const wrapper = shallowMount(PodcastCard, {
+      props: {
+        item: makePodcast({
+          mediaUrl: "https://podcast.example.com/episode-1.mp3",
+        }),
+      },
+    });
+
+    expect(wrapper.find(".pod-play").attributes("title")).toBe("Pause episode");
+    expect(wrapper.find(".pod-bar i").attributes("style")).toContain(
+      "width: 50%",
+    );
+  });
+
+  it("seeks via the progress bar with the episode media URL", async () => {
+    const { scrubTo } = stubPlayer({ active: true, progress: 0.5 });
+    const wrapper = shallowMount(PodcastCard, {
+      props: {
+        item: makePodcast({
+          mediaUrl: "https://podcast.example.com/episode-1.mp3",
+        }),
+      },
+    });
+
+    await wrapper.find(".pod-bar").trigger("click");
+
+    expect(scrubTo).toHaveBeenCalledWith(
+      "https://podcast.example.com/episode-1.mp3",
+      expect.anything(),
+    );
   });
 });

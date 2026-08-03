@@ -37,12 +37,16 @@ export function formatPlaybackTime(totalSeconds: number): string {
   return `${minutes}:${paddedSeconds}`;
 }
 
-export function pointerFraction(event: MouseEvent): number {
+// Returns the click position as a 0-1 fraction of the bar's width, or null
+// when the bar cannot be measured (so callers can distinguish "unmeasurable"
+// from a genuine seek to the very start).
+export function pointerFraction(event: MouseEvent): number | null {
   const target = event.currentTarget as HTMLElement | null;
-  if (!target || target.clientWidth <= 0) {
-    return 0;
+  const bounds = target?.getBoundingClientRect();
+  if (!bounds || bounds.width <= 0) {
+    return null;
   }
-  return clamp(event.offsetX / target.clientWidth, 0, 1);
+  return clamp((event.clientX - bounds.left) / bounds.width, 0, 1);
 }
 
 export interface PodcastPlayerState {
@@ -141,8 +145,19 @@ export function createPodcastPlayer(audio: HTMLMediaElement) {
     state.currentTime = target;
   }
 
-  function scrubTo(event: MouseEvent): void {
-    seekToFraction(pointerFraction(event));
+  // Seeks from a click on a progress bar, but only when the click belongs to
+  // the episode that is actually loaded — guarding here keeps every consumer
+  // from re-implementing the same check and accidentally seeking the wrong
+  // episode.
+  function scrubTo(url: string | null | undefined, event: MouseEvent): void {
+    if (!isActive(url)) {
+      return;
+    }
+    const fraction = pointerFraction(event);
+    if (fraction === null) {
+      return;
+    }
+    seekToFraction(fraction);
   }
 
   return reactive({

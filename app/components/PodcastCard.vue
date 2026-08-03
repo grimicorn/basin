@@ -37,13 +37,6 @@ const durationLabel = computed(() =>
 function togglePlay() {
   player.toggle(mediaUrl.value);
 }
-
-function onScrub(event) {
-  if (!active.value) {
-    return;
-  }
-  player.scrubTo(event);
-}
 </script>
 
 <template>
@@ -77,7 +70,7 @@ function onScrub(event) {
       <div
         class="pod-bar"
         :class="{ 'pod-bar-seekable': active }"
-        @click.stop="onScrub"
+        @click.stop="player.scrubTo(mediaUrl, $event)"
       >
         <i :style="{ width: progressPct + '%' }"></i>
       </div>

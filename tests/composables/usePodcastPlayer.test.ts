@@ -71,25 +71,44 @@ describe("formatPlaybackTime", () => {
   });
 });
 
+function makePointerEvent(
+  clientX: number,
+  bounds: { left: number; width: number } | null,
+): MouseEvent {
+  return {
+    clientX,
+    currentTarget: bounds
+      ? {
+          getBoundingClientRect: () => ({
+            left: bounds.left,
+            width: bounds.width,
+          }),
+        }
+      : null,
+  } as unknown as MouseEvent;
+}
+
 describe("pointerFraction", () => {
-  it("returns the click position as a 0-1 fraction of the target width", () => {
-    const event = {
-      currentTarget: { clientWidth: 200 },
-      offsetX: 50,
-    } as unknown as MouseEvent;
-    expect(pointerFraction(event)).toBe(0.25);
+  it("returns the click position as a 0-1 fraction of the bar width", () => {
+    expect(
+      pointerFraction(makePointerEvent(60, { left: 10, width: 200 })),
+    ).toBe(0.25);
   });
 
-  it("returns 0 when there is no target or zero width", () => {
+  it("clamps clicks outside the bar into range", () => {
+    expect(pointerFraction(makePointerEvent(5, { left: 10, width: 200 }))).toBe(
+      0,
+    );
     expect(
-      pointerFraction({ currentTarget: null } as unknown as MouseEvent),
-    ).toBe(0);
+      pointerFraction(makePointerEvent(500, { left: 10, width: 200 })),
+    ).toBe(1);
+  });
+
+  it("returns null when the bar cannot be measured", () => {
+    expect(pointerFraction(makePointerEvent(10, null))).toBeNull();
     expect(
-      pointerFraction({
-        currentTarget: { clientWidth: 0 },
-        offsetX: 10,
-      } as unknown as MouseEvent),
-    ).toBe(0);
+      pointerFraction(makePointerEvent(10, { left: 0, width: 0 })),
+    ).toBeNull();
   });
 });
 
@@ -201,15 +220,39 @@ describe("createPodcastPlayer", () => {
     expect(raw.currentTime).toBe(0);
   });
 
-  it("seeks from a pointer event via scrubTo", () => {
+  it("seeks the active episode from a pointer event via scrubTo", () => {
     const { audio, raw, fire } = makeMockAudio();
     const player = createPodcastPlayer(audio);
+    player.play(EPISODE_URL);
     raw.duration = 100;
     fire("durationchange");
-    player.scrubTo({
-      currentTarget: { clientWidth: 200 },
-      offsetX: 100,
-    } as unknown as MouseEvent);
+    player.scrubTo(
+      EPISODE_URL,
+      makePointerEvent(110, { left: 10, width: 200 }),
+    );
     expect(player.state.currentTime).toBe(50);
+  });
+
+  it("does not scrub when the URL is not the active episode", () => {
+    const { audio, raw, fire } = makeMockAudio();
+    const player = createPodcastPlayer(audio);
+    player.play(EPISODE_URL);
+    raw.duration = 100;
+    fire("durationchange");
+    player.scrubTo(
+      "https://other.com/x.mp3",
+      makePointerEvent(110, { left: 10, width: 200 }),
+    );
+    expect(player.state.currentTime).toBe(0);
+  });
+
+  it("does not scrub when the bar cannot be measured", () => {
+    const { audio, raw, fire } = makeMockAudio();
+    const player = createPodcastPlayer(audio);
+    player.play(EPISODE_URL);
+    raw.duration = 100;
+    fire("durationchange");
+    player.scrubTo(EPISODE_URL, makePointerEvent(110, null));
+    expect(player.state.currentTime).toBe(0);
   });
 });

@@ -149,30 +149,35 @@ describe("ReaderDetail", () => {
   describe("podcast play button", () => {
     // Stub the shared player so we can assert on control calls without a real
     // <audio> element; canPlay uses the genuine URL-safety check.
-    function stubPlayer() {
+    function stubPlayer(
+      overrides: { active?: boolean; progress?: number } = {},
+    ) {
+      const active = overrides.active ?? false;
       const toggle = vi.fn();
+      const seekBy = vi.fn();
+      const scrubTo = vi.fn();
       const player = {
         state: {
           currentUrl: null,
-          playing: false,
+          playing: active,
           currentTime: 0,
           duration: 0,
         },
-        progress: 0,
+        progress: overrides.progress ?? 0,
         seekStep: 15,
         play: vi.fn(),
         pause: vi.fn(),
         toggle,
-        seekBy: vi.fn(),
+        seekBy,
         seekToFraction: vi.fn(),
-        scrubTo: vi.fn(),
-        isActive: () => false,
-        isPlaying: () => false,
+        scrubTo,
+        isActive: () => active,
+        isPlaying: () => active,
         canPlay: (url: string | null) => isPlayableUrl(url),
         formatTime: () => "0:00",
       };
       vi.stubGlobal("usePodcastPlayer", () => player);
-      return { player, toggle };
+      return { player, toggle, seekBy, scrubTo };
     }
 
     it("plays the episode in-app instead of opening a new tab", async () => {
@@ -216,15 +221,53 @@ describe("ReaderDetail", () => {
       expect(wrapper.find(".pod-play").attributes("disabled")).toBeDefined();
     });
 
-    it("never opens an external tab from the play button", async () => {
-      stubPlayer();
-      state.activeItem = makePodcast({ mediaUrl: null, url: null }) as never;
+    it("shows the pause affordance and live progress while playing", async () => {
+      stubPlayer({ active: true, progress: 0.5 });
+      state.activeItem = makePodcast({
+        mediaUrl: "https://podcast.example.com/episode-1.mp3",
+      }) as never;
       const wrapper = shallowMount(ReaderDetail);
       await wrapper.vm.$nextTick();
 
-      await wrapper.find(".pod-play").trigger("click");
+      expect(wrapper.find(".pod-play").attributes("title")).toBe(
+        "Pause episode",
+      );
+      expect(wrapper.find(".scrubber i").attributes("style")).toContain(
+        "width: 50%",
+      );
+    });
 
-      expect(window.open).not.toHaveBeenCalled();
+    it("skips forward via the +15s button while playing", async () => {
+      const { seekBy } = stubPlayer({ active: true });
+      state.activeItem = makePodcast({
+        mediaUrl: "https://podcast.example.com/episode-1.mp3",
+      }) as never;
+      const wrapper = shallowMount(ReaderDetail);
+      await wrapper.vm.$nextTick();
+
+      const skipButton = wrapper
+        .findAll("button.kbd")
+        .find((button) => button.text().includes("+15s"));
+      expect(skipButton).toBeDefined();
+      await skipButton!.trigger("click");
+
+      expect(seekBy).toHaveBeenCalledWith(15);
+    });
+
+    it("seeks via the scrubber with the episode media URL", async () => {
+      const { scrubTo } = stubPlayer({ active: true, progress: 0.5 });
+      state.activeItem = makePodcast({
+        mediaUrl: "https://podcast.example.com/episode-1.mp3",
+      }) as never;
+      const wrapper = shallowMount(ReaderDetail);
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find(".scrubber").trigger("click");
+
+      expect(scrubTo).toHaveBeenCalledWith(
+        "https://podcast.example.com/episode-1.mp3",
+        expect.anything(),
+      );
     });
   });
 

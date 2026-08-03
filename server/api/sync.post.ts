@@ -24,19 +24,14 @@ function assertBoolean(value: unknown, field: string): boolean {
 }
 
 // Absent (undefined/null) values fall back to the handler's default; any other
-// value must parse to a real date, otherwise it would persist as Invalid Date.
+// value must be an ISO date string that parses, otherwise it would persist as
+// Invalid Date. Numbers are rejected: the client only ever sends ISO strings.
 function parseOptionalDate(value: unknown, field: string): Date | null {
   if (value === undefined || value === null) {
     return null;
   }
-  if (typeof value !== "string" && typeof value !== "number") {
-    throw createError({
-      statusCode: 400,
-      statusMessage: `payload.${field} must be a valid date`,
-    });
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = typeof value === "string" ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
     throw createError({
       statusCode: 400,
       statusMessage: `payload.${field} must be a valid date`,

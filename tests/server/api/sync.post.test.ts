@@ -101,6 +101,19 @@ describe("POST /api/sync", () => {
     expect(mockUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("defaults readAt to now when absent", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-02T03:04:05.000Z");
+    vi.setSystemTime(now);
+    const event = makeEvent({ id: 1 }, "markRead", {
+      feedId: 1,
+      guid: "item-1",
+    });
+    await handler(event);
+    expect(mockSet).toHaveBeenCalledWith({ readAt: now });
+    vi.useRealTimers();
+  });
+
   it("applies star and returns ok", async () => {
     const event = makeEvent({ id: 1 }, "star", {
       feedId: 1,
@@ -183,6 +196,16 @@ describe("POST /api/sync", () => {
       feedId: 1,
       guid: "item-1",
       savedAt: "",
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("throws 400 when savedAt is a number", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: 1767322800,
     });
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
     expect(mockUpdate).not.toHaveBeenCalled();

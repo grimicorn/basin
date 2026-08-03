@@ -2,13 +2,15 @@
 // hanging forever (see app/stores/feed.ts's refresh flow, which otherwise
 // leaves loading state wedged with no error).
 //
-// Why not ofetch's built-in `timeout`: the racing timeout promise here
-// guarantees rejection even when the underlying transport ignores the abort
-// signal, and — unlike ofetch's internal timer — it can be exercised against a
-// mocked $fetch, so the timeout behaviour stays unit-testable.
+// Why not ofetch's built-in `timeout`: the racing guard promise here rejects on
+// timeout even when the underlying transport ignores the abort signal, relays a
+// caller's own abort so the returned promise settles promptly, and — unlike
+// ofetch's internal timer — can be exercised against a mocked $fetch, so the
+// timeout behaviour stays unit-testable.
 
 type FetchRequest = Parameters<typeof $fetch>[0];
 type FetchOptions = NonNullable<Parameters<typeof $fetch>[1]>;
+type CallerSignal = FetchOptions["signal"];
 
 export class FetchTimeoutError extends Error {
   constructor(public readonly timeoutMs: number) {
@@ -23,16 +25,18 @@ export function $fetchWithTimeout<T>(
   options: FetchOptions = {},
 ): Promise<T> {
   const controller = new AbortController();
-  forwardAbort(options.signal, controller);
 
   let timeoutId: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_resolve, reject) => {
+  let detachCallerAbort = () => {};
+
+  const guard = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(() => {
-      // abort() must precede reject() so the FetchTimeoutError wins the race and
-      // callers see a timeout rather than the transport's own AbortError.
-      controller.abort();
+      // Reject before aborting so the race settles as a timeout even if the
+      // transport rejects synchronously the moment the signal aborts.
       reject(new FetchTimeoutError(timeoutMs));
+      controller.abort();
     }, timeoutMs);
+    detachCallerAbort = relayAbort(options.signal, controller, reject);
   });
 
   const response = $fetch<T>(request, {
@@ -40,23 +44,39 @@ export function $fetchWithTimeout<T>(
     signal: controller.signal,
   });
 
-  return Promise.race([response, timeout]).finally(() => {
+  return Promise.race([response, guard]).finally(() => {
     clearTimeout(timeoutId);
+    detachCallerAbort();
   });
 }
 
-// Honour a caller-supplied abort signal instead of silently dropping it when we
-// swap in our own controller for the timeout.
-function forwardAbort(
-  incoming: FetchOptions["signal"],
+// Mirror a caller's abort onto our own controller and reject the guard promptly,
+// so the returned promise settles even if the transport ignores the signal.
+// Returns a teardown so a reused, long-lived caller signal never accumulates
+// listeners across requests.
+function relayAbort(
+  callerSignal: CallerSignal,
   controller: AbortController,
-): void {
-  if (!incoming) {
-    return;
+  reject: (_reason?: unknown) => void,
+): () => void {
+  if (!callerSignal) {
+    return () => {};
   }
-  if (incoming.aborted) {
+  const onAbort = () => {
+    reject(abortReason(callerSignal));
     controller.abort();
-    return;
+  };
+  if (callerSignal.aborted) {
+    onAbort();
+    return () => {};
   }
-  incoming.addEventListener("abort", () => controller.abort(), { once: true });
+  callerSignal.addEventListener("abort", onAbort);
+  return () => callerSignal.removeEventListener("abort", onAbort);
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  if (signal.reason !== undefined) {
+    return signal.reason;
+  }
+  return new DOMException("Request aborted", "AbortError");
 }

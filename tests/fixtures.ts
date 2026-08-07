@@ -69,7 +69,6 @@ export const makePodcast = (overrides: Record<string, unknown> = {}) => ({
   mediaUrl: "https://podcast.example.com/episode-1.mp3",
   content: "Show note one.\n\nShow note two.",
   mediaDuration: 2700,
-  notes: ["Show note one.", "Show note two."],
   ...overrides,
 });
 

@@ -236,18 +236,24 @@ function createRotationHandler(
   persistSession: PersistBlueskySession,
   isArmed: () => boolean,
 ): AtpPersistSessionHandler {
-  // Serialize writes through a promise chain: refresh JWTs are single-use, so
-  // two overlapping rotation writes landing out of order would store an already
-  // consumed token and break the next sync — the exact failure this prevents.
+  // Serialize rotation writes through a promise chain: refresh JWTs are
+  // single-use, so two overlapping rotation writes landing out of order would
+  // store an already consumed token and break the next sync.
   let mirrorQueue: Promise<void> = Promise.resolve();
 
-  return (_event: AtpSessionEvent, sessionData: AtpSessionData | undefined) => {
+  return (event: AtpSessionEvent, sessionData: AtpSessionData | undefined) => {
     if (!isArmed()) {
       return;
     }
 
-    // Skip events that carry no session (expired/create-failed/network-error)
-    // so we never overwrite stored tokens with empty ones.
+    // Only a genuine login ('create') or refresh/rotation ('update') carries
+    // fresh JWTs worth storing. 'expired'/'create-failed' arrive with no
+    // session; 'network-error' carries the *unchanged* session, so persisting it
+    // would be a redundant write of tokens we already hold.
+    if (event !== "create" && event !== "update") {
+      return;
+    }
+
     if (!sessionData) {
       return;
     }

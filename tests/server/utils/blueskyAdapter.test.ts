@@ -452,7 +452,9 @@ describe("createAgentSession", () => {
 
     await createAgentSession(makeCredentials(), persistSession);
 
-    await mockPersistHandlerHolder.current?.("update", {
+    const handler = mockPersistHandlerHolder.current;
+    expect(handler).toBeDefined();
+    await handler?.("update", {
       accessJwt: "rotated-access-jwt",
       refreshJwt: "rotated-refresh-jwt",
       handle: "alice.bsky.social",
@@ -470,7 +472,9 @@ describe("createAgentSession", () => {
     const persistSession = vi.fn().mockResolvedValue(undefined);
     // Simulate atproto firing 'update' during resume, before the session opens.
     mockResumeSession.mockImplementation(async () => {
-      await mockPersistHandlerHolder.current?.("update", {
+      const handler = mockPersistHandlerHolder.current;
+      expect(handler).toBeDefined();
+      await handler?.("update", {
         accessJwt: "settled-access-jwt",
         refreshJwt: "settled-refresh-jwt",
         handle: "alice.bsky.social",
@@ -500,6 +504,7 @@ describe("createAgentSession", () => {
     await createAgentSession(makeCredentials(), persistSession);
 
     const handler = mockPersistHandlerHolder.current;
+    expect(handler).toBeDefined();
     const first = handler?.("update", {
       accessJwt: "rotation-1-access",
       refreshJwt: "rotation-1-refresh",
@@ -525,7 +530,30 @@ describe("createAgentSession", () => {
 
     await createAgentSession(makeCredentials(), persistSession);
 
-    await mockPersistHandlerHolder.current?.("expired", undefined);
+    const handler = mockPersistHandlerHolder.current;
+    expect(handler).toBeDefined();
+    await handler?.("expired", undefined);
+
+    expect(persistSession).not.toHaveBeenCalled();
+  });
+
+  it("ignores network-error events (atproto sends them with the unchanged session)", async () => {
+    // atproto fires 'network-error' with the *current* session, so the tokens
+    // are unchanged — persisting them would be a redundant write.
+    mockResumeSession.mockResolvedValue(undefined);
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    const handler = mockPersistHandlerHolder.current;
+    expect(handler).toBeDefined();
+    await handler?.("network-error", {
+      accessJwt: "unchanged-access-jwt",
+      refreshJwt: "unchanged-refresh-jwt",
+      handle: "alice.bsky.social",
+      did: "did:plc:abc123",
+      active: true,
+    });
 
     expect(persistSession).not.toHaveBeenCalled();
   });
@@ -540,8 +568,10 @@ describe("createAgentSession", () => {
 
     await createAgentSession(makeCredentials(), persistSession);
 
+    const handler = mockPersistHandlerHolder.current;
+    expect(handler).toBeDefined();
     await expect(
-      mockPersistHandlerHolder.current?.("update", {
+      handler?.("update", {
         accessJwt: "rotated-access-jwt",
         refreshJwt: "rotated-refresh-jwt",
         handle: "alice.bsky.social",
@@ -972,6 +1002,27 @@ describe("fetchNewBlueskyPosts", () => {
     );
 
     expect(persistSession).toHaveBeenCalledWith(freshTokens);
+  });
+
+  it("passes the persistSession sink through to createSession (so mid-pagination rotations can mirror)", async () => {
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+    const credentials = makeCredentials();
+    mockDeps.createSession.mockResolvedValue({ agent: {}, tokens: null });
+    mockDeps.getTimeline.mockResolvedValueOnce({ feed: [] });
+
+    await fetchNewBlueskyPosts(
+      credentials,
+      FEED_ID,
+      new Date(),
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+      persistSession,
+    );
+
+    expect(mockDeps.createSession).toHaveBeenCalledWith(
+      credentials,
+      persistSession,
+    );
   });
 
   it("does not call persistSession when createSession returns no tokens", async () => {

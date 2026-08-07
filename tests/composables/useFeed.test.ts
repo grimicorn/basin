@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { useFeedStore, FEED_SYNC_TIMEOUT_MS } from "~/stores/feed";
+import {
+  useFeedStore,
+  FEED_SYNC_TIMEOUT_MS,
+  FEED_ITEMS_TIMEOUT_MS,
+} from "~/stores/feed";
 import { makeFeed, makeConnection } from "../fixtures";
 
 const item = (overrides: Record<string, unknown> = {}) => ({
@@ -335,6 +339,28 @@ describe("useFeedStore", () => {
       state.items = pageOne as never;
       await feed.loadItems({ offset: 1 });
       expect(state.items.map((i) => i.id)).toEqual([101, 102, 103]);
+    });
+
+    // A never-settling items request must time out rather than hang the load;
+    // advancing by the store's own constant proves loadItems is bounded by it.
+    it("times out a never-settling items request and surfaces an error toast", async () => {
+      const showToast = vi.fn();
+      vi.stubGlobal(
+        "useToast",
+        vi.fn(() => ({ showToast })),
+      );
+      vi.mocked(globalThis.$fetch).mockImplementation(
+        () => new Promise(() => {}),
+      );
+
+      const loading = feed.loadItems();
+      await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS);
+      await loading;
+
+      expect(showToast).toHaveBeenCalledWith(
+        "Failed to load feed items — please try again",
+      );
+      vi.unstubAllGlobals();
     });
   });
 

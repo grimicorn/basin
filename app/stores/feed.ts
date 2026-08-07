@@ -14,6 +14,10 @@ const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 // timers by the exact same value.
 export const FEED_SYNC_TIMEOUT_MS = 15000;
 
+// Same guard for the items load inside refresh(): a never-settling /api/feed-items
+// response would otherwise leave loading wedged. Exported for the same test reason.
+export const FEED_ITEMS_TIMEOUT_MS = 15000;
+
 export const useFeedStore = defineStore("feed", () => {
   const { getToken } = useAuth();
 
@@ -103,11 +107,11 @@ export const useFeedStore = defineStore("feed", () => {
     }
 
     try {
-      const response = await $fetch<{
+      const response = await $fetchWithTimeout<{
         items: Record<string, unknown>[];
         total: number;
         nextOffset: number | null;
-      }>("/api/feed-items", { headers, query });
+      }>("/api/feed-items", FEED_ITEMS_TIMEOUT_MS, { headers, query });
 
       if ((params.offset ?? 0) > 0) {
         const seen = new Set(state.items.map((i) => i.id));

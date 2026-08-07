@@ -356,6 +356,7 @@ describe("useFeedStore", () => {
       vi.mocked(globalThis.$fetch).mockImplementation(
         () => new Promise(() => {}),
       );
+      state.items = [item({ id: 999 })];
 
       const loading = feed.loadItems();
       await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS - 1);
@@ -366,6 +367,8 @@ describe("useFeedStore", () => {
       expect(showToast).toHaveBeenCalledWith(
         "Failed to load feed items — please try again",
       );
+      // A timed-out first-page load must not blank the existing feed.
+      expect(state.items.map((i) => i.id)).toEqual([999]);
     });
   });
 

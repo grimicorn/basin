@@ -66,6 +66,10 @@ export async function emitSyncFeedEvents(
   options: EmitSyncEventsOptions = {},
 ): Promise<FeedEmitResult[]> {
   const batchSize = options.batchSize ?? EMIT_BATCH_SIZE;
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1) {
+    throw new RangeError("batchSize must be a positive integer");
+  }
+
   const results: FeedEmitResult[] = [];
 
   for (let index = 0; index < events.length; index += batchSize) {

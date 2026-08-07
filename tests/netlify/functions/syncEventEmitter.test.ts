@@ -111,6 +111,17 @@ describe("emitSyncFeedEvents", () => {
     expect(results[1]).toEqual({ feedId: 2, success: true, eventId: "evt-2" });
   });
 
+  it("rejects a non-positive batch size instead of looping forever", async () => {
+    const send = vi
+      .fn()
+      .mockResolvedValue({ sendStatus: "succeeded", eventId: "evt" });
+
+    await expect(
+      emitSyncFeedEvents(stubClient(send), [makeEvent()], { batchSize: 0 }),
+    ).rejects.toThrow(RangeError);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("emits in sequential batches instead of firing everything at once", async () => {
     const total = EMIT_BATCH_SIZE + 3;
     const events = Array.from({ length: total }, (_, index) =>

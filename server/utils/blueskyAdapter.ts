@@ -26,13 +26,38 @@ export interface BlueskyCredentials {
   did: string;
 }
 
+// The current session JWTs after a resume/login, mirrored back to the DB so the
+// next sync can resume instead of falling back to a full app-password login.
+export interface BlueskySessionTokens {
+  accessJwt: string;
+  refreshJwt: string;
+}
+
+// createAgentSession returns both the ready-to-use agent and the fresh session
+// tokens the underlying CredentialSession settled on (which may differ from the
+// stored ones after a refresh or a fallback login).
+export interface BlueskyAgentSession {
+  agent: Agent;
+  tokens: BlueskySessionTokens | null;
+}
+
 export interface BlueskyAdapterDeps {
-  createSession: (_credentials: BlueskyCredentials) => Promise<Agent>;
+  createSession: (
+    _credentials: BlueskyCredentials,
+  ) => Promise<BlueskyAgentSession>;
   getTimeline: (
     _agent: Agent,
     _cursor?: string,
   ) => Promise<{ feed: AppBskyFeedDefs.FeedViewPost[]; cursor?: string }>;
 }
+
+// Sink for the fresh session JWTs. Kept out of BlueskyAdapterDeps (which only
+// carries the Bluesky I/O seam, injected all-or-nothing) because persistence is
+// storage, not an external service — and so a partial I/O stub can never
+// silently fall back to the real network.
+export type PersistBlueskySession = (
+  _tokens: BlueskySessionTokens,
+) => Promise<void>;
 
 export interface PostFilterPolicy {
   includeReposts: boolean;
@@ -178,9 +203,27 @@ function isPostAfterWatermark(
   return postDate >= watermark;
 }
 
+// Reads the JWTs the CredentialSession settled on after resume/login. Returns
+// null when the session was never populated (resume and login both failed to
+// establish one), so callers skip persistence rather than writing empty tokens.
+function extractSessionTokens(
+  session: CredentialSession,
+): BlueskySessionTokens | null {
+  const sessionData = session.session;
+
+  if (!sessionData) {
+    return null;
+  }
+
+  return {
+    accessJwt: sessionData.accessJwt,
+    refreshJwt: sessionData.refreshJwt,
+  };
+}
+
 export async function createAgentSession(
   credentials: BlueskyCredentials,
-): Promise<Agent> {
+): Promise<BlueskyAgentSession> {
   const session = new CredentialSession(new URL("https://bsky.social"));
 
   try {
@@ -199,7 +242,7 @@ export async function createAgentSession(
     });
   }
 
-  return new Agent(session);
+  return { agent: new Agent(session), tokens: extractSessionTokens(session) };
 }
 
 export async function fetchTimelinePage(
@@ -217,6 +260,38 @@ export async function fetchTimelinePage(
   };
 }
 
+// Best-effort mirror of the fresh JWTs to storage: a failed write (transient DB
+// blip, missing encryption key) must not fail an otherwise-successful sync — the
+// next run just re-authenticates with the app password. try/catch (not .catch)
+// so a sink that throws synchronously is swallowed too, since the seam is public.
+async function mirrorSessionTokens(
+  persistSession: PersistBlueskySession,
+  tokens: BlueskySessionTokens,
+): Promise<void> {
+  try {
+    await persistSession(tokens);
+  } catch (error) {
+    console.error("Failed to persist refreshed Bluesky session:", error);
+  }
+}
+
+// Opens the session and mirrors the fresh tokens back to storage right away, so
+// a later timeline failure still leaves the DB with resumable JWTs for the next
+// sync. Kept separate from fetchNewBlueskyPosts so each stays small and focused.
+async function openSession(
+  deps: BlueskyAdapterDeps,
+  credentials: BlueskyCredentials,
+  persistSession?: PersistBlueskySession,
+): Promise<Agent> {
+  const { agent, tokens } = await deps.createSession(credentials);
+
+  if (persistSession && tokens) {
+    await mirrorSessionTokens(persistSession, tokens);
+  }
+
+  return agent;
+}
+
 export async function fetchNewBlueskyPosts(
   credentials: BlueskyCredentials,
   feedId: number,
@@ -226,8 +301,9 @@ export async function fetchNewBlueskyPosts(
     createSession: createAgentSession,
     getTimeline: fetchTimelinePage,
   },
+  persistSession?: PersistBlueskySession,
 ): Promise<NewFeedItem[]> {
-  const agent = await deps.createSession(credentials);
+  const agent = await openSession(deps, credentials, persistSession);
   const items: NewFeedItem[] = [];
   let cursor: string | undefined;
   let pagesFetched = 0;

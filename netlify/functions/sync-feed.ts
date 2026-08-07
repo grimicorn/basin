@@ -25,7 +25,10 @@ import {
   BLUESKY_SOURCE,
   DEFAULT_POST_FILTER_POLICY,
 } from "../../server/utils/blueskyAdapter";
-import type { BlueskyCredentials } from "../../server/utils/blueskyAdapter";
+import type {
+  BlueskyCredentials,
+  BlueskySessionTokens,
+} from "../../server/utils/blueskyAdapter";
 import { createDb } from "./db";
 import {
   IntegrationAuthError,
@@ -103,6 +106,7 @@ async function fetchBlueskyIntegration(userId: number) {
       eq(integrations.provider, "bluesky"),
     ),
     columns: {
+      id: true,
       accessToken: true,
       refreshToken: true,
       tokenSecret: true,
@@ -310,6 +314,35 @@ async function syncYouTubeFeed(
   return upsertFeedItems(feedId, newItems);
 }
 
+// Mirrors persistRefreshedToken (YouTube) for Bluesky: writes the fresh
+// session JWTs back to the integrations row so the next sync resumes instead
+// of re-authenticating with the app password. A defensive equality guard skips
+// the write when neither JWT changed, so a caller that hands back identical
+// tokens never triggers a needless update.
+async function persistBlueskySession(
+  integrationId: number,
+  previous: BlueskySessionTokens,
+  tokens: BlueskySessionTokens,
+): Promise<void> {
+  const tokensUnchanged =
+    tokens.accessJwt === previous.accessJwt &&
+    tokens.refreshJwt === previous.refreshJwt;
+
+  if (tokensUnchanged) {
+    return;
+  }
+
+  const db = createDb();
+  await db
+    .update(integrations)
+    .set({
+      accessToken: encryptToken(tokens.accessJwt),
+      refreshToken: encryptToken(tokens.refreshJwt),
+      updatedAt: new Date(),
+    })
+    .where(eq(integrations.id, integrationId));
+}
+
 async function syncBlueskyFeed(
   feedId: number,
   userId: number,
@@ -352,6 +385,18 @@ async function syncBlueskyFeed(
     feedId,
     lastFetched,
     DEFAULT_POST_FILTER_POLICY,
+    // Use the adapter's default Bluesky I/O deps (undefined), and inject only
+    // the storage sink so a refreshed session is mirrored back to this row.
+    undefined,
+    (tokens) =>
+      persistBlueskySession(
+        integration.id,
+        {
+          accessJwt: credentials.accessJwt,
+          refreshJwt: credentials.refreshJwt,
+        },
+        tokens,
+      ),
   );
 
   return upsertFeedItems(feedId, items);

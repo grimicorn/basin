@@ -435,13 +435,12 @@ describe("createAgentSession", () => {
     expect(tokens).toBeNull();
   });
 
-  it("wires a persistSession handler into the CredentialSession when a sink is given", async () => {
+  it("wires no persistSession handler when no sink is given", async () => {
     mockResumeSession.mockResolvedValue(undefined);
-    const persistSession = vi.fn().mockResolvedValue(undefined);
 
-    await createAgentSession(makeCredentials(), persistSession);
+    await createAgentSession(makeCredentials());
 
-    expect(mockPersistHandlerHolder.current).toBeDefined();
+    expect(mockPersistHandlerHolder.current).toBeUndefined();
   });
 
   it("mirrors JWTs rotated mid-pagination through the persistSession handler", async () => {

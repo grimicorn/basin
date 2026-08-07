@@ -3,6 +3,8 @@ import type {
   AppBskyFeedDefs,
   AppBskyEmbedImages,
   AppBskyEmbedExternal,
+  AtpPersistSessionHandler,
+  AtpSessionData,
 } from "@atproto/api";
 import type { NewFeedItem } from "./rssAdapter";
 
@@ -44,6 +46,7 @@ export interface BlueskyAgentSession {
 export interface BlueskyAdapterDeps {
   createSession: (
     _credentials: BlueskyCredentials,
+    _persistSession?: PersistBlueskySession,
   ) => Promise<BlueskyAgentSession>;
   getTimeline: (
     _agent: Agent,
@@ -221,10 +224,51 @@ function extractSessionTokens(
   };
 }
 
+// Bridges atproto's session-change events to our storage sink. atproto fires
+// this handler every time it rotates JWTs — including refreshes that happen
+// mid-request during timeline pagination, not just the initial resume/login —
+// so wiring it into the CredentialSession is what keeps a mid-sync rotation
+// from being silently dropped. `isArmed` gates it to post-open rotations only:
+// the open-time settle is already mirrored by openSession's snapshot, so leaving
+// the handler disarmed until the session opens avoids a redundant double write.
+function createRotationHandler(
+  persistSession: PersistBlueskySession,
+  isArmed: () => boolean,
+): AtpPersistSessionHandler {
+  return (_event: string, sessionData: AtpSessionData | undefined) => {
+    if (!isArmed()) {
+      return;
+    }
+
+    // Skip events that carry no session (expired/create-failed/network-error)
+    // so we never overwrite stored tokens with empty ones.
+    if (!sessionData) {
+      return;
+    }
+
+    // Return the (error-swallowing) mirror promise. atproto does not await this
+    // handler, so it stays fire-and-forget in production; returning it lets a
+    // test await the persistence deterministically.
+    return mirrorSessionTokens(persistSession, {
+      accessJwt: sessionData.accessJwt,
+      refreshJwt: sessionData.refreshJwt,
+    });
+  };
+}
+
 export async function createAgentSession(
   credentials: BlueskyCredentials,
+  persistSession?: PersistBlueskySession,
 ): Promise<BlueskyAgentSession> {
-  const session = new CredentialSession(new URL("https://bsky.social"));
+  let sessionOpen = false;
+  const rotationHandler = persistSession
+    ? createRotationHandler(persistSession, () => sessionOpen)
+    : undefined;
+  const session = new CredentialSession(
+    new URL("https://bsky.social"),
+    undefined,
+    rotationHandler,
+  );
 
   try {
     await session.resumeSession({
@@ -241,6 +285,10 @@ export async function createAgentSession(
       password: credentials.appPassword,
     });
   }
+
+  // Arm the handler only now: every rotation from here on (i.e. during
+  // pagination) is mirrored; the open-time settle above is left to the snapshot.
+  sessionOpen = true;
 
   return { agent: new Agent(session), tokens: extractSessionTokens(session) };
 }
@@ -283,7 +331,12 @@ async function openSession(
   credentials: BlueskyCredentials,
   persistSession?: PersistBlueskySession,
 ): Promise<Agent> {
-  const { agent, tokens } = await deps.createSession(credentials);
+  // Pass the sink through so the underlying CredentialSession can mirror JWTs
+  // rotated later during pagination, not just this post-open snapshot.
+  const { agent, tokens } = await deps.createSession(
+    credentials,
+    persistSession,
+  );
 
   if (persistSession && tokens) {
     await mirrorSessionTokens(persistSession, tokens);

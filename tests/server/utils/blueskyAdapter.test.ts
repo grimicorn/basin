@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { AtpPersistSessionHandler } from "@atproto/api";
 
 // Mock @atproto/api before importing the module under test.
 const mockLogin = vi.fn();
@@ -7,11 +8,25 @@ const mockGetTimeline = vi.fn();
 // Holds the tokens a mocked resume/login "settles" on, exposed via the
 // CredentialSession.session getter the same way the real client populates it.
 const mockSessionHolder: { current: unknown } = { current: undefined };
+// Captures the persistSession handler the module wires into the constructor, so
+// tests can drive the session-change events atproto would fire (e.g. a JWT
+// rotation mid-pagination).
+const mockPersistHandlerHolder: {
+  current: AtpPersistSessionHandler | undefined;
+} = { current: undefined };
 
 vi.mock("@atproto/api", () => {
   class MockCredentialSession {
     login = mockLogin;
     resumeSession = mockResumeSession;
+
+    constructor(
+      _serviceUrl: URL,
+      _fetch?: unknown,
+      persistSession?: AtpPersistSessionHandler,
+    ) {
+      mockPersistHandlerHolder.current = persistSession;
+    }
 
     get session() {
       return mockSessionHolder.current;
@@ -50,6 +65,7 @@ import type {
 // whatever the previous test left behind.
 beforeEach(() => {
   mockSessionHolder.current = undefined;
+  mockPersistHandlerHolder.current = undefined;
 });
 
 // ---------------------------------------------------------------------------
@@ -417,6 +433,90 @@ describe("createAgentSession", () => {
     const { tokens } = await createAgentSession(makeCredentials());
 
     expect(tokens).toBeNull();
+  });
+
+  it("wires a persistSession handler into the CredentialSession when a sink is given", async () => {
+    mockResumeSession.mockResolvedValue(undefined);
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    expect(mockPersistHandlerHolder.current).toBeDefined();
+  });
+
+  it("mirrors JWTs rotated mid-pagination through the persistSession handler", async () => {
+    // The regression this fixes: atproto rotates JWTs during a getTimeline call
+    // deep in pagination and fires the handler with the fresh session. Without
+    // this wiring those tokens were dropped, breaking the next sync.
+    mockResumeSession.mockResolvedValue(undefined);
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    await mockPersistHandlerHolder.current?.("update", {
+      accessJwt: "rotated-access-jwt",
+      refreshJwt: "rotated-refresh-jwt",
+      handle: "alice.bsky.social",
+      did: "did:plc:abc123",
+      active: true,
+    });
+
+    expect(persistSession).toHaveBeenCalledWith({
+      accessJwt: "rotated-access-jwt",
+      refreshJwt: "rotated-refresh-jwt",
+    });
+  });
+
+  it("does not mirror the open-time settle through the handler (snapshot owns it, no double write)", async () => {
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+    // Simulate atproto firing 'update' during resume, before the session opens.
+    mockResumeSession.mockImplementation(async () => {
+      await mockPersistHandlerHolder.current?.("update", {
+        accessJwt: "settled-access-jwt",
+        refreshJwt: "settled-refresh-jwt",
+        handle: "alice.bsky.social",
+        did: "did:plc:abc123",
+        active: true,
+      });
+    });
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    expect(persistSession).not.toHaveBeenCalled();
+  });
+
+  it("ignores session-change events that carry no session (expired/failed)", async () => {
+    mockResumeSession.mockResolvedValue(undefined);
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    await mockPersistHandlerHolder.current?.("expired", undefined);
+
+    expect(persistSession).not.toHaveBeenCalled();
+  });
+
+  it("does not throw when a mid-pagination mirror write fails", async () => {
+    // Mirroring is best-effort; a failed write must not surface into atproto's
+    // request path and break pagination.
+    mockResumeSession.mockResolvedValue(undefined);
+    const persistSession = vi
+      .fn()
+      .mockRejectedValue(new Error("integrations write failed"));
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    await expect(
+      mockPersistHandlerHolder.current?.("update", {
+        accessJwt: "rotated-access-jwt",
+        refreshJwt: "rotated-refresh-jwt",
+        handle: "alice.bsky.social",
+        did: "did:plc:abc123",
+        active: true,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(persistSession).toHaveBeenCalled();
   });
 });
 

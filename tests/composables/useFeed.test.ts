@@ -284,6 +284,10 @@ describe("useFeedStore", () => {
       vi.mocked(globalThis.$fetch).mockReset();
     });
 
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
     it("replaces items when offset is 0 (first page)", async () => {
       vi.mocked(globalThis.$fetch).mockResolvedValue({
         items: pageOne,
@@ -360,7 +364,6 @@ describe("useFeedStore", () => {
       expect(showToast).toHaveBeenCalledWith(
         "Failed to load feed items — please try again",
       );
-      vi.unstubAllGlobals();
     });
   });
 
@@ -738,6 +741,27 @@ describe("useFeedStore", () => {
         .mocked(globalThis.$fetch)
         .mock.calls.find((call) => call[0] === "/api/feed-items");
       expect(itemsCall).toBeUndefined();
+      expect(state.loading).toBe(false);
+    });
+
+    // The post-sync items load is the wedge FEED_ITEMS_TIMEOUT_MS guards: sync
+    // resolves but /api/feed-items never settles, so without the bound refresh()
+    // would leave loading stuck forever.
+    it("clears loading when the post-sync items load never settles", async () => {
+      vi.mocked(globalThis.$fetch).mockImplementation((url: string) => {
+        if (url === "/api/feed-sync") {
+          return Promise.resolve({ queued: 1, eventIds: ["a"] });
+        }
+        return new Promise(() => {});
+      });
+
+      const refreshing = feed.refresh();
+      await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS);
+      await refreshing;
+
+      expect(showToast).toHaveBeenCalledWith(
+        "Failed to load feed items — please try again",
+      );
       expect(state.loading).toBe(false);
     });
   });

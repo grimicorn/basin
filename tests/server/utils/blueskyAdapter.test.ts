@@ -4,11 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockLogin = vi.fn();
 const mockResumeSession = vi.fn();
 const mockGetTimeline = vi.fn();
+// Holds the tokens a mocked resume/login "settles" on, exposed via the
+// CredentialSession.session getter the same way the real client populates it.
+const mockSessionHolder: { current: unknown } = { current: undefined };
 
 vi.mock("@atproto/api", () => {
   class MockCredentialSession {
     login = mockLogin;
     resumeSession = mockResumeSession;
+
+    get session() {
+      return mockSessionHolder.current;
+    }
   }
 
   class MockAgent {
@@ -37,6 +44,13 @@ import type {
   BlueskyCredentials,
   PostFilterPolicy,
 } from "../../../server/utils/blueskyAdapter";
+
+// The session holder is module-level state, so reset it before every test
+// rather than per-block — otherwise a real-CredentialSession test could inherit
+// whatever the previous test left behind.
+beforeEach(() => {
+  mockSessionHolder.current = undefined;
+});
 
 // ---------------------------------------------------------------------------
 // Test data helpers
@@ -355,6 +369,55 @@ describe("createAgentSession", () => {
       password: "my-app-password",
     });
   });
+
+  it("returns the fresh JWTs the CredentialSession settled on after resume", async () => {
+    // The client rotates tokens during resume; the settled session carries the
+    // new pair plus identity fields we deliberately do not mirror.
+    mockResumeSession.mockImplementation(() => {
+      mockSessionHolder.current = {
+        accessJwt: "settled-access-jwt",
+        refreshJwt: "settled-refresh-jwt",
+        did: "did:plc:settled",
+        handle: "alice.bsky.social",
+      };
+      return Promise.resolve(undefined);
+    });
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toEqual({
+      accessJwt: "settled-access-jwt",
+      refreshJwt: "settled-refresh-jwt",
+    });
+  });
+
+  it("returns the fresh JWTs after a fallback login when resume fails", async () => {
+    mockResumeSession.mockRejectedValue(new Error("Expired"));
+    mockLogin.mockImplementation(() => {
+      mockSessionHolder.current = {
+        accessJwt: "login-access-jwt",
+        refreshJwt: "login-refresh-jwt",
+        did: "did:plc:abc123",
+        handle: "alice.bsky.social",
+      };
+      return Promise.resolve(undefined);
+    });
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toEqual({
+      accessJwt: "login-access-jwt",
+      refreshJwt: "login-refresh-jwt",
+    });
+  });
+
+  it("returns null tokens when the session never populated", async () => {
+    mockResumeSession.mockResolvedValue(undefined);
+
+    const { tokens } = await createAgentSession(makeCredentials());
+
+    expect(tokens).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -389,13 +452,13 @@ describe("fetchNewBlueskyPosts", () => {
   }
 
   const mockDeps = {
-    createSession: vi.fn().mockResolvedValue({}),
+    createSession: vi.fn().mockResolvedValue({ agent: {}, tokens: null }),
     getTimeline: vi.fn(),
   };
 
   beforeEach(() => {
     vi.resetAllMocks();
-    mockDeps.createSession.mockResolvedValue({});
+    mockDeps.createSession.mockResolvedValue({ agent: {}, tokens: null });
   });
 
   it("returns only posts after the watermark", async () => {
@@ -751,6 +814,104 @@ describe("fetchNewBlueskyPosts", () => {
     );
 
     expect(items).toHaveLength(1);
+  });
+
+  it("persists the fresh session tokens returned by createSession", async () => {
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+    const freshTokens = {
+      accessJwt: "fresh-access-jwt",
+      refreshJwt: "fresh-refresh-jwt",
+    };
+    mockDeps.createSession.mockResolvedValue({
+      agent: {},
+      tokens: freshTokens,
+    });
+    mockDeps.getTimeline.mockResolvedValueOnce({ feed: [] });
+
+    await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      new Date(),
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+      persistSession,
+    );
+
+    expect(persistSession).toHaveBeenCalledWith(freshTokens);
+  });
+
+  it("does not call persistSession when createSession returns no tokens", async () => {
+    const persistSession = vi.fn();
+    mockDeps.createSession.mockResolvedValue({ agent: {}, tokens: null });
+    mockDeps.getTimeline.mockResolvedValueOnce({ feed: [] });
+
+    await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      new Date(),
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+      persistSession,
+    );
+
+    expect(persistSession).not.toHaveBeenCalled();
+  });
+
+  it("still returns fetched items when persisting the session fails", async () => {
+    // Token mirroring is best-effort: a failed write must not sink a sync that
+    // otherwise succeeded — the next run just re-authenticates.
+    const persistSession = vi
+      .fn()
+      .mockRejectedValue(new Error("integrations write failed"));
+    mockDeps.createSession.mockResolvedValue({
+      agent: {},
+      tokens: {
+        accessJwt: "fresh-access-jwt",
+        refreshJwt: "fresh-refresh-jwt",
+      },
+    });
+    mockDeps.getTimeline.mockResolvedValueOnce(
+      makePagedTimeline(["2024-06-01T10:00:00.000Z"]),
+    );
+
+    const items = await fetchNewBlueskyPosts(
+      makeCredentials(),
+      FEED_ID,
+      new Date("2024-05-31T00:00:00.000Z"),
+      DEFAULT_POST_FILTER_POLICY,
+      mockDeps,
+      persistSession,
+    );
+
+    expect(persistSession).toHaveBeenCalled();
+    expect(items).toHaveLength(1);
+  });
+
+  it("persists the session once, before pagination, even when the timeline fetch fails", async () => {
+    // Pins the openSession ordering guarantee: tokens are mirrored right after
+    // the session opens, so a failing timeline still leaves resumable JWTs.
+    const persistSession = vi.fn().mockResolvedValue(undefined);
+    mockDeps.createSession.mockResolvedValue({
+      agent: {},
+      tokens: {
+        accessJwt: "fresh-access-jwt",
+        refreshJwt: "fresh-refresh-jwt",
+      },
+    });
+    mockDeps.getTimeline.mockRejectedValue(new Error("upstream 502"));
+
+    await expect(
+      fetchNewBlueskyPosts(
+        makeCredentials(),
+        FEED_ID,
+        new Date(),
+        DEFAULT_POST_FILTER_POLICY,
+        mockDeps,
+        persistSession,
+      ),
+    ).rejects.toThrow("upstream 502");
+
+    expect(persistSession).toHaveBeenCalledTimes(1);
   });
 
   it("stops fetching after 100 pages to prevent serverless timeout", async () => {

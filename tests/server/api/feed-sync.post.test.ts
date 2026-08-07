@@ -43,7 +43,7 @@ describe("POST /api/feed-sync", () => {
     mockFindMany.mockResolvedValue([]);
 
     const result = await handler(makeEvent({ id: 1 }));
-    expect(result).toEqual({ queued: 0, eventIds: [] });
+    expect(result).toEqual({ queued: 0, failed: 0, eventIds: [] });
     expect(mockSend).not.toHaveBeenCalled();
   });
 
@@ -52,6 +52,7 @@ describe("POST /api/feed-sync", () => {
 
     const result = await handler(makeEvent({ id: 5 }));
     expect(result.queued).toBe(2);
+    expect(result.failed).toBe(0);
     expect(result.eventIds).toHaveLength(2);
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
@@ -67,11 +68,31 @@ describe("POST /api/feed-sync", () => {
     });
   });
 
-  it("throws when the client returns a failed sendStatus", async () => {
+  it("counts a failed sendStatus without throwing", async () => {
     mockFindMany.mockResolvedValue([RSS_FEED]);
     mockSend.mockResolvedValue({ sendStatus: "failed", eventId: "" });
 
-    await expect(handler(makeEvent({ id: 5 }))).rejects.toThrow();
+    const result = await handler(makeEvent({ id: 5 }));
+    expect(result).toEqual({ queued: 0, failed: 1, eventIds: [] });
+  });
+
+  it("continues emitting remaining feeds after one feed's emit fails", async () => {
+    mockFindMany.mockResolvedValue([
+      { id: 1, source: "rss" },
+      { id: 2, source: "podcast" },
+      { id: 3, source: "youtube" },
+    ]);
+    mockSend
+      .mockResolvedValueOnce({ sendStatus: "succeeded", eventId: "evt-1" })
+      .mockRejectedValueOnce(new Error("emit boom"))
+      .mockResolvedValueOnce({ sendStatus: "succeeded", eventId: "evt-3" });
+
+    const result = await handler(makeEvent({ id: 5 }));
+
+    expect(mockSend).toHaveBeenCalledTimes(3);
+    expect(result.queued).toBe(2);
+    expect(result.failed).toBe(1);
+    expect(result.eventIds).toEqual(["evt-1", "evt-3"]);
   });
 
   it("returns the eventIds from the client", async () => {

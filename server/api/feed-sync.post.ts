@@ -1,8 +1,9 @@
 import { AsyncWorkloadsClient } from "@netlify/async-workloads";
 import { and, inArray, eq } from "drizzle-orm";
 import { feeds } from "../db/schema";
-import { SYNC_FEED_EVENT_NAME } from "../../netlify/functions/types";
 import type { SyncFeedEventData } from "../../netlify/functions/types";
+import { emitSyncFeedEvents } from "../../netlify/functions/syncEventEmitter";
+import type { FeedEmitResult } from "../../netlify/functions/syncEventEmitter";
 
 // Source types eligible for on-demand sync via async workloads.
 const SYNCABLE_SOURCE_TYPES = ["rss", "podcast", "youtube", "bluesky"] as const;
@@ -10,7 +11,9 @@ const SYNCABLE_SOURCE_TYPES = ["rss", "podcast", "youtube", "bluesky"] as const;
 // On-demand events run at elevated priority so users see results faster.
 const ON_DEMAND_PRIORITY = 25;
 
-async function fetchUserSyncableFeeds(userId: number) {
+type SyncableFeed = { id: number; source: string };
+
+async function fetchUserSyncableFeeds(userId: number): Promise<SyncableFeed[]> {
   return useDb().query.feeds.findMany({
     where: and(
       eq(feeds.userId, userId),
@@ -23,22 +26,29 @@ async function fetchUserSyncableFeeds(userId: number) {
   });
 }
 
-async function emitOnDemandEvent(
-  client: AsyncWorkloadsClient,
-  data: SyncFeedEventData,
-): Promise<string> {
-  const result = await client.send(SYNC_FEED_EVENT_NAME, {
-    data,
-    priority: ON_DEMAND_PRIORITY,
-  });
+function toSyncEventData(
+  userId: number,
+  feed: SyncableFeed,
+): SyncFeedEventData {
+  return {
+    userId,
+    feedId: feed.id,
+    sourceType: feed.source as SyncFeedEventData["sourceType"],
+    mode: "on-demand",
+  };
+}
 
-  if (result.sendStatus !== "succeeded") {
-    throw new Error(
-      `Failed to emit sync-feed event for feed ${data.feedId}: status=${result.sendStatus}`,
-    );
-  }
+function summarize(results: FeedEmitResult[]) {
+  const succeeded = results.filter((result) => result.success);
+  const eventIds = succeeded
+    .map((result) => result.eventId)
+    .filter((eventId): eventId is string => eventId !== undefined);
 
-  return result.eventId;
+  return {
+    queued: succeeded.length,
+    failed: results.length - succeeded.length,
+    eventIds,
+  };
 }
 
 export default defineEventHandler(async (event) => {
@@ -50,22 +60,14 @@ export default defineEventHandler(async (event) => {
   const userFeeds = await fetchUserSyncableFeeds(user.id);
 
   if (userFeeds.length === 0) {
-    return { queued: 0, eventIds: [] };
+    return { queued: 0, failed: 0, eventIds: [] };
   }
 
   const client = new AsyncWorkloadsClient();
-  const eventIds: string[] = [];
+  const events = userFeeds.map((feed) => toSyncEventData(user.id, feed));
+  const results = await emitSyncFeedEvents(client, events, {
+    priority: ON_DEMAND_PRIORITY,
+  });
 
-  for (const feed of userFeeds) {
-    const eventId = await emitOnDemandEvent(client, {
-      userId: user.id,
-      feedId: feed.id,
-      sourceType: feed.source as SyncFeedEventData["sourceType"],
-      mode: "on-demand",
-    });
-
-    eventIds.push(eventId);
-  }
-
-  return { queued: eventIds.length, eventIds };
+  return summarize(results);
 });

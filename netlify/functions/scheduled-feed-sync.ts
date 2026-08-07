@@ -3,8 +3,10 @@ import { AsyncWorkloadsClient } from "@netlify/async-workloads";
 import { and, lt, or, isNull, inArray } from "drizzle-orm";
 import { feeds } from "../../server/db/schema";
 import { createDb } from "./db";
-import { SYNC_FEED_EVENT_NAME, DEBOUNCE_WINDOW_MS } from "./types";
+import { DEBOUNCE_WINDOW_MS } from "./types";
 import type { SyncFeedEventData } from "./types";
+import { emitSyncFeedEvents } from "./syncEventEmitter";
+import type { FeedEmitResult } from "./syncEventEmitter";
 
 type DueFeed = { id: number; userId: number; source: string };
 
@@ -28,73 +30,34 @@ async function fetchDueFeeds(): Promise<DueFeed[]> {
   });
 }
 
-async function emitSyncEvent(
-  client: AsyncWorkloadsClient,
-  data: SyncFeedEventData,
-): Promise<string> {
-  const result = await client.send(SYNC_FEED_EVENT_NAME, { data });
-  if (result.sendStatus !== "succeeded") {
-    throw new Error(
-      `Failed to emit sync-feed event for feed ${data.feedId}: status=${result.sendStatus}`,
-    );
-  }
-  return result.eventId;
+function toSyncEventData(feed: DueFeed): SyncFeedEventData {
+  return {
+    userId: feed.userId,
+    feedId: feed.id,
+    sourceType: feed.source as SyncFeedEventData["sourceType"],
+    mode: "scheduled",
+  };
 }
 
-async function emitFeedSyncEvent(
-  client: AsyncWorkloadsClient,
-  feed: DueFeed,
-): Promise<{ success: boolean }> {
-  try {
-    const eventId = await emitSyncEvent(client, {
-      userId: feed.userId,
-      feedId: feed.id,
-      sourceType: feed.source as SyncFeedEventData["sourceType"],
-      mode: "scheduled",
-    });
-
+function logEmitResult(result: FeedEmitResult): void {
+  if (result.success) {
     console.log(
       JSON.stringify({
         event: "scheduled-feed-sync.emitted",
-        feedId: feed.id,
-        eventId,
+        feedId: result.feedId,
+        eventId: result.eventId,
       }),
     );
-
-    return { success: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      JSON.stringify({
-        event: "scheduled-feed-sync.emit-failed",
-        feedId: feed.id,
-        error: message,
-      }),
-    );
-    return { success: false };
-  }
-}
-
-async function emitAllSyncEvents(
-  client: AsyncWorkloadsClient,
-  dueFeeds: DueFeed[],
-): Promise<{ emitted: number; failed: number }> {
-  const results: Array<{ success: boolean }> = [];
-  const BATCH_SIZE = 25;
-
-  for (let index = 0; index < dueFeeds.length; index += BATCH_SIZE) {
-    const batch = dueFeeds.slice(index, index + BATCH_SIZE);
-    results.push(
-      ...(await Promise.all(
-        batch.map((feed) => emitFeedSyncEvent(client, feed)),
-      )),
-    );
+    return;
   }
 
-  const emitted = results.filter((result) => result.success).length;
-  const failed = results.filter((result) => !result.success).length;
-
-  return { emitted, failed };
+  console.error(
+    JSON.stringify({
+      event: "scheduled-feed-sync.emit-failed",
+      feedId: result.feedId,
+      error: result.error,
+    }),
+  );
 }
 
 export default async function scheduledFeedSync() {
@@ -113,7 +76,14 @@ export default async function scheduledFeedSync() {
   );
 
   const client = new AsyncWorkloadsClient();
-  const { emitted, failed } = await emitAllSyncEvents(client, dueFeeds);
+  const results = await emitSyncFeedEvents(
+    client,
+    dueFeeds.map(toSyncEventData),
+  );
+  results.forEach(logEmitResult);
+
+  const emitted = results.filter((result) => result.success).length;
+  const failed = results.length - emitted;
 
   console.log(
     JSON.stringify({ event: "scheduled-feed-sync.complete", emitted, failed }),

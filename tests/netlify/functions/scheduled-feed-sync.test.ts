@@ -5,10 +5,9 @@ import {
   DEBOUNCE_WINDOW_MS,
 } from "../../../netlify/functions/types";
 
-// Mirrors BATCH_SIZE in netlify/functions/scheduled-feed-sync.ts. Not imported
-// directly because the production module keeps it as a private implementation
-// detail (not exported); this local constant documents that it must stay in
-// sync if the production value ever changes.
+// Mirrors EMIT_BATCH_SIZE in netlify/functions/syncEventEmitter.ts. Kept as a
+// local constant here to document the batch size this scheduler test asserts
+// against; the emitter's own batching is covered in syncEventEmitter.test.ts.
 const BATCH_SIZE = 25;
 
 const { mockFindMany, mockSend, mockAsyncWorkloadsClient } = vi.hoisted(() => ({

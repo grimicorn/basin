@@ -43,6 +43,7 @@ const nuxtGlobals = {
   useUserProfile: "readonly",
   useInputValidation: "readonly",
   useInfiniteScroll: "readonly",
+  usePodcastPlayer: "readonly",
 };
 
 // Nitro / H3 globals — server-only auto-imports

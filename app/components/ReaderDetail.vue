@@ -2,8 +2,36 @@
 import { computed } from "vue";
 
 const feedStore = useFeedStore();
+const player = usePodcastPlayer();
 
 const item = computed(() => feedStore.state.activeItem);
+
+const podcastMediaUrl = computed(() => item.value?.mediaUrl || null);
+const podcastCanPlay = computed(() => player.canPlay(podcastMediaUrl.value));
+const podcastActive = computed(() => player.isActive(podcastMediaUrl.value));
+const podcastPlaying = computed(() => player.isPlaying(podcastMediaUrl.value));
+
+const podcastProgressPct = computed(() =>
+  podcastActive.value ? Math.round(player.progress * 100) : 0,
+);
+
+const podcastCurrentLabel = computed(() =>
+  player.formatTime(podcastActive.value ? player.state.currentTime : 0),
+);
+
+const podcastTotalLabel = computed(() => {
+  if (podcastActive.value && player.state.duration > 0) {
+    return player.formatTime(player.state.duration);
+  }
+  const mediaDuration = Number(item.value?.mediaDuration) || 0;
+  return mediaDuration > 0
+    ? player.formatTime(mediaDuration)
+    : item.value?.meta || "";
+});
+
+function togglePodcast() {
+  player.toggle(podcastMediaUrl.value);
+}
 
 const ALLOWED_URL_PROTOCOLS = ["https:", "http:"];
 
@@ -29,12 +57,6 @@ function safeHref(url) {
 
 function openOriginal() {
   openUrl(item.value?.url);
-}
-
-function openPodcastEpisode() {
-  const episodeUrl =
-    safeHref(item.value?.mediaUrl) || safeHref(item.value?.url);
-  openUrl(episodeUrl);
 }
 </script>
 
@@ -204,32 +226,38 @@ function openPodcastEpisode() {
                 <button
                   class="pod-play"
                   style="width: 44px; height: 44px"
-                  @click="openPodcastEpisode"
+                  :title="podcastPlaying ? 'Pause episode' : 'Play episode'"
+                  :disabled="!podcastCanPlay"
+                  @click="togglePodcast"
                 >
-                  <RIcon name="play" :size="18" />
+                  <RIcon :name="podcastPlaying ? 'pause' : 'play'" :size="18" />
                 </button>
                 <div class="flex-1">
-                  <div class="scrubber">
-                    <i
-                      :style="{
-                        width: ((item.progress || 0) * 100 || 3) + '%',
-                      }"
-                    ></i>
+                  <div
+                    class="scrubber"
+                    :class="{ 'scrubber-seekable': podcastActive }"
+                    @click="player.scrubTo(podcastMediaUrl, $event)"
+                  >
+                    <i :style="{ width: podcastProgressPct + '%' }"></i>
                   </div>
                 </div>
               </div>
               <div
                 class="text-muted flex items-center justify-between text-[11px]"
               >
-                <span>{{
-                  item.progress
-                    ? Math.round(item.progress * 64) + ":00"
-                    : "0:00"
-                }}</span>
+                <span>{{ podcastCurrentLabel }}</span>
                 <div class="flex gap-1.5">
-                  <span class="kbd">1.0×</span><span class="kbd">+15s</span>
+                  <span class="kbd">1.0×</span
+                  ><button
+                    type="button"
+                    class="kbd"
+                    :disabled="!podcastActive"
+                    @click="player.seekBy(player.seekStep)"
+                  >
+                    +{{ player.seekStep }}s
+                  </button>
                 </div>
-                <span>{{ item.meta }}</span>
+                <span>{{ podcastTotalLabel }}</span>
               </div>
             </div>
             <div class="text-faint mb-3 text-[10px] tracking-[.14em] uppercase">
@@ -373,7 +401,17 @@ function openPodcastEpisode() {
   border-radius: 999px;
   background: var(--surface-2);
   overflow: hidden;
+}
+.scrubber-seekable {
   cursor: pointer;
+}
+.pod-play:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.kbd:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .scrubber > i {
   display: block;

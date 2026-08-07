@@ -61,6 +61,7 @@ const nitroGlobals = {
   sendRedirect: "readonly",
   getQuery: "readonly",
   getRequestURL: "readonly",
+  getRequestIP: "readonly",
   readRawBody: "readonly",
   // server/utils auto-imports
   useDb: "readonly",

@@ -119,6 +119,9 @@ describe("emitSyncFeedEvents", () => {
     await expect(
       emitSyncFeedEvents(stubClient(send), [makeEvent()], { batchSize: 0 }),
     ).rejects.toThrow(RangeError);
+    await expect(
+      emitSyncFeedEvents(stubClient(send), [makeEvent()], { batchSize: -1 }),
+    ).rejects.toThrow(RangeError);
     expect(send).not.toHaveBeenCalled();
   });
 

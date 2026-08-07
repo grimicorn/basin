@@ -67,15 +67,15 @@ exports[`ReaderDetail > matches snapshot (with active podcast) 1`] = `
           </div>
         </div>
         <div class="mb-7 rounded-sm p-4" style="background: var(--surface-2);">
-          <div class="mb-3 flex items-center gap-3"><button class="pod-play" style="width: 44px; height: 44px;">
+          <div class="mb-3 flex items-center gap-3"><button class="pod-play" style="width: 44px; height: 44px;" title="Play episode">
               <r-icon-stub name="play" size="18"></r-icon-stub>
             </button>
             <div class="flex-1">
-              <div class="scrubber"><i style="width: 30%;"></i></div>
+              <div class="scrubber"><i style="width: 0%;"></i></div>
             </div>
           </div>
-          <div class="text-muted flex items-center justify-between text-[11px]"><span>19:00</span>
-            <div class="flex gap-1.5"><span class="kbd">1.0×</span><span class="kbd">+15s</span></div><span>45:00</span>
+          <div class="text-muted flex items-center justify-between text-[11px]"><span>0:00</span>
+            <div class="flex gap-1.5"><span class="kbd">1.0×</span><button type="button" class="kbd" disabled=""> +15s </button></div><span>45:00</span>
           </div>
         </div>
         <div class="text-faint mb-3 text-[10px] tracking-[.14em] uppercase"> Show notes </div>

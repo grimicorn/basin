@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { useFeedStore } from "~/stores/feed";
+import { useFeedStore, FEED_SYNC_TIMEOUT_MS } from "~/stores/feed";
 import { makeFeed, makeConnection } from "../fixtures";
 
 const item = (overrides: Record<string, unknown> = {}) => ({
@@ -698,6 +698,32 @@ describe("useFeedStore", () => {
         .mocked(globalThis.$fetch)
         .mock.calls.filter((call) => call[0] === "/api/feed-sync");
       expect(syncCalls).toHaveLength(1);
+      expect(state.loading).toBe(false);
+    });
+
+    // A never-settling sync request must time out rather than wedge loading
+    // forever; advancing by the store's own constant proves the coupling.
+    it("times out a never-settling sync request, surfacing an error and clearing loading", async () => {
+      vi.mocked(globalThis.$fetch).mockImplementation((url: string) => {
+        if (url === "/api/feed-sync") {
+          return new Promise(() => {});
+        }
+        return Promise.resolve({ items: [], total: 0, nextOffset: null });
+      });
+
+      const refreshing = feed.refresh();
+      expect(state.loading).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(FEED_SYNC_TIMEOUT_MS);
+      await refreshing;
+
+      expect(showToast).toHaveBeenCalledWith(
+        "Could not refresh feeds — please try again",
+      );
+      const itemsCall = vi
+        .mocked(globalThis.$fetch)
+        .mock.calls.find((call) => call[0] === "/api/feed-items");
+      expect(itemsCall).toBeUndefined();
       expect(state.loading).toBe(false);
     });
   });

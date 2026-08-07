@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockUpdate = vi.fn();
 const mockSet = vi.fn();
@@ -33,6 +33,10 @@ describe("POST /api/sync", () => {
     mockWhere.mockResolvedValue(undefined);
     // Default: user owns the feed
     mockFindFirst.mockResolvedValue({ id: 1 });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("throws 401 when unauthenticated", async () => {
@@ -101,6 +105,31 @@ describe("POST /api/sync", () => {
     expect(mockUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("defaults readAt to now when absent", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-02T03:04:05.000Z");
+    vi.setSystemTime(now);
+    const event = makeEvent({ id: 1 }, "markRead", {
+      feedId: 1,
+      guid: "item-1",
+    });
+    await handler(event);
+    expect(mockSet).toHaveBeenCalledWith({ readAt: now });
+  });
+
+  it("defaults readAt to now when explicitly null", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-02T03:04:05.000Z");
+    vi.setSystemTime(now);
+    const event = makeEvent({ id: 1 }, "markRead", {
+      feedId: 1,
+      guid: "item-1",
+      readAt: null,
+    });
+    await handler(event);
+    expect(mockSet).toHaveBeenCalledWith({ readAt: now });
+  });
+
   it("applies star and returns ok", async () => {
     const event = makeEvent({ id: 1 }, "star", {
       feedId: 1,
@@ -112,6 +141,33 @@ describe("POST /api/sync", () => {
     expect(mockUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("applies star with starred false and returns ok", async () => {
+    const event = makeEvent({ id: 1 }, "star", {
+      feedId: 1,
+      guid: "item-1",
+      starred: false,
+    });
+    const result = await handler(event);
+    expect(result).toEqual({ ok: true });
+    expect(mockSet).toHaveBeenCalledWith({ starred: false });
+  });
+
+  it("throws 400 when starred is not a boolean", async () => {
+    const event = makeEvent({ id: 1 }, "star", {
+      feedId: 1,
+      guid: "item-1",
+      starred: "true",
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("throws 400 when starred is missing", async () => {
+    const event = makeEvent({ id: 1 }, "star", { feedId: 1, guid: "item-1" });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   it("applies save and returns ok", async () => {
     const event = makeEvent({ id: 1 }, "save", {
       feedId: 1,
@@ -121,6 +177,87 @@ describe("POST /api/sync", () => {
     const result = await handler(event);
     expect(result).toEqual({ ok: true });
     expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies save with no savedAt and persists null", async () => {
+    const event = makeEvent({ id: 1 }, "save", { feedId: 1, guid: "item-1" });
+    const result = await handler(event);
+    expect(result).toEqual({ ok: true });
+    expect(mockSet).toHaveBeenCalledWith({ savedAt: null });
+  });
+
+  it("applies save with explicit null savedAt and persists null", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: null,
+    });
+    const result = await handler(event);
+    expect(result).toEqual({ ok: true });
+    expect(mockSet).toHaveBeenCalledWith({ savedAt: null });
+  });
+
+  it("throws 400 when savedAt is a malformed date string", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: "not-a-date",
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("persists a valid savedAt date", async () => {
+    const iso = "2026-01-02T03:04:05.000Z";
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: iso,
+    });
+    await handler(event);
+    expect(mockSet).toHaveBeenCalledWith({ savedAt: new Date(iso) });
+  });
+
+  it("throws 400 when savedAt is an empty string", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: "",
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("throws 400 when savedAt is a number", async () => {
+    const event = makeEvent({ id: 1 }, "save", {
+      feedId: 1,
+      guid: "item-1",
+      savedAt: 1767322800,
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("throws 400 when readAt is a malformed date string", async () => {
+    const event = makeEvent({ id: 1 }, "markRead", {
+      feedId: 1,
+      guid: "item-1",
+      readAt: "not-a-date",
+    });
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("persists a valid readAt date", async () => {
+    const iso = "2026-01-02T03:04:05.000Z";
+    const event = makeEvent({ id: 1 }, "markRead", {
+      feedId: 1,
+      guid: "item-1",
+      readAt: iso,
+    });
+    const result = await handler(event);
+    expect(result).toEqual({ ok: true });
+    expect(mockSet).toHaveBeenCalledWith({ readAt: new Date(iso) });
   });
 
   it("scopes the update where clause to both feedId and guid", async () => {

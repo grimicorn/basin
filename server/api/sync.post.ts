@@ -13,28 +13,51 @@ function buildFeedItemWhere(payload: SyncPayload) {
   );
 }
 
+function assertBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean") {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `payload.${field} must be a boolean`,
+    });
+  }
+  return value;
+}
+
+// Absent (undefined/null) values fall back to the handler's default; any other
+// value must be an ISO date string that parses, otherwise it would persist as
+// Invalid Date. Numbers are rejected: the client only ever sends ISO strings.
+function parseOptionalDate(value: unknown, field: string): Date | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const date = typeof value === "string" ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `payload.${field} must be a valid date`,
+    });
+  }
+  return date;
+}
+
 async function applyMarkRead(db: SyncDb, payload: SyncPayload) {
-  await db
-    .update(feedItems)
-    .set({
-      readAt: payload.readAt ? new Date(payload.readAt as string) : new Date(),
-    })
-    .where(buildFeedItemWhere(payload));
+  const readAt = parseOptionalDate(payload.readAt, "readAt") ?? new Date();
+  await db.update(feedItems).set({ readAt }).where(buildFeedItemWhere(payload));
 }
 
 async function applyStar(db: SyncDb, payload: SyncPayload) {
+  const starred = assertBoolean(payload.starred, "starred");
   await db
     .update(feedItems)
-    .set({ starred: payload.starred as boolean })
+    .set({ starred })
     .where(buildFeedItemWhere(payload));
 }
 
 async function applySave(db: SyncDb, payload: SyncPayload) {
+  const savedAt = parseOptionalDate(payload.savedAt, "savedAt");
   await db
     .update(feedItems)
-    .set({
-      savedAt: payload.savedAt ? new Date(payload.savedAt as string) : null,
-    })
+    .set({ savedAt })
     .where(buildFeedItemWhere(payload));
 }
 

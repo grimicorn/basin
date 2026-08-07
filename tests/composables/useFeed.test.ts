@@ -358,7 +358,9 @@ describe("useFeedStore", () => {
       );
 
       const loading = feed.loadItems();
-      await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS - 1);
+      expect(showToast).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
       await loading;
 
       expect(showToast).toHaveBeenCalledWith(
@@ -756,7 +758,11 @@ describe("useFeedStore", () => {
       });
 
       const refreshing = feed.refresh();
-      await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(FEED_ITEMS_TIMEOUT_MS - 1);
+      expect(showToast).not.toHaveBeenCalledWith(
+        "Failed to load feed items — please try again",
+      );
+      await vi.advanceTimersByTimeAsync(1);
       await refreshing;
 
       expect(showToast).toHaveBeenCalledWith(

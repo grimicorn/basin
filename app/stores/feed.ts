@@ -14,8 +14,11 @@ const clone = (x: unknown) => JSON.parse(JSON.stringify(x));
 // timers by the exact same value.
 export const FEED_SYNC_TIMEOUT_MS = 15000;
 
-// Same guard for the items load inside refresh(): a never-settling /api/feed-items
-// response would otherwise leave loading wedged. Exported for the same test reason.
+// Bounds every /api/feed-items load — dashboard mount and the post-sync reload in
+// refresh() — so a never-settling response can't hang the caller. Independent of
+// FEED_SYNC_TIMEOUT_MS: a slow-but-successful sync followed by a hung items load
+// can hold refresh()'s loading state for the sum of the two. Exported so tests
+// advance their fake timers by the exact same value.
 export const FEED_ITEMS_TIMEOUT_MS = 15000;
 
 export const useFeedStore = defineStore("feed", () => {
@@ -94,6 +97,9 @@ export const useFeedStore = defineStore("feed", () => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
+  const LOAD_ITEMS_ERROR_MESSAGE =
+    "Failed to load feed items — please try again";
+
   async function loadItems(params: { limit?: number; offset?: number } = {}) {
     const { showToast } = useToast();
     const headers = await buildAuthHeaders();
@@ -123,7 +129,7 @@ export const useFeedStore = defineStore("feed", () => {
         state.items = response.items;
       }
     } catch {
-      showToast("Failed to load feed items — please try again");
+      showToast(LOAD_ITEMS_ERROR_MESSAGE);
     }
   }
 

@@ -5,6 +5,7 @@ import type {
   AppBskyEmbedExternal,
   AtpPersistSessionHandler,
   AtpSessionData,
+  AtpSessionEvent,
 } from "@atproto/api";
 import type { NewFeedItem } from "./rssAdapter";
 
@@ -235,7 +236,12 @@ function createRotationHandler(
   persistSession: PersistBlueskySession,
   isArmed: () => boolean,
 ): AtpPersistSessionHandler {
-  return (_event: string, sessionData: AtpSessionData | undefined) => {
+  // Serialize writes through a promise chain: refresh JWTs are single-use, so
+  // two overlapping rotation writes landing out of order would store an already
+  // consumed token and break the next sync — the exact failure this prevents.
+  let mirrorQueue: Promise<void> = Promise.resolve();
+
+  return (_event: AtpSessionEvent, sessionData: AtpSessionData | undefined) => {
     if (!isArmed()) {
       return;
     }
@@ -246,13 +252,18 @@ function createRotationHandler(
       return;
     }
 
-    // Return the (error-swallowing) mirror promise. atproto does not await this
-    // handler, so it stays fire-and-forget in production; returning it lets a
-    // test await the persistence deterministically.
-    return mirrorSessionTokens(persistSession, {
+    const tokens: BlueskySessionTokens = {
       accessJwt: sessionData.accessJwt,
       refreshJwt: sessionData.refreshJwt,
-    });
+    };
+
+    // Return the (error-swallowing) tail of the queue. atproto does not await
+    // this handler, so it stays fire-and-forget in production; returning it lets
+    // a test await the persistence deterministically.
+    mirrorQueue = mirrorQueue.then(() =>
+      mirrorSessionTokens(persistSession, tokens),
+    );
+    return mirrorQueue;
   };
 }
 

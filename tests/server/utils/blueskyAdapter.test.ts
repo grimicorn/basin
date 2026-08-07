@@ -485,6 +485,41 @@ describe("createAgentSession", () => {
     expect(persistSession).not.toHaveBeenCalled();
   });
 
+  it("persists overlapping rotations in order (single-use refresh tokens)", async () => {
+    mockResumeSession.mockResolvedValue(undefined);
+    const writeOrder: string[] = [];
+    // First write resolves on a delayed microtask; if writes were not
+    // serialized, the second (faster) write would land before it.
+    const persistSession = vi.fn().mockImplementation(async (tokens) => {
+      if (tokens.refreshJwt === "rotation-1-refresh") {
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+      writeOrder.push(tokens.refreshJwt);
+    });
+
+    await createAgentSession(makeCredentials(), persistSession);
+
+    const handler = mockPersistHandlerHolder.current;
+    const first = handler?.("update", {
+      accessJwt: "rotation-1-access",
+      refreshJwt: "rotation-1-refresh",
+      handle: "alice.bsky.social",
+      did: "did:plc:abc123",
+      active: true,
+    });
+    const second = handler?.("update", {
+      accessJwt: "rotation-2-access",
+      refreshJwt: "rotation-2-refresh",
+      handle: "alice.bsky.social",
+      did: "did:plc:abc123",
+      active: true,
+    });
+    await Promise.all([first, second]);
+
+    expect(writeOrder).toEqual(["rotation-1-refresh", "rotation-2-refresh"]);
+  });
+
   it("ignores session-change events that carry no session (expired/failed)", async () => {
     mockResumeSession.mockResolvedValue(undefined);
     const persistSession = vi.fn().mockResolvedValue(undefined);

@@ -35,8 +35,13 @@ vi.mock("../../../server/utils/feedSourceDetector", () => ({
   detectFeedSource: vi.fn(),
 }));
 
+import { DrizzleQueryError } from "drizzle-orm";
 import { createFeedForUser } from "../../../server/utils/feedCreation";
-import { FREE_PLAN_FEED_LIMIT } from "../../../server/utils/feedLimit";
+import {
+  FREE_PLAN_FEED_LIMIT,
+  FEED_LIMIT_DB_ERROR_MARKER,
+  FEED_LIMIT_SQLSTATE,
+} from "../../../server/utils/feedLimit";
 import { getAccountPlan } from "../../../server/utils/subscriptions";
 import {
   validateFeedContent,
@@ -50,6 +55,21 @@ const mockFetchFeedBody = vi.mocked(fetchFeedBody);
 const mockDetectFeedSource = vi.mocked(detectFeedSource);
 
 const NEW_URL = "https://example.com/brand-new.xml";
+
+// Builds the driver error the trigger produces: a Postgres error carrying the
+// marker message and the check_violation SQLSTATE, wrapped by drizzle in a
+// DrizzleQueryError whose own message is the failed SQL (with params).
+function drizzleErrorWithCause(cause: Error) {
+  return new DrizzleQueryError("insert into feeds ... ", [], cause);
+}
+
+function capViolationCause() {
+  const cause = new Error(FEED_LIMIT_DB_ERROR_MARKER) as Error & {
+    code: string;
+  };
+  cause.code = FEED_LIMIT_SQLSTATE;
+  return cause;
+}
 
 function planFor(plan: "free" | "pro") {
   return {
@@ -84,6 +104,60 @@ describe("createFeedForUser plan cap (real feedLimit guard)", () => {
     });
     expect(mockValidateFeedContent).not.toHaveBeenCalled();
     expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("maps the DB cap trigger's error to a 403 when a raced add slips past the pre-check", async () => {
+    // Under the cap, so the app-level pre-check passes and the add reaches the
+    // insert — but a concurrent add committed first, so the DB trigger rejects
+    // this one. createFeedForUser must surface that as the same 403.
+    mockGetAccountPlan.mockResolvedValue(planFor("free"));
+    mockCount.mockResolvedValue([{ value: FREE_PLAN_FEED_LIMIT - 1 }]);
+    mockReturning.mockRejectedValueOnce(
+      drizzleErrorWithCause(capViolationCause()),
+    );
+
+    await expect(createFeedForUser(1, NEW_URL)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(mockInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not swallow an unrelated insert error as a cap rejection", async () => {
+    mockGetAccountPlan.mockResolvedValue(planFor("free"));
+    mockCount.mockResolvedValue([{ value: FREE_PLAN_FEED_LIMIT - 1 }]);
+    mockReturning.mockRejectedValueOnce(
+      drizzleErrorWithCause(new Error("connection reset")),
+    );
+
+    // Rethrown unchanged (as the wrapped driver error), never remapped to 403.
+    const error = await createFeedForUser(1, NEW_URL).catch(
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toMatchObject({ cause: { message: "connection reset" } });
+    expect(error).not.toHaveProperty("statusCode", 403);
+  });
+
+  it("does not treat the marker text in an unrelated error as a cap rejection", async () => {
+    // A URL param can contain the marker string, which drizzle embeds in the
+    // wrapper message; without the SQLSTATE guard that would false-positive.
+    mockGetAccountPlan.mockResolvedValue(planFor("free"));
+    mockCount.mockResolvedValue([{ value: FREE_PLAN_FEED_LIMIT - 1 }]);
+    const cause = new Error("connection reset") as Error & { code: string };
+    cause.code = "08006";
+    mockReturning.mockRejectedValueOnce(
+      new DrizzleQueryError(
+        `insert into feeds url=${FEED_LIMIT_DB_ERROR_MARKER}`,
+        [],
+        cause,
+      ),
+    );
+
+    const error = await createFeedForUser(1, NEW_URL).catch(
+      (thrown: unknown) => thrown,
+    );
+    // Pin that the driver error propagated unchanged (not resolved, not 403).
+    expect(error).toMatchObject({ cause: { message: "connection reset" } });
+    expect(error).not.toHaveProperty("statusCode", 403);
   });
 
   it("allows the last slot but rejects the one over the cap (boundary)", async () => {

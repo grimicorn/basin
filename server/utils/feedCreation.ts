@@ -4,7 +4,11 @@
 // index). Both POST /api/feeds and the OPML import route call this so the
 // two entry points can never drift on validation or dedupe behavior.
 import { feeds } from "../db/schema";
-import { assertWithinFeedLimit } from "./feedLimit";
+import {
+  assertWithinFeedLimit,
+  feedLimitExceededError,
+  isFeedLimitDbError,
+} from "./feedLimit";
 import { fetchFeedBody, validateFeedContent } from "./feedValidator";
 import { detectFeedSource } from "./feedSourceDetector";
 
@@ -98,20 +102,46 @@ export async function createFeedForUser(
   }
 
   const resolvedSource = sourceOverride ?? detectedSource;
-
-  const [feed] = await useDb()
-    .insert(feeds)
-    .values({
-      userId,
-      url,
-      source: resolvedSource,
-      sourceOverride: sourceOverride ?? null,
-    })
-    .onConflictDoUpdate({
-      target: [feeds.userId, feeds.url],
-      set: { source: resolvedSource, sourceOverride: sourceOverride ?? null },
-    })
-    .returning();
-
+  const feed = await upsertFeed(userId, url, resolvedSource, sourceOverride);
   return { ...feed, detectedSource } as CreatedFeed;
+}
+
+// Isolates the insert so the one place that can surface the DB cap trigger
+// (migration 0011_enforce_source_cap.sql, rejecting a raced over-cap add) maps
+// it back to the same 403 the app-level pre-check throws. Any other DB error
+// propagates unchanged.
+async function upsertFeed(
+  userId: number,
+  url: string,
+  resolvedSource: FeedSource,
+  sourceOverride?: FeedSource,
+) {
+  try {
+    const [feed] = await useDb()
+      .insert(feeds)
+      .values({
+        userId,
+        url,
+        source: resolvedSource,
+        sourceOverride: sourceOverride ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [feeds.userId, feeds.url],
+        set: { source: resolvedSource, sourceOverride: sourceOverride ?? null },
+      })
+      .returning();
+    return feed;
+  } catch (error) {
+    if (isFeedLimitDbError(error)) {
+      // The trigger only fires when the app-level pre-check raced and lost, or
+      // the cap literals drifted between feedLimit.ts and migration 0011 — both
+      // are server-side signals invisible in the returned 403, so log loudly.
+      console.error(
+        `Feed cap enforced at the DB layer for user ${userId}: the app-level pre-check raced and lost, or FREE_PLAN_FEED_LIMIT drifted from migration 0011.`,
+        error,
+      );
+      throw feedLimitExceededError();
+    }
+    throw error;
+  }
 }

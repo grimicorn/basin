@@ -83,8 +83,11 @@ describe("POST /api/feed-sync", () => {
 
     const [callArgs] = mockFindMany.mock.calls[0];
     const { sql, params } = new PgDialect().sqlToQuery(callArgs.where);
-    expect(sql).toContain('"feeds"."paused" =');
-    expect(params).toContain(false);
+    // Assert the value bound to the paused predicate specifically is `false`, so
+    // the check can't pass on an unrelated boolean param being false.
+    const pausedPlaceholder = sql.match(/"feeds"\."paused" = \$(\d+)/);
+    expect(pausedPlaceholder).not.toBeNull();
+    expect(params[Number(pausedPlaceholder![1]) - 1]).toBe(false);
   });
 
   it("throws 502 when every feed emit fails", async () => {

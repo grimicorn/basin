@@ -7,8 +7,8 @@ const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy }));
 const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
-// update().set().where() is awaited directly on the pause path; the reactivate
-// path additionally calls .returning() to count the rows it cleared.
+// Both the pause and reactivate paths call update().set().where().returning();
+// returning() yields the rows actually changed, which each function counts.
 const mockUpdateReturning = vi.fn();
 const mockUpdateWhere = vi.fn(() => ({ returning: mockUpdateReturning }));
 const mockUpdateSet = vi.fn(() => ({ where: mockUpdateWhere }));

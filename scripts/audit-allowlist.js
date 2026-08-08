@@ -9,6 +9,11 @@
 // transitive chain. Those were eliminated by pinning `@netlify/sdk` to ^5.0.4
 // via the `overrides` block in package.json — sdk 5.x dropped the
 // @stackbit/* / @netlify/content-engine dependencies entirely.
+//
+// The current entries cover the unpatched `image-size` DoS advisories (no
+// published fix — latest 2.0.2, advisory range <=2.0.2) that reach the tree only
+// through @netlify/dev-utils, plus the chained @netlify/async-workloads advisory
+// that is a pure consequence of the same image-size root cause.
 
 export const ALLOWLIST_REVIEW_BY = "2026-09-27";
 
@@ -18,7 +23,38 @@ export const ALLOWLIST_REVIEW_BY = "2026-09-27";
 // "dev-only" package later moves into the production path under a different
 // name, the suppression no longer applies and the gate fails as intended.
 /** @type {Array<{ id: string, packages: string[], reason: string }>} */
-export const ALLOWED_ADVISORIES = [];
+export const ALLOWED_ADVISORIES = [
+  {
+    id: "GHSA-w3rx-r6r6-pgpr",
+    packages: ["image-size"],
+    reason:
+      "image-size ICNS-parser DoS (infinite loop). No patched release exists: " +
+      "latest published image-size is 2.0.2 and the advisory range is <=2.0.2, " +
+      "so no override can resolve it. Reached only transitively via " +
+      "@netlify/async-workloads > @netlify/sdk > ... > @netlify/dev-utils > image-size — " +
+      "netlify build/dev tooling, not basin's request path; basin never parses " +
+      "untrusted images through image-size. npm's only 'fix' is a semver-major " +
+      "downgrade of the direct @netlify/async-workloads dependency. Re-check for an " +
+      "image-size patch or an @netlify/sdk chain that drops it by reviewBy.",
+  },
+  {
+    id: "GHSA-5p2g-fcmc-qvqq",
+    packages: ["image-size"],
+    reason:
+      "image-size JXL/HEIF-parser DoS (infinite loop). Same root cause and reachability " +
+      "as GHSA-w3rx-r6r6-pgpr: no patched image-size release (latest 2.0.2, advisory " +
+      "range <=2.0.2), pulled only through @netlify/dev-utils, not basin's runtime path.",
+  },
+  {
+    id: "source-WQd50vOH5wPTzKenE46N2oa/B6QboJET5IMAHAcuCaUn1/WqjtDxaFSZ/ICntZ3c1NLIv9v0lImDYe5nP8Z44g==",
+    packages: ["@netlify/async-workloads"],
+    reason:
+      "Chained 'depends on vulnerable versions of @netlify/sdk' advisory that exists " +
+      "solely because @netlify/sdk transitively pulls the unpatched image-size above. " +
+      "Not a distinct vulnerability — it clears automatically once image-size ships a fix. " +
+      "The only npm-proposed remediation is a semver-major downgrade of the direct dep.",
+  },
+];
 
 const ALLOWED_KEYS = new Set(
   ALLOWED_ADVISORIES.flatMap((advisory) =>

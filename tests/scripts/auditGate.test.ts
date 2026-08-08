@@ -7,15 +7,15 @@ import {
   parseAuditReport,
   partitionByAllowlist,
 } from "../../scripts/audit-gate.js";
-import { ALLOWLIST_REVIEW_BY } from "../../scripts/audit-allowlist.js";
+import {
+  ALLOWED_ADVISORIES,
+  ALLOWLIST_REVIEW_BY,
+  isAdvisoryAllowed,
+} from "../../scripts/audit-allowlist.js";
 
-// Self-contained fixture IDs for partitionByAllowlist tests.
-// These are not in the real allowlist (which is intentionally empty after the
-// @netlify/sdk override remediated all prior entries). The tests below exercise
-// partitionByAllowlist's logic in isolation using the isAdvisoryAllowed check
-// against the real (empty) allowlist — so all advisories land in "blocking".
-// Tests that previously verified suppression behavior are reframed to verify
-// the "nothing is suppressed with an empty allowlist" invariant.
+// Self-contained fixture IDs for partitionByAllowlist tests. These are
+// deliberately NOT in the real allowlist, so they always land in "blocking" and
+// stay valid regardless of which advisories the real list currently suppresses.
 const TEST_ID = "GHSA-0000-test-abcd";
 const TEST_PACKAGE = "test-package-fixture";
 
@@ -181,6 +181,93 @@ describe("partitionByAllowlist", () => {
     const { suppressed, blocking } = partitionByAllowlist(advisories);
     expect(suppressed).toEqual([]);
     expect(blocking).toHaveLength(2);
+  });
+
+  it("suppresses every real allowlist entry by its exact id and package", () => {
+    // Guard so this fails loudly (rather than passing vacuously on []) if the
+    // allowlist is ever emptied without also revisiting these content tests.
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
+    const advisories = ALLOWED_ADVISORIES.flatMap((entry) =>
+      entry.packages.map((packageName) => ({
+        id: entry.id,
+        severity: "high",
+        package: packageName,
+        title: "t",
+      })),
+    );
+    const { suppressed, blocking } = partitionByAllowlist(advisories);
+    expect(blocking).toEqual([]);
+    expect(suppressed).toHaveLength(advisories.length);
+  });
+});
+
+describe("isAdvisoryAllowed (real allowlist)", () => {
+  it("allows each real id::package pair", () => {
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
+    for (const entry of ALLOWED_ADVISORIES) {
+      for (const packageName of entry.packages) {
+        expect(isAdvisoryAllowed(entry.id, packageName)).toBe(true);
+      }
+    }
+  });
+
+  it("rejects a real advisory id filed against a different package", () => {
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
+    const [firstEntry] = ALLOWED_ADVISORIES;
+    expect(isAdvisoryAllowed(firstEntry.id, "some-other-package")).toBe(false);
+  });
+
+  it("rejects an advisory id that is not on the allowlist", () => {
+    expect(isAdvisoryAllowed("GHSA-unknown-id", "image-size")).toBe(false);
+  });
+
+  it("gives every entry a non-empty reason and a unique id::package key", () => {
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
+    const keys = new Set<string>();
+    for (const entry of ALLOWED_ADVISORIES) {
+      expect(entry.packages.length).toBeGreaterThan(0);
+      expect(entry.reason.trim().length).toBeGreaterThan(0);
+      for (const packageName of entry.packages) {
+        const key = `${entry.id}::${packageName}`;
+        expect(keys.has(key)).toBe(false);
+        keys.add(key);
+      }
+    }
+  });
+
+  // The chained @netlify/async-workloads advisory carries no upstream GHSA url,
+  // so the gate derives its key as `source-<via.source>`. This asserts a url-less
+  // advisory round-trips through collect + partition and is suppressed, i.e. the
+  // `source-…` id in the allowlist matches what audit-gate actually computes.
+  it("suppresses a url-less chained advisory whose derived source id is allowlisted", () => {
+    const chainedEntry = ALLOWED_ADVISORIES.find((entry) =>
+      entry.id.startsWith("source-"),
+    );
+    expect(chainedEntry).toBeDefined();
+    const sourceValue = chainedEntry!.id.slice("source-".length);
+    const [packageName] = chainedEntry!.packages;
+    const report = {
+      vulnerabilities: {
+        [packageName]: {
+          via: [
+            {
+              name: packageName,
+              url: null,
+              source: sourceValue,
+              severity: "high",
+              title: "Depends on vulnerable versions",
+            },
+          ],
+        },
+      },
+    };
+    const advisories = collectBlockingAdvisories(report);
+    expect(advisories.map((advisory) => advisory.id)).toEqual([
+      chainedEntry!.id,
+    ]);
+    const { suppressed, blocking } = partitionByAllowlist(advisories);
+    expect(blocking).toEqual([]);
+    expect(suppressed).toHaveLength(1);
   });
 });
 

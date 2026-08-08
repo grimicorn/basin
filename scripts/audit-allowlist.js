@@ -2,8 +2,10 @@
 // tolerates. The gate fails on any high/critical advisory NOT listed here, so a
 // newly introduced vulnerability still breaks the build.
 //
-// Every entry must have a documented non-breaking fix unavailable justification
-// and a `reviewBy` expiry date that forces periodic re-evaluation.
+// Every entry must have a documented "no non-breaking fix available"
+// justification in its `reason`. Periodic re-evaluation is forced by the single
+// shared `ALLOWLIST_REVIEW_BY` date below: once it passes, the gate fails until
+// every entry is re-reviewed (for an upstream fix) and the date is bumped.
 //
 // Previously this list contained 14 entries for the Stackbit/content-engine
 // transitive chain. Those were eliminated by pinning `@netlify/sdk` to ^5.0.4

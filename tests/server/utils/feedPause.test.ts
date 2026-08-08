@@ -97,15 +97,20 @@ describe("pauseFeedsOverFreeLimit", () => {
     );
 
     // The two newest feeds (ids 11 and 12) are paused; the oldest ten survive,
-    // and the write is scoped to this user.
+    // and the write is scoped to this user. Assert the full bound-param set
+    // (user_id, the paused=false guard, then exactly the two over-cap ids) so
+    // the test pins the precise pause selection rather than passing on any
+    // param list that merely happens to contain those ids.
     const { sql, params } = dialect.sqlToQuery(
       mockUpdateWhere.mock.calls[0][0],
     );
     expect(sql).toContain('"feeds"."user_id" =');
-    expect(params).toContain(USER_ID);
-    expect(params).toContain(FREE_PLAN_FEED_LIMIT + 1);
-    expect(params).toContain(FREE_PLAN_FEED_LIMIT + 2);
-    expect(params).not.toContain(1);
+    expect(params).toEqual([
+      USER_ID,
+      false,
+      FREE_PLAN_FEED_LIMIT + 1,
+      FREE_PLAN_FEED_LIMIT + 2,
+    ]);
   });
 
   it("is idempotent: over-cap sources already paused are not rewritten", async () => {

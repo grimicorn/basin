@@ -45,6 +45,39 @@ async function emitOnDemandEvent(
   return result.eventId;
 }
 
+type EmitOutcome = { success: true; eventId: string } | { success: false };
+
+// Mirrors the scheduled path's per-feed resilience: one feed's failed emit
+// must not abort the rest, so failures are caught and reported, not thrown.
+async function tryEmitOnDemandEvent(
+  client: AsyncWorkloadsClient,
+  userId: number,
+  feed: { id: number; source: string },
+): Promise<EmitOutcome> {
+  try {
+    const eventId = await emitOnDemandEvent(client, {
+      userId,
+      feedId: feed.id,
+      sourceType: feed.source as SyncFeedEventData["sourceType"],
+      mode: "on-demand",
+    });
+
+    return { success: true, eventId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      JSON.stringify({
+        event: "feed-sync.emit-failed",
+        userId,
+        feedId: feed.id,
+        error: message,
+      }),
+    );
+
+    return { success: false };
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const user = event.context.user;
   if (!user) {
@@ -54,22 +87,32 @@ export default defineEventHandler(async (event) => {
   const userFeeds = await fetchUserSyncableFeeds(user.id);
 
   if (userFeeds.length === 0) {
-    return { queued: 0, eventIds: [] };
+    return { queued: 0, failed: 0, eventIds: [] };
   }
 
   const client = new AsyncWorkloadsClient();
   const eventIds: string[] = [];
+  let failed = 0;
 
   for (const feed of userFeeds) {
-    const eventId = await emitOnDemandEvent(client, {
-      userId: user.id,
-      feedId: feed.id,
-      sourceType: feed.source as SyncFeedEventData["sourceType"],
-      mode: "on-demand",
-    });
+    const outcome = await tryEmitOnDemandEvent(client, user.id, feed);
 
-    eventIds.push(eventId);
+    if (!outcome.success) {
+      failed += 1;
+      continue;
+    }
+
+    eventIds.push(outcome.eventId);
   }
 
-  return { queued: eventIds.length, eventIds };
+  // Partial success returns counts; a total failure stays loud so the caller
+  // never mistakes an emit outage for "nothing to sync".
+  if (eventIds.length === 0 && failed > 0) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: "Failed to queue feed sync",
+    });
+  }
+
+  return { queued: eventIds.length, failed, eventIds };
 });

@@ -215,6 +215,54 @@ describe("isAdvisoryAllowed (real allowlist)", () => {
   it("rejects an advisory id that is not on the allowlist", () => {
     expect(isAdvisoryAllowed("GHSA-unknown-id", "image-size")).toBe(false);
   });
+
+  it("gives every entry a non-empty reason and a unique id::package key", () => {
+    const keys = new Set<string>();
+    for (const entry of ALLOWED_ADVISORIES) {
+      expect(entry.packages.length).toBeGreaterThan(0);
+      expect(entry.reason.trim().length).toBeGreaterThan(0);
+      for (const packageName of entry.packages) {
+        const key = `${entry.id}::${packageName}`;
+        expect(keys.has(key)).toBe(false);
+        keys.add(key);
+      }
+    }
+  });
+
+  // The chained @netlify/async-workloads advisory carries no upstream GHSA url,
+  // so the gate derives its key as `source-<via.source>`. This asserts a url-less
+  // advisory round-trips through collect + partition and is suppressed, i.e. the
+  // `source-…` id in the allowlist matches what audit-gate actually computes.
+  it("suppresses a url-less chained advisory whose derived source id is allowlisted", () => {
+    const chainedEntry = ALLOWED_ADVISORIES.find((entry) =>
+      entry.id.startsWith("source-"),
+    );
+    expect(chainedEntry).toBeDefined();
+    const sourceValue = chainedEntry!.id.slice("source-".length);
+    const [packageName] = chainedEntry!.packages;
+    const report = {
+      vulnerabilities: {
+        [packageName]: {
+          via: [
+            {
+              name: packageName,
+              url: null,
+              source: sourceValue,
+              severity: "high",
+              title: "Depends on vulnerable versions",
+            },
+          ],
+        },
+      },
+    };
+    const advisories = collectBlockingAdvisories(report);
+    expect(advisories.map((advisory) => advisory.id)).toEqual([
+      chainedEntry!.id,
+    ]);
+    const { suppressed, blocking } = partitionByAllowlist(advisories);
+    expect(blocking).toEqual([]);
+    expect(suppressed).toHaveLength(1);
+  });
 });
 
 describe("assertUsableReport", () => {

@@ -32,12 +32,13 @@ export const ALLOWED_ADVISORIES = [
     reason:
       "image-size ICNS-parser DoS (infinite loop). No patched release exists: " +
       "latest published image-size is 2.0.2 and the advisory range is <=2.0.2, " +
-      "so no override can resolve it. Reached only transitively via " +
-      "@netlify/async-workloads > @netlify/sdk > ... > @netlify/dev-utils > image-size — " +
-      "netlify build/dev tooling, not basin's request path; basin never parses " +
-      "untrusted images through image-size. npm's only 'fix' is a semver-major " +
-      "downgrade of the direct @netlify/async-workloads dependency. Re-check for an " +
-      "image-size patch or an @netlify/sdk chain that drops it by reviewBy.",
+      "so no override can resolve it. It ships in the PRODUCTION tree via the " +
+      "@netlify/async-workloads runtime dependency " +
+      "(@netlify/async-workloads > @netlify/sdk > ... > @netlify/dev-utils > image-size), " +
+      "but the vulnerable code path — image header parsing — is never invoked by basin: " +
+      "no basin route feeds attacker-controlled bytes to image-size. npm's only 'fix' is a " +
+      "semver-major downgrade of the direct @netlify/async-workloads dependency. Re-check " +
+      "for an image-size patch or an @netlify/sdk chain that drops it by ALLOWLIST_REVIEW_BY.",
   },
   {
     id: "GHSA-5p2g-fcmc-qvqq",
@@ -45,7 +46,9 @@ export const ALLOWED_ADVISORIES = [
     reason:
       "image-size JXL/HEIF-parser DoS (infinite loop). Same root cause and reachability " +
       "as GHSA-w3rx-r6r6-pgpr: no patched image-size release (latest 2.0.2, advisory " +
-      "range <=2.0.2), pulled only through @netlify/dev-utils, not basin's runtime path.",
+      "range <=2.0.2), and although it ships in the production tree via " +
+      "@netlify/async-workloads > ... > @netlify/dev-utils, basin never passes " +
+      "attacker-controlled bytes to image-size's parsers.",
   },
   {
     id: "source-WQd50vOH5wPTzKenE46N2oa/B6QboJET5IMAHAcuCaUn1/WqjtDxaFSZ/ICntZ3c1NLIv9v0lImDYe5nP8Z44g==",

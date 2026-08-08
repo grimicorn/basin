@@ -285,6 +285,7 @@ describe("useFeedStore", () => {
     });
 
     afterEach(() => {
+      vi.mocked(globalThis.$fetch).mockReset();
       vi.unstubAllGlobals();
     });
 

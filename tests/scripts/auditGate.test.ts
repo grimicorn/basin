@@ -184,6 +184,9 @@ describe("partitionByAllowlist", () => {
   });
 
   it("suppresses every real allowlist entry by its exact id and package", () => {
+    // Guard so this fails loudly (rather than passing vacuously on []) if the
+    // allowlist is ever emptied without also revisiting these content tests.
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
     const advisories = ALLOWED_ADVISORIES.flatMap((entry) =>
       entry.packages.map((packageName) => ({
         id: entry.id,
@@ -200,6 +203,7 @@ describe("partitionByAllowlist", () => {
 
 describe("isAdvisoryAllowed (real allowlist)", () => {
   it("allows each real id::package pair", () => {
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
     for (const entry of ALLOWED_ADVISORIES) {
       for (const packageName of entry.packages) {
         expect(isAdvisoryAllowed(entry.id, packageName)).toBe(true);
@@ -208,6 +212,7 @@ describe("isAdvisoryAllowed (real allowlist)", () => {
   });
 
   it("rejects a real advisory id filed against a different package", () => {
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
     const [firstEntry] = ALLOWED_ADVISORIES;
     expect(isAdvisoryAllowed(firstEntry.id, "some-other-package")).toBe(false);
   });
@@ -217,6 +222,7 @@ describe("isAdvisoryAllowed (real allowlist)", () => {
   });
 
   it("gives every entry a non-empty reason and a unique id::package key", () => {
+    expect(ALLOWED_ADVISORIES.length).toBeGreaterThan(0);
     const keys = new Set<string>();
     for (const entry of ALLOWED_ADVISORIES) {
       expect(entry.packages.length).toBeGreaterThan(0);

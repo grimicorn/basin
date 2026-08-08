@@ -13,9 +13,11 @@
 // @stackbit/* / @netlify/content-engine dependencies entirely.
 //
 // The current entries cover the unpatched `image-size` DoS advisories (no
-// published fix — latest 2.0.2, advisory range <=2.0.2) that reach the tree only
-// through @netlify/dev-utils, plus the chained @netlify/async-workloads advisory
-// that is a pure consequence of the same image-size root cause.
+// published fix — latest 2.0.2, advisory range <=2.0.2). image-size reaches the
+// PRODUCTION tree via @netlify/async-workloads > @netlify/sdk > @netlify/dev-utils,
+// so the suppression rests on unreachability (basin never feeds bytes to
+// image-size's parsers), NOT on dev-only scope. The third entry is the chained
+// @netlify/async-workloads advisory — a pure consequence of the same root cause.
 
 export const ALLOWLIST_REVIEW_BY = "2026-09-27";
 
@@ -37,8 +39,11 @@ export const ALLOWED_ADVISORIES = [
       "(@netlify/async-workloads > @netlify/sdk > ... > @netlify/dev-utils > image-size), " +
       "but the vulnerable code path — image header parsing — is never invoked by basin: " +
       "no basin route feeds attacker-controlled bytes to image-size. npm's only 'fix' is a " +
-      "semver-major downgrade of the direct @netlify/async-workloads dependency. Re-check " +
-      "for an image-size patch or an @netlify/sdk chain that drops it by ALLOWLIST_REVIEW_BY.",
+      "semver-major downgrade of the direct @netlify/async-workloads dependency. " +
+      "Unreachability verified 2026-08-08 via " +
+      "`grep -rniE 'image-size|@netlify/dev-utils|sharp|icns|jxl|heif' server app` — " +
+      "no basin-owned call sites. Re-check for an image-size patch or an @netlify/sdk " +
+      "chain that drops it by ALLOWLIST_REVIEW_BY.",
   },
   {
     id: "GHSA-5p2g-fcmc-qvqq",
@@ -57,7 +62,11 @@ export const ALLOWED_ADVISORIES = [
       "Chained 'depends on vulnerable versions of @netlify/sdk' advisory that exists " +
       "solely because @netlify/sdk transitively pulls the unpatched image-size above. " +
       "Not a distinct vulnerability — it clears automatically once image-size ships a fix. " +
-      "The only npm-proposed remediation is a semver-major downgrade of the direct dep.",
+      "The only npm-proposed remediation is a semver-major downgrade of the direct dep. " +
+      "The `source-…` id is npm's synthetic id for this url-less chained advisory " +
+      "(regenerate with " +
+      "`npm audit --json | jq '.vulnerabilities[\"@netlify/async-workloads\"].via'`); " +
+      "if it changes, the gate will fail loudly rather than silently pass.",
   },
 ];
 

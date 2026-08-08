@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { mockSend, mockFindMany } = vi.hoisted(() => ({
   mockSend: vi.fn(),
@@ -28,9 +28,16 @@ const RSS_FEED = { id: 1, source: "rss" };
 const PODCAST_FEED = { id: 2, source: "podcast" };
 
 describe("POST /api/feed-sync", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockSend.mockResolvedValue({ sendStatus: "succeeded", eventId: "evt-123" });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("throws 401 when unauthenticated", async () => {
@@ -43,7 +50,7 @@ describe("POST /api/feed-sync", () => {
     mockFindMany.mockResolvedValue([]);
 
     const result = await handler(makeEvent({ id: 1 }));
-    expect(result).toEqual({ queued: 0, eventIds: [] });
+    expect(result).toEqual({ queued: 0, failed: 0, eventIds: [] });
     expect(mockSend).not.toHaveBeenCalled();
   });
 
@@ -52,6 +59,7 @@ describe("POST /api/feed-sync", () => {
 
     const result = await handler(makeEvent({ id: 5 }));
     expect(result.queued).toBe(2);
+    expect(result.failed).toBe(0);
     expect(result.eventIds).toHaveLength(2);
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
@@ -67,11 +75,61 @@ describe("POST /api/feed-sync", () => {
     });
   });
 
-  it("throws when the client returns a failed sendStatus", async () => {
-    mockFindMany.mockResolvedValue([RSS_FEED]);
+  it("throws 502 when every feed emit fails", async () => {
+    mockFindMany.mockResolvedValue([RSS_FEED, PODCAST_FEED]);
     mockSend.mockResolvedValue({ sendStatus: "failed", eventId: "" });
 
-    await expect(handler(makeEvent({ id: 5 }))).rejects.toThrow();
+    await expect(handler(makeEvent({ id: 5 }))).rejects.toMatchObject({
+      statusCode: 502,
+    });
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws 502 and logs each failure when every emit rejects", async () => {
+    mockFindMany.mockResolvedValue([RSS_FEED, PODCAST_FEED]);
+    mockSend.mockRejectedValue(new Error("emit exploded"));
+
+    await expect(handler(makeEvent({ id: 5 }))).rejects.toMatchObject({
+      statusCode: 502,
+    });
+    expect(errorSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("continues processing remaining feeds when one feed's emit fails", async () => {
+    mockFindMany.mockResolvedValue([RSS_FEED, PODCAST_FEED]);
+    mockSend
+      .mockRejectedValueOnce(new Error("emit exploded"))
+      .mockResolvedValueOnce({ sendStatus: "succeeded", eventId: "evt-ok" });
+
+    const result = await handler(makeEvent({ id: 5 }));
+
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(result.queued).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(result.eventIds).toEqual(["evt-ok"]);
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const loggedPayload = JSON.parse(errorSpy.mock.calls[0][0] as string);
+    expect(loggedPayload).toMatchObject({
+      event: "feed-sync.emit-failed",
+      userId: 5,
+      feedId: RSS_FEED.id,
+    });
+  });
+
+  it("tolerates a non-Error rejection and still reports the partial outcome", async () => {
+    mockFindMany.mockResolvedValue([RSS_FEED, PODCAST_FEED]);
+    mockSend
+      .mockRejectedValueOnce("string failure")
+      .mockResolvedValueOnce({ sendStatus: "succeeded", eventId: "evt-ok" });
+
+    const result = await handler(makeEvent({ id: 5 }));
+
+    expect(result.queued).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const loggedPayload = JSON.parse(errorSpy.mock.calls[0][0] as string);
+    expect(loggedPayload.error).toBe("string failure");
   });
 
   it("returns the eventIds from the client", async () => {
